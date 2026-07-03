@@ -1,0 +1,12 @@
+# Keep the source distribution lean.
+
+# The example setup (scripts, generated experiment data, reports) is reference
+# material that lives in the git repo / on GitHub. It's not part of the package,
+# so don't ship it in the sdist.
+prune example_setup
+
+# Cruft that should never be packaged.
+global-exclude .DS_Store
+global-exclude *.py[cod]
+global-exclude __pycache__/*
+prune **/__pycache__
