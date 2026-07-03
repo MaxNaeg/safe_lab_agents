@@ -1,0 +1,67 @@
+{
+  "type": "analysis",
+  "id": "analysis_20260702_111101_637626",
+  "title": "Scan B -> C = 2\u00b7o_h \u2212 o_p = 73.05\u00b0 (mod 180); o_h,o_p individually degenerate",
+  "kind": "analysis",
+  "timestamp": "2026-07-02T11:11:01.637626+00:00",
+  "text": "QWP parked at neutral (qwp_true=0): light into the HWP is horizontal linear, extinction is essentially perfect (Pmin\u22480), confirming C_bg\u22480. Two methods for C=2\u00b7o_h\u2212o_p agree: analyzer-peak-vs-HWP slope = 2.000 (predicted +2, \u2713) with intercept giving C=73.04\u00b0; and the global collapse fit C=73.05\u00b10.02\u00b0 (mod 180). Sweep amplitude is flat (mean 0.5004, std 0.0023 = P0/2), i.e. light stays fully linear for all HWP \u2014 as expected.\n\nDEGENERACY DEMONSTRATED: all 432 (hwp,pol) points collapse onto a single sinusoid in u = pol_set \u2212 2\u00b7HWP_set with RMS 0.0050 W \u2248 detector \u03c3 (0.005 W). The power is a function of (2\u00b7HWP \u2212 pol) ALONE, so only the combination C=2\u00b7o_h\u2212o_p is observable; o_h and o_p cannot be separated by intensity measurements (HWP+polarizer act as one effective analyzer at 2\u00b7hwp_true \u2212 pol_true). C is defined mod 180\u00b0.",
+  "data": {
+    "hwp_set": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111101_637626.h5",
+      "dataset": "/hwp_set/data",
+      "shape": [
+        36
+      ],
+      "dtype": "float64"
+    },
+    "pol_set": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111101_637626.h5",
+      "dataset": "/pol_set/data",
+      "shape": [
+        12
+      ],
+      "dtype": "float64"
+    },
+    "amp": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111101_637626.h5",
+      "dataset": "/amp/data",
+      "shape": [
+        36
+      ],
+      "dtype": "float64"
+    },
+    "phi_peak": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111101_637626.h5",
+      "dataset": "/phi_peak/data",
+      "shape": [
+        36
+      ],
+      "dtype": "float64"
+    },
+    "C_collapse_deg": 73.04857447863012,
+    "C_err_deg": 0.019476085313282886,
+    "C_slope_deg": 73.03837294269339,
+    "peak_slope": 2.00011519215307,
+    "collapse_rms": 0.004963429702068045,
+    "P0_B": 1.000838707026192
+  },
+  "references": [
+    "batch_20260702_110949_886033"
+  ],
+  "script": "\"\"\"Analyze Scan B (hwp x pol, qwp=neutral) -> C = 2*o_h - o_p, and demonstrate\nthe o_h/o_p degeneracy.\n\nPer-hwp harmonic fit gives analyzer peak phi(h). Model: phi = 2*h + C (mod 180),\nso the complex c=a1+i a2 has angle = deg2rad(4h + 2C): a LINEAR unwrap fit gives\nslope (expect +4 deg/deg, i.e. peak slope +2) and intercept 2C.\n\nDegeneracy demo: power depends only on u = pol_set - 2*hwp_set (since\npol_true - 2*hwp_true = u - C). Collapse all 432 points onto u (mod 180); a\nsingle sinusoid fit gives C from its peak and the collapse RMS proves the\n'only 2*o_h - o_p matters' structure.\n\"\"\"\nimport sys\nsys.path.insert(0, \"/agent/shared/scripts\"); sys.path.insert(0, \"/agent/workspace\")\nimport numpy as np, matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\nfrom scipy.optimize import curve_fit\nfrom auto_log_client import log_analysis, AUTO_LOG_DIR\n\nSCR = \"/tmp/claude-1001/-agent-workspace/5b062f49-458b-430d-8d6c-7c8ec035f7d0/scratchpad\"\nSIGMA = 0.005\nd = np.load(f\"{SCR}/scanB.npz\")\nhwp, pol, power = d[\"hwp_ax\"], d[\"pol_ax\"], d[\"power\"]\n\n# ---- per-row harmonic fit -------------------------------------------------\nth = np.deg2rad(pol)\nXd = np.column_stack([np.ones_like(th), np.cos(2*th), np.sin(2*th)])\ncoef, *_ = np.linalg.lstsq(Xd, power.T, rcond=None)\na0, a1, a2 = coef\namp = np.hypot(a1, a2); dc = a0\nphi = np.rad2deg(0.5*np.arctan2(a2, a1)) % 180.0    # analyzer peak set-angle\n\n# ---- slope fit: angle(c)=deg2rad(4h+2C) ----------------------------------\nc = a1 + 1j*a2\nang = np.unwrap(np.angle(c))               # radians\nslope, intercept = np.polyfit(hwp, np.rad2deg(ang), 1)   # deg per deg, deg\nC_slope = (intercept/2.0) % 180.0\npeak_slope = slope/2.0                      # expect +2\n\n# ---- degeneracy collapse: P vs u = pol_set - 2*hwp_set -------------------\nH, Pp = np.meshgrid(hwp, pol, indexing=\"ij\")\nu = (Pp - 2*H)                                       # (36,12)\nu_mod = u % 180.0\nuf, pf = u_mod.ravel(), power.ravel()\ndef col(u_, A, B, Cc):\n    return A + B*np.cos(2*np.deg2rad(u_ - Cc))\np0 = [pf.mean(), (pf.max()-pf.min())/2, uf[np.argmax(pf)]]\npopt, pcov = curve_fit(col, uf, pf, p0=p0, sigma=np.full_like(pf, SIGMA), absolute_sigma=True)\nA_c, B_c, C_col = popt; C_col %= 180.0\nC_err = float(np.sqrt(pcov[2, 2]))\ncollapse_rms = float(np.sqrt(np.mean((pf - col(uf, *popt))**2)))\nP0_B = 2*abs(B_c)\n\nprint(\"amp(h): mean=%.4f std=%.4f (should be ~const=P0/2)\" % (amp.mean(), amp.std()))\nprint(\"peak-vs-hwp slope = %.4f (expect +2.000)\" % peak_slope)\nprint(\"C (slope fit)     = %.3f deg (mod 180)\" % C_slope)\nprint(\"C (collapse fit)  = %.3f +/- %.3f deg (mod 180) ; P0=%.4f\" % (C_col, C_err, P0_B))\nprint(\"collapse RMS = %.5f W  vs noise sigma=%.4f -> degeneracy holds: %s\"\n      % (collapse_rms, SIGMA, collapse_rms < 3*SIGMA))\n\n# ---- figures --------------------------------------------------------------\nfig, ax = plt.subplots(figsize=(7.5,4.2))\nim = ax.pcolormesh(pol, hwp, power, shading=\"auto\", cmap=\"magma\")\n# overlay predicted peak line pol = 2*hwp + C (mod 180)\nhh = np.linspace(0,180,400)\nfor k in (-2,-1,0,1,2):\n    ax.plot((2*hh + C_col + 180*k), hh, \"c--\", lw=1)\nax.set_xlim(pol.min(), pol.max()); ax.set_ylim(hwp.min(), hwp.max())\nax.set_xlabel(\"polarizer set-angle (deg)\"); ax.set_ylabel(\"HWP set-angle (deg)\")\nax.set_title(\"Scan B: power(HWP, polarizer), QWP neutral\\n(peak line slope +2: dashed)\")\nfig.colorbar(im, label=\"power (W)\"); fig.tight_layout()\nfig.savefig(f\"{AUTO_LOG_DIR}/scanB_heatmap.png\", dpi=110); plt.close(fig)\n\nfig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11,4.2))\nax1.plot(hwp, phi, \"o\", ms=4)\nax1.set_xlabel(\"HWP set-angle (deg)\"); ax1.set_ylabel(\"analyzer peak (deg, mod 180)\")\nax1.set_title(f\"Analyzer peak vs HWP: slope={peak_slope:.3f} (\u2248+2)  =>  C={C_slope:.2f}\u00b0\")\nax2.plot(uf, pf, \".\", ms=5, alpha=0.6, label=\"all 432 points\")\nus = np.linspace(0,180,400); ax2.plot(us, col(us,*popt), \"r-\", lw=2,\n        label=f\"single sinusoid, peak C={C_col:.2f}\u00b0\")\nax2.set_xlabel(\"u = pol_set \u2212 2\u00b7HWP_set  (mod 180\u00b0)\"); ax2.set_ylabel(\"power (W)\")\nax2.set_title(f\"DEGENERACY: power depends only on u  (collapse RMS={collapse_rms:.4f} W \u2248 \u03c3)\")\nax2.legend(fontsize=8)\nfig.tight_layout(); fig.savefig(f\"{AUTO_LOG_DIR}/scanB_C_and_degeneracy.png\", dpi=110); plt.close(fig)\n\nlog_analysis(\n    title=\"Scan B -> C = 2\u00b7o_h \u2212 o_p = %.2f\u00b0 (mod 180); o_h,o_p individually degenerate\" % C_col,\n    kind=\"analysis\",\n    text=(\n        f\"QWP parked at neutral (qwp_true=0): light into the HWP is horizontal linear, \"\n        f\"extinction is essentially perfect (Pmin\u22480), confirming C_bg\u22480. Two methods for \"\n        f\"C=2\u00b7o_h\u2212o_p agree: analyzer-peak-vs-HWP slope = {peak_slope:.3f} (predicted +2, \u2713) \"\n        f\"with intercept giving C={C_slope:.2f}\u00b0; and the global collapse fit \"\n        f\"C={C_col:.2f}\u00b1{C_err:.2f}\u00b0 (mod 180). Sweep amplitude is flat (mean {amp.mean():.4f}, \"\n        f\"std {amp.std():.4f} = P0/2), i.e. light stays fully linear for all HWP \u2014 as expected.\\n\\n\"\n        f\"DEGENERACY DEMONSTRATED: all 432 (hwp,pol) points collapse onto a single sinusoid in \"\n        f\"u = pol_set \u2212 2\u00b7HWP_set with RMS {collapse_rms:.4f} W \u2248 detector \u03c3 ({SIGMA} W). The power \"\n        f\"is a function of (2\u00b7HWP \u2212 pol) ALONE, so only the combination C=2\u00b7o_h\u2212o_p is observable; \"\n        f\"o_h and o_p cannot be separated by intensity measurements (HWP+polarizer act as one \"\n        f\"effective analyzer at 2\u00b7hwp_true \u2212 pol_true). C is defined mod 180\u00b0.\"),\n    data={\"hwp_set\": hwp, \"pol_set\": pol, \"amp\": amp, \"phi_peak\": phi,\n          \"C_collapse_deg\": C_col, \"C_err_deg\": C_err, \"C_slope_deg\": C_slope,\n          \"peak_slope\": peak_slope, \"collapse_rms\": collapse_rms, \"P0_B\": P0_B},\n    references=[\"batch_20260702_110949_886033\"],\n    script=open(__file__).read(),\n    figures=[\"scanB_heatmap.png\", \"scanB_C_and_degeneracy.png\"],\n)\nnp.savez(f\"{SCR}/scanB_fit.npz\", hwp=hwp, pol=pol, amp=amp, phi=phi,\n         C=C_col, C_err=C_err, C_slope=C_slope, peak_slope=peak_slope,\n         collapse_rms=collapse_rms)\nprint(\"DONE\")\n",
+  "figures": [
+    {
+      "_type": "figure",
+      "file": "scanB_heatmap.png"
+    },
+    {
+      "_type": "figure",
+      "file": "scanB_C_and_degeneracy.png"
+    }
+  ],
+  "h5_file": "analysis_20260702_111101_637626.h5"
+}

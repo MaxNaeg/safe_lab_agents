@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "safe_lab_agents"
+version = "0.1.0"
+description = "Safely run AI agents in Docker to control scientific experiments via MCP"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Max Naegel"},
+]
+keywords = ["ai", "agents", "mcp", "docker", "experiment", "science", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "typer[all]>=0.9.0",
+    "docker>=7.0.0",
+    "fastmcp>=2.0.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "numpy>=2.0.0",
+    "matplotlib>=3.0.0",
+    "scipy>=1.10",
+    "h5py>=3.0.0",
+    "pyyaml>=6.0",
+    "markdown>=3.0",
+]
+
+[project.optional-dependencies]
+kadi4mat = ["kadi-apy>=0.49.0"]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "types-PyYAML",
+    "types-requests",
+    "types-docker",
+    "types-Markdown",
+]
+
+[project.scripts]
+agent = "safe_lab_agents.cli:app"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["safe_lab_agents*"]
+
+[tool.setuptools.package-data]
+"safe_lab_agents.docker.dockerfiles" = ["*"]
+
+[tool.mypy]
+# h5py ships no type stubs (and has no types-* package); treat its imports as
+# untyped rather than erroring. Stubs for yaml/requests/docker/markdown are
+# installed via the ``dev`` extra's ``types-*`` packages.
+[[tool.mypy.overrides]]
+module = ["h5py.*"]
+ignore_missing_imports = true

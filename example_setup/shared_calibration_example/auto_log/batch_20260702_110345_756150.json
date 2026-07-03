@@ -1,0 +1,4223 @@
+{
+  "id": "batch_20260702_110345_756150",
+  "type": "batch",
+  "label": "Fine polarizer sweep 0:5:180 (avg 8) at qwp=hwp=0",
+  "description": "",
+  "started_at": "2026-07-02T11:03:45.756157+00:00",
+  "completed_at": "2026-07-02T11:03:46.036117+00:00",
+  "experiment_count": 324,
+  "experiments": [
+    {
+      "id": "exp_20260702_110345_756979",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.756979+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 0.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 0.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_757794",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.757794+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05273082747742189,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_758659",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.758659+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05078112153423451,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_759483",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.759483+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04544287859470708,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_760267",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.760267+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04580077469694699,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_760972",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.760972+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05248190827103693,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_761744",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.761744+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.055991778325747726,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_762539",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.762539+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.045497950662961494,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_763334",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.763334+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05147075818739852,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_764067",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.764067+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 5.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 5.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_764779",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.764779+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.07052058690647005,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_765528",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.765528+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.0689280462479868,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_766358",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.766358+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.07325109179373418,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_767195",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.767195+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.07436965882248489,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_767991",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.767991+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.06452762956991083,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_768736",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.768736+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.07117659392064384,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_769473",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.769473+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.08089596410103077,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_770509",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.770509+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.059480532116802216,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_771500",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.771500+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 10.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 10.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_772416",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.772416+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10041553172645233,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_773307",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.773307+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.09669257608873429,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_774327",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.774327+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10334286133189101,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_775295",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.775295+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.09804650490378744,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_776253",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.776253+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.1043021952275145,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_777079",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.777079+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.09925805060906545,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_777922",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.777922+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10864682424851395,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_778869",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.778869+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.11118621886250454,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_779855",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.779855+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 15.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 15.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_780833",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.780833+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.15188576474692117,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_781751",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.781751+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.1556155519540546,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_782661",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.782661+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.15208373212875254,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_783472",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.783472+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.14639814478365054,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_784282",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.784282+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.15160462234720218,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_785088",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.785088+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.14572940976430404,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_786070",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.786070+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.15392166127019827,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_786976",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.786976+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.15019334467370565,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_787988",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.787988+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 20.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 20.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_788840",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.788840+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20623041922281635,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_789731",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.789731+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20360182840965782,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_790595",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.790595+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2079551872705159,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_791419",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.791419+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20721003317085734,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_792252",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.792252+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20844212747469992,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_793049",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.793049+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20664735603403947,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_793820",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.793820+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20371706832170555,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_794739",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.794739+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20466121162436945,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_795808",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.795808+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 25.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 25.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_796691",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.796691+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2714202953224077,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_797530",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.797530+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2803245523626833,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_798477",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.798477+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2694669766145335,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_799346",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.799346+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.26633000154514475,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_800230",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.800230+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.26980693467806416,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_801070",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.801070+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2681166794968334,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_801892",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.801892+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.27332401288029606,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_802754",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.802754+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.26575297864740655,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_803692",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.803692+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 30.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 30.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_804483",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.804483+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.3461957674285461,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_805299",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.805299+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.35479747530660083,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_806110",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.806110+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34897523485615045,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_806982",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.806982+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.3491814341721059,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_807825",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.807825+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34704954781623487,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_808650",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.808650+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.3467870343978631,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_809460",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.809460+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.3429952533179659,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_810313",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.810313+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.33687277015650324,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_811211",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.811211+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 35.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 35.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_812049",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.812049+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4259497665806545,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_812867",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.812867+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.42362734138333086,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_813729",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.813729+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4217913442424702,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_814557",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.814557+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.42415346423983874,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_815369",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.815369+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4208403806070973,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_816204",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.816204+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4113138010650672,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_817017",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.817017+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4191493824824244,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_817783",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.817783+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4233351387969739,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_818661",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.818661+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 40.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 40.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_819469",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.819469+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5012796913325435,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_820309",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.820309+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49798813670721126,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_821191",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.821191+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5106190448685576,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_822069",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.822069+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4955082107742201,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_822967",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.822967+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49021200868465925,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_823873",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.823873+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.500712456641299,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_824664",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.824664+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5013696028718352,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_825432",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.825432+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4838337469142495,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_826528",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.826528+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 45.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 45.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_827503",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.827503+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5855345346843454,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_828434",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.828434+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5778803513037877,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_829306",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.829306+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5789873099414997,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_830204",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.830204+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5818353767721146,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_831002",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.831002+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5799312838882759,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_831904",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.831904+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5848103821493482,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_832734",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.832734+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5761362796423279,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_833579",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.833579+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5839501043128146,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_834417",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.834417+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 50.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 50.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_835231",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.835231+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6566052703058146,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_836005",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.836005+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6561869034669159,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_836885",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.836885+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6571168808993385,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_837710",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.837710+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6574359165548641,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_838546",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.838546+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6608701545115501,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_839394",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.839394+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6579844170199881,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_840183",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.840183+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6546359736653685,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_840991",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.840991+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.653770720187624,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_841787",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.841787+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 55.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 55.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_842583",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.842583+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7372648616894385,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_843397",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.843397+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7288738060071323,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_844157",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.844157+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7275758482346703,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_844965",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.844965+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.720651371110122,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_845855",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.845855+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7357483340298423,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_846619",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.846619+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7394601430724508,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_847458",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.847458+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7214808566981785,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_848293",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.848293+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7290186493597124,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_849188",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.849188+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 60.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 60.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_850029",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.850029+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7908150485790706,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_850911",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.850911+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.787270332016061,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_851830",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.851830+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7931081596170182,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_852703",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.852703+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7901240833998124,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_853572",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.853572+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7872771851423409,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_854486",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.854486+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7865889055856213,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_855321",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.855321+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8047493721615111,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_856135",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.856135+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.790263428112698,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_857003",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.857003+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 65.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 65.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_857795",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.857795+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8582079300732939,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_858600",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.858600+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8515296772478318,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_859388",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.859388+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8472442958062388,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_860146",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.860146+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8428598837068623,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_860916",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.860916+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8449109085798163,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_861778",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.861778+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.853316528197195,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_862730",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.862730+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8466755226172129,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_863669",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.863669+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8513900596883313,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_864542",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.864542+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 70.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 70.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_865349",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.865349+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8959750982530584,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_866145",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.866145+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8928965139338662,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_866869",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.866869+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8961641121235261,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_867642",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.867642+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8990782362187499,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_868492",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.868492+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.898843760944042,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_869364",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.869364+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8955583952904601,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_870298",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.870298+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8970443331037161,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_871124",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.871124+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8970224268948593,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_872017",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.872017+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 75.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 75.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_872816",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.872816+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9333407880710581,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_873644",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.873644+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.924355001993783,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_874465",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.874465+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9248407376661809,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_875283",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.875283+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.924124774700721,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_876086",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.876086+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9271114990779284,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_876890",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.876890+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9318872598428233,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_877713",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.877713+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9166260773178864,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_878594",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.878594+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9302890468304443,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_879429",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.879429+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 80.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 80.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_880223",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.880223+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9610930616053648,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_881033",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.881033+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9558412725342469,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_881845",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.881845+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9579134592498695,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_882652",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.882652+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9519200714918277,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_883429",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.883429+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9556602169446069,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_884213",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.884213+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9510655881198671,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_884962",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.884962+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9542049953504668,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_885822",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.885822+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9517468154259359,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_886747",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.886747+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 85.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 85.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_887579",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.887579+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9559674863779525,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_888386",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.888386+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9524141730943633,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_889218",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.889218+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9538660682889053,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_890073",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.890073+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9637797118370487,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_890902",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.890902+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9561003309620029,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_891857",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.891857+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9485190876563349,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_892736",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.892736+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.95877642567814,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_893731",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.893731+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9576848769127618,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_894733",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.894733+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 90.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 90.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_895641",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.895641+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9510513903409085,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_896607",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.896607+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9481686274415974,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_897607",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.897607+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9465260776818664,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_898526",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.898526+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9520705320543211,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_899417",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.899417+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9499192454270076,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_900236",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.900236+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9567369859578824,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_901074",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.901074+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9440954963319709,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_901989",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.901989+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9501448243434613,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_902860",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.902860+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 95.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 95.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_903659",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.903659+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.930241473409081,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_904522",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.904522+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9315356651519252,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_905452",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.905452+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9323454832755781,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_906348",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.906348+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9322668580403092,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_907263",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.907263+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9321711996818742,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_908092",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.908092+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9351596432479035,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_908906",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.908906+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9326040095338539,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_909767",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.909767+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9269960513653154,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_910600",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.910600+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 100.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 100.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_911434",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.911434+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.900426355091287,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_912249",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.912249+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8941883090880424,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_913081",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.913081+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8995544662562629,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_913876",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.913876+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8995519489813709,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_914772",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.914772+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8876283297465505,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_915584",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.915584+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8906948319814124,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_916461",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.916461+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8896245034378858,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_917332",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.917332+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.885222484680843,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_918169",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.918169+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 105.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 105.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_919002",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.919002+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8506232352064157,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_919877",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.919877+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.852220348867504,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_920758",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.920758+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8483348559887268,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_921656",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.921656+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8488858154202613,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_922448",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.922448+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8551775058570661,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_923274",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.923274+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8448577157677223,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_924054",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.924054+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8540116696149143,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_924884",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.924884+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8462787221047156,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_925744",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.925744+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 110.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 110.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_926536",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.926536+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7918405378505178,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_927344",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.927344+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7899533397340759,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_928218",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.928218+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7924539458635308,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_928989",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.928989+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7870822364451803,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_929823",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.929823+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7975033744789337,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_930654",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.930654+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7934175414788568,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_931502",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.931502+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7940606137292092,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_932361",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.932361+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8022379922457091,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_933218",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.933218+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 115.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 115.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_934023",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.934023+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7342854527068436,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_934811",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.934811+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.732335566117317,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_935660",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.935660+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7365093012757459,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_936475",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.936475+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7238690605066904,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_937276",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.937276+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7203775126431129,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_938022",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.938022+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7338286174691305,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_939024",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.939024+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7185849740834163,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_939945",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.939945+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7198379392097942,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_940861",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.940861+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 120.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 120.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_941665",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.941665+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6565310743898909,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_942526",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.942526+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6562292488747539,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_943452",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.943452+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6538271477891883,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_944263",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.944263+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6546128107504108,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_945105",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.945105+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6577721343633633,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_945906",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.945906+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6557810383671674,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_946797",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.946797+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6562497023221378,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_947643",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.947643+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6572378897184783,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_948436",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.948436+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 125.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 125.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_949238",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.949238+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5824738335610243,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_950139",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.950139+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5742647042398152,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_951041",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.951041+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5786042366714956,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_951901",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.951901+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5790076468157045,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_952709",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.952709+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5782667038896376,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_953520",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.953520+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5769579021205149,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_954401",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.954401+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5777189255892501,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_955278",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.955278+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5843123327798933,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_956139",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.956139+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 130.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 130.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_956979",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.956979+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5001555164497508,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_957770",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.957770+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4939026495513661,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_958576",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.958576+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5087381878511442,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_959452",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.959452+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5006020326595229,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_960344",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.960344+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49697111462345156,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_961138",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.961138+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5041806242943044,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_961947",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.961947+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5004515964327697,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_962780",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.962780+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4979898439755804,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_963583",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.963583+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 135.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 135.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_964408",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.964408+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4261705093271998,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_965308",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.965308+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.42469848981912917,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_966264",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.966264+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.41832678106767535,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_967262",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.967262+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.41799407100237457,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_968095",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.968095+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4196991182357243,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_968968",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.968968+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.41767379064356164,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_969856",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.969856+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4254834128026293,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_970765",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.970765+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.42345387597074335,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_971852",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.971852+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 140.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 140.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_972712",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.972712+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.3386596979679687,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_973608",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.973608+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34699643085258347,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_974444",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.974444+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.3436308726522774,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_975240",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.975240+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34099236267637834,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_976047",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.976047+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34911792086140625,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_976926",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.976926+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.3487877505769648,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_977728",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.977728+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34931968723483864,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_978585",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.978585+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34815179306439115,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_979463",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.979463+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 145.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 145.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_980288",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.980288+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2696951530939855,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_981131",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.981131+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.26856670503542446,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_981922",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.981922+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2681564524949901,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_982753",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.982753+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2801506069494132,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_983641",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.983641+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.26543345841300886,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_984466",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.984466+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.27287412539899186,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_985376",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.985376+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2650127557077677,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_986347",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.986347+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2707058902215096,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_987372",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.987372+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 150.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 150.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_988341",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.988341+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.21249691077372165,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_989451",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.989451+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.19975775033770507,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_990423",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.990423+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2063702969707073,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_991279",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.991279+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.1992300917507193,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_992180",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.992180+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.19628388007910078,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_993039",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.993039+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.2009323101478004,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_993894",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.993894+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.21078803592687775,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_994832",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.994832+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.19507252988774346,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_995903",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:45.995903+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 155.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 155.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110345_996863",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.996863+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.1566940212271703,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_997738",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.997738+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.15818122369526216,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_998668",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.998668+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.1438161311251049,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110345_999455",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:45.999455+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.14048588941277443,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_000305",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.000305+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.14908140589914937,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_001157",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.001157+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.14159447344864193,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_002155",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.002155+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.1567878134515248,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_003059",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.003059+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.1465697530884017,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_004132",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:46.004132+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 160.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 160.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110346_004990",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.004990+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10674290486839935,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_005845",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.005845+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10983229483290004,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_006749",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.006749+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10022384899747748,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_007647",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.007647+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10549735530369904,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_008472",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.008472+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10944920680644882,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_009262",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.009262+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.09780968147557831,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_010046",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.010046+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.0955192854823796,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_010856",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.010856+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.11810445081539243,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_011763",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:46.011763+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 165.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 165.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110346_012702",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.012702+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.057010582684087034,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_013834",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.013834+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.06892040116940189,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_014790",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.014790+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.07567870227615581,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_015715",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.015715+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.07132839801689418,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_016594",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.016594+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.07856118554001851,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_017564",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.017564+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.06361140762059385,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_018636",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.018636+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.0685086543806703,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_019651",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.019651+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.0822832768685191,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_020704",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:46.020704+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 170.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 170.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110346_021593",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.021593+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05302170748850863,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_022451",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.022451+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04654826869824067,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_023339",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.023339+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.0474898304194266,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_024192",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.024192+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.056234499555382615,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_024975",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.024975+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05112891858671883,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_025797",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.025797+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.051439354405131255,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_026690",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.026690+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05285569555632472,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_027522",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.027522+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05183759965050668,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_028434",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:03:46.028434+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 175.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 175.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110346_029274",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.029274+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.03614548067564628,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_030036",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.030036+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.040112208938120335,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_030845",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.030845+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04810179964794398,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_031690",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.031690+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.03927361970177601,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_032529",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.032529+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.036985651064005615,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_033427",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.033427+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.046985813674059684,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_034342",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.034342+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.040412029816914934,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110346_035210",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:03:46.035210+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04747189949654004,
+          "unit": "W"
+        }
+      }
+    }
+  ]
+}

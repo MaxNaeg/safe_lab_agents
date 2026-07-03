@@ -1,0 +1,4 @@
+# Container build inputs must keep LF line endings: a CRLF shebang makes the
+# container exec "bash\r" and fail. Force LF even on Windows checkouts.
+*.sh text eol=lf
+safe_lab_agents/docker/dockerfiles/Dockerfile.* text eol=lf

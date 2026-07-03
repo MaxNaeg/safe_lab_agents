@@ -1,0 +1,79 @@
+{
+  "type": "analysis",
+  "id": "analysis_20260702_111655_535619",
+  "title": "Hold-out validation PASSED \u2014 calibration predicts blind configs to \u03c3 level (RMS=0.0020 W)",
+  "kind": "analysis",
+  "timestamp": "2026-07-02T11:16:55.535619+00:00",
+  "text": "Blind test on 19 (qwp,hwp,pol) triples over the full 0\u2013360\u00b0 range (16 random + 3 diagnostic), none on the calibration grids. Predicting power from the calibrated model (o_q=78.04\u00b0, gauge o_h=0 \u21d2 o_p=\u2212C=\u221273.04\u00b0, P0=1.001 W, Cbg=-0.0004 W, ideal waveplates) vs fresh measurements (avg 5): RMS=0.00197 W, max|err|=0.00371 W \u2014 both at the averaged-noise level (\u03c3/\u221a5=0.0022 W). The diagnostic configs behaved as designed (aligned analyzer \u2192 ~P0, crossed \u2192 ~0). This confirms the full forward model and the calibrated offsets over the entire operating range; the o_q/C parametrization is sufficient to predict any measurement (individual o_h,o_p need not \u2014 and cannot \u2014 be known).",
+  "data": {
+    "qwp": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111655_535619.h5",
+      "dataset": "/qwp/data",
+      "shape": [
+        19
+      ],
+      "dtype": "float64"
+    },
+    "hwp": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111655_535619.h5",
+      "dataset": "/hwp/data",
+      "shape": [
+        19
+      ],
+      "dtype": "float64"
+    },
+    "pol": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111655_535619.h5",
+      "dataset": "/pol/data",
+      "shape": [
+        19
+      ],
+      "dtype": "float64"
+    },
+    "predicted": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111655_535619.h5",
+      "dataset": "/predicted/data",
+      "shape": [
+        19
+      ],
+      "dtype": "float64"
+    },
+    "measured": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111655_535619.h5",
+      "dataset": "/measured/data",
+      "shape": [
+        19
+      ],
+      "dtype": "float64"
+    },
+    "residuals": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111655_535619.h5",
+      "dataset": "/residuals/data",
+      "shape": [
+        19
+      ],
+      "dtype": "float64"
+    },
+    "rms_W": 0.0019683657011153113,
+    "max_abs_err_W": 0.003705251367473683,
+    "sigma_mean_W": 0.0022360679774997894
+  },
+  "references": [
+    "batch_20260702_110714_779653",
+    "batch_20260702_110949_886033"
+  ],
+  "script": "\"\"\"Blind hold-out validation of the calibration.\n\nPick random (qwp, hwp, pol) triples over the FULL 0-360 deg range (the scans\nonly used 0-180 and were on coarse grids, so these are genuinely held out).\nPredict each power from the calibrated Mueller model and compare to a fresh\naveraged measurement. If predictions match at the noise level, the calibration\n(o_q, C, P0, Cbg + ideal waveplates) is validated end-to-end.\n\nGauge used: o_h=0, o_p=-C  (any gauge with the same C predicts identical power).\n\"\"\"\nimport sys\nsys.path.insert(0, \"/agent/shared/scripts\"); sys.path.insert(0, \"/agent/workspace\")\nimport numpy as np, matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\nfrom tools_client import set_angle, measure_power\nfrom auto_log_client import start_batch, stop_batch, log_analysis, AUTO_LOG_DIR\nfrom physics_model import predict_power\n\nSCR = \"/tmp/claude-1001/-agent-workspace/5b062f49-458b-430d-8d6c-7c8ec035f7d0/scratchpad\"\nSIGMA = 0.005\ng = np.load(f\"{SCR}/global_fit.npz\")\no_q, C, P0, Cbg = float(g[\"o_q\"]), float(g[\"C\"]), float(g[\"P0\"]), float(g[\"Cbg\"])\n\ndef P():\n    d = measure_power()[\"power\"]\n    return float(d[\"value\"]) if isinstance(d, dict) else float(d)\n\nrng = np.random.default_rng(20260702)\nN = 16\nQ = rng.uniform(0, 360, N); H = rng.uniform(0, 360, N); Pp = rng.uniform(0, 360, N)\n# add 3 diagnostic configs: QWP neutral + HWP that rotates H->V + crossed/aligned analyzer\n# with o_h=0 gauge, hwp_true=hwp_set; light after HWP linear at 2*hwp_set; peak at pol_true=2*hwp_set\ndiag = np.array([\n    [11.96,  0.0,   -C % 360],          # neutral QWP, HWP=0 -> light H -> analyzer aligned (max)\n    [11.96,  0.0,   (90 - C) % 360],     # same but analyzer crossed (min ~ 0)\n    [11.96, 22.5,   (45 - C) % 360],     # HWP rotates 45 deg -> analyzer aligned (max)\n])\nQ = np.concatenate([Q, diag[:,0]]); H = np.concatenate([H, diag[:,1]]); Pp = np.concatenate([Pp, diag[:,2]])\n\npred = predict_power(Q, H, Pp, o_q=o_q, o_h=0.0, o_p=-C, P0=P0, Cbg=Cbg)\n\nstart_batch(\"Hold-out validation: 19 random/diagnostic (qwp,hwp,pol) triples (avg 5)\")\nmeas = np.empty(Q.size)\nfor i in range(Q.size):\n    set_angle(float(Q[i]),  \"lambda_quarter\")\n    set_angle(float(H[i]),  \"lambda_half\")\n    set_angle(float(Pp[i]), \"polarizer\")\n    meas[i] = np.mean([P() for _ in range(5)])\nstop_batch()\n\nresid = meas - pred\nrms = float(np.sqrt(np.mean(resid**2))); maxerr = float(np.max(np.abs(resid)))\nsigma_mean = SIGMA/np.sqrt(5)\nprint(\"hold-out points:\", Q.size)\nfor i in range(Q.size):\n    tag = \" <-diag\" if i >= N else \"\"\n    print(\"  q=%6.1f h=%6.1f p=%6.1f | pred=%.4f meas=%.4f d=%+.4f%s\"\n          % (Q[i], H[i], Pp[i], pred[i], meas[i], resid[i], tag))\nprint(\"RMS=%.5f W  max|err|=%.5f W  (single-shot \u03c3=%.4f, avg5 \u03c3=%.4f)\"\n      % (rms, maxerr, SIGMA, sigma_mean))\n\nfig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11,4.3))\nax1.errorbar(pred, meas, yerr=sigma_mean, fmt=\"o\", ms=6, capsize=3, color=\"#d62728\", label=\"held-out\")\nax1.plot([0,1.05],[0,1.05], \"k-\", lw=1, label=\"ideal y=x\")\nax1.set_xlabel(\"PREDICTED power from calibration (W)\"); ax1.set_ylabel(\"MEASURED power (W)\")\nax1.set_title(f\"Blind hold-out validation (19 configs, full 0\u2013360\u00b0)\\nRMS={rms:.4f} W \u2248 \u03c3/\u221a5={sigma_mean:.4f}\")\nax1.legend(fontsize=8)\nax2.axhline(0, color=\"k\", lw=0.8)\nax2.errorbar(np.arange(Q.size), resid, yerr=sigma_mean, fmt=\"o\", ms=5, capsize=2, color=\"#1f77b4\")\nax2.axhspan(-2*sigma_mean, 2*sigma_mean, color=\"gray\", alpha=0.2, label=\"\u00b12\u03c3 band\")\nax2.set_xlabel(\"configuration #\"); ax2.set_ylabel(\"measured \u2212 predicted (W)\")\nax2.set_title(\"Residuals within noise\"); ax2.legend(fontsize=8)\nfig.tight_layout(); fig.savefig(f\"{AUTO_LOG_DIR}/holdout_validation.png\", dpi=120); plt.close(fig)\n\nlog_analysis(\n    title=\"Hold-out validation PASSED \u2014 calibration predicts blind configs to \u03c3 level (RMS=%.4f W)\" % rms,\n    kind=\"analysis\",\n    text=(\n        f\"Blind test on 19 (qwp,hwp,pol) triples over the full 0\u2013360\u00b0 range (16 random + 3 \"\n        f\"diagnostic), none on the calibration grids. Predicting power from the calibrated model \"\n        f\"(o_q={o_q:.2f}\u00b0, gauge o_h=0 \u21d2 o_p=\u2212C=\u2212{C:.2f}\u00b0, P0={P0:.3f} W, Cbg={Cbg:.4f} W, ideal \"\n        f\"waveplates) vs fresh measurements (avg 5): RMS={rms:.5f} W, max|err|={maxerr:.5f} W \u2014 \"\n        f\"both at the averaged-noise level (\u03c3/\u221a5={sigma_mean:.4f} W). The diagnostic configs behaved \"\n        f\"as designed (aligned analyzer \u2192 ~P0, crossed \u2192 ~0). This confirms the full forward model \"\n        f\"and the calibrated offsets over the entire operating range; the o_q/C parametrization is \"\n        f\"sufficient to predict any measurement (individual o_h,o_p need not \u2014 and cannot \u2014 be known).\"),\n    data={\"qwp\": Q, \"hwp\": H, \"pol\": Pp, \"predicted\": pred, \"measured\": meas,\n          \"residuals\": resid, \"rms_W\": rms, \"max_abs_err_W\": maxerr, \"sigma_mean_W\": sigma_mean},\n    references=[\"batch_20260702_110714_779653\", \"batch_20260702_110949_886033\"],\n    script=open(__file__).read(),\n    figures=[\"holdout_validation.png\"],\n)\nnp.savez(f\"{SCR}/holdout.npz\", Q=Q, H=H, Pp=Pp, pred=pred, meas=meas, rms=rms, maxerr=maxerr)\nprint(\"DONE\")\n",
+  "figures": [
+    {
+      "_type": "figure",
+      "file": "holdout_validation.png"
+    }
+  ],
+  "h5_file": "analysis_20260702_111655_535619.h5"
+}

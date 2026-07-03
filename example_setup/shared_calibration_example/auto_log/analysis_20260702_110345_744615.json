@@ -1,0 +1,40 @@
+{
+  "type": "analysis",
+  "id": "analysis_20260702_110345_744615",
+  "title": "Detector noise model: additive Gaussian \u03c3\u22480.0049 W",
+  "kind": "analysis",
+  "timestamp": "2026-07-02T11:03:45.744615+00:00",
+  "text": "30 repeats at low/mid/high power (means 0.050, 0.499, 0.948 W) give stds 0.0058, 0.0046, 0.0049 W \u2014 essentially constant. Relative scatter falls 11.5%\u21920.9%\u21920.5% with power, and std does not track \u221aP, so the noise is ADDITIVE Gaussian with \u03c3\u22480.0049 W, independent of level (not shot noise, not multiplicative). Consequence: use ordinary (uniform-weight) least squares; angle offsets come from sinusoid PHASE and are robust to this noise. A constant additive background does not shift phase. Will average a few shots per point on precision sweeps (\u03c3_mean=\u03c3/\u221aN).",
+  "data": {
+    "means": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110345_744615.h5",
+      "dataset": "/means/data",
+      "shape": [
+        3
+      ],
+      "dtype": "float64"
+    },
+    "stds": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110345_744615.h5",
+      "dataset": "/stds/data",
+      "shape": [
+        3
+      ],
+      "dtype": "float64"
+    },
+    "sigma_additive_W": 0.00486138868396592
+  },
+  "references": [
+    "batch_20260702_110203_433705"
+  ],
+  "script": "\"\"\"(1) Log the detector noise model. (2) Fine, averaged polarizer sweep at\nqwp=hwp=0 to (a) confirm the ~0.05 W low-power floor (background / imperfect\nextinction), (b) extract P0, and (c) get a first look at the analyzer phase.\n\nModel for a polarizer sweep of angle s (set):\n    P(s) = C_bg + P0*cos^2(pi/180*(s - phi)) = A + B*cos(2*pi/180*(s - phi))\nwith A = C_bg + P0/2, B = P0/2  => P0 = 2B, C_bg = A - B (the minimum).\nphi = set-angle of maximum transmission.\n\"\"\"\nimport sys\nsys.path.insert(0, \"/agent/shared/scripts\"); sys.path.insert(0, \"/agent/workspace\")\nimport numpy as np, matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\nfrom scipy.optimize import curve_fit\nfrom tools_client import set_angle, measure_power\nfrom auto_log_client import start_batch, stop_batch, log_analysis, AUTO_LOG_DIR\n\nSCR = \"/tmp/claude-1001/-agent-workspace/5b062f49-458b-430d-8d6c-7c8ec035f7d0/scratchpad\"\ndef P():\n    d = measure_power()[\"power\"]\n    return float(d[\"value\"]) if isinstance(d, dict) else float(d)\n\n# ---- (1) Noise-model figure + log ----------------------------------------\nnz = np.load(f\"{SCR}/noise.npz\")\nmeans, stds = nz[\"means\"], nz[\"stds\"]\nsigma_add = float(np.median(stds))\nfig, ax = plt.subplots(figsize=(5,4))\nax.plot(means, stds, \"o-\", label=\"measured std\")\nax.axhline(sigma_add, ls=\"--\", c=\"k\", label=f\"additive model \u03c3={sigma_add:.4f} W\")\nax.plot(means, np.sqrt(means)*(stds[0]/np.sqrt(means[0])), \":\", c=\"r\", label=\"shot-noise \u221d\u221aP (rejected)\")\nax.set_xlabel(\"mean power (W)\"); ax.set_ylabel(\"std of 30 reps (W)\")\nax.set_title(\"Detector noise: additive, power-independent\"); ax.legend(fontsize=8)\nfig.tight_layout(); fig.savefig(f\"{AUTO_LOG_DIR}/noise_model.png\", dpi=110); plt.close(fig)\n\nlog_analysis(\n    title=\"Detector noise model: additive Gaussian \u03c3\u2248%.4f W\" % sigma_add,\n    kind=\"analysis\",\n    text=(\n        \"30 repeats at low/mid/high power (means 0.050, 0.499, 0.948 W) give \"\n        \"stds 0.0058, 0.0046, 0.0049 W \u2014 essentially constant. Relative scatter \"\n        \"falls 11.5%%\u21920.9%%\u21920.5%% with power, and std does not track \u221aP, so the \"\n        \"noise is ADDITIVE Gaussian with \u03c3\u2248%.4f W, independent of level (not shot \"\n        \"noise, not multiplicative). Consequence: use ordinary (uniform-weight) \"\n        \"least squares; angle offsets come from sinusoid PHASE and are robust to \"\n        \"this noise. A constant additive background does not shift phase. Will \"\n        \"average a few shots per point on precision sweeps (\u03c3_mean=\u03c3/\u221aN).\"\n        % sigma_add),\n    data={\"means\": means, \"stds\": stds, \"sigma_additive_W\": sigma_add},\n    references=[\"batch_20260702_110203_433705\"],\n    script=open(__file__).read(),\n    figures=[\"noise_model.png\"],\n)\n\n# ---- (2) Fine averaged polarizer sweep at qwp=hwp=0 ----------------------\nset_angle(0.0, \"lambda_quarter\"); set_angle(0.0, \"lambda_half\")\nangles = np.arange(0, 180, 5.0); NAVG = 8\nstart_batch(\"Fine polarizer sweep 0:5:180 (avg 8) at qwp=hwp=0\")\npw = []\nfor a in angles:\n    set_angle(float(a), \"polarizer\")\n    pw.append(np.mean([P() for _ in range(NAVG)]))\nstop_batch()\npw = np.array(pw)\n\ndef model(s, A, B, phi):\n    return A + B*np.cos(2*np.pi/180.0*(s - phi))\np0 = [pw.mean(), (pw.max()-pw.min())/2, angles[pw.argmax()]]\npopt, pcov = curve_fit(model, angles, pw, p0=p0, sigma=np.full_like(pw, sigma_add/np.sqrt(NAVG)), absolute_sigma=True)\nA, B, phi = popt; perr = np.sqrt(np.diag(pcov))\nphi = phi % 180.0\nP0 = 2*B; Cbg = A - abs(B)\nresid = pw - model(angles, *popt); rms = np.sqrt(np.mean(resid**2))\n\nfig, ax = plt.subplots(figsize=(7,4))\nax.plot(angles, pw, \"o\", ms=4, label=\"data (avg 8)\")\nxs = np.linspace(0,180,400); ax.plot(xs, model(xs,*popt), \"r-\", label=\"A+B\u00b7cos(2(s\u2212\u03c6))\")\nax.axhline(Cbg, ls=\":\", c=\"g\", label=f\"floor C_bg={Cbg:.4f} W\")\nax.set_xlabel(\"polarizer set-angle (deg)\"); ax.set_ylabel(\"power (W)\")\nax.set_title(f\"Polarizer sweep @ qwp=hwp=0:  P0={P0:.3f} W, peak \u03c6={phi:.2f}\u00b0, floor={Cbg:.4f} W\")\nax.legend(fontsize=8); fig.tight_layout(); fig.savefig(f\"{AUTO_LOG_DIR}/polsweep_qh0.png\", dpi=110); plt.close(fig)\n\nprint(\"A=%.4f\u00b1%.4f  B=%.4f\u00b1%.4f  phi=%.3f\u00b1%.3f (deg)  P0=%.4f  Cbg=%.4f  RMSresid=%.5f\"\n      % (A, perr[0], B, perr[1], phi, perr[2], P0, Cbg, rms))\nprint(\"extinction ratio Cbg/(Cbg+P0) = %.4f ; modulation depth = %.4f\" % (Cbg/(Cbg+P0), B/A))\n\nlog_analysis(\n    title=\"Fine polarizer sweep @ qwp=hwp=0 \u2014 P0, background, analyzer phase\",\n    kind=\"analysis\",\n    text=(\n        f\"Malus fit A+B\u00b7cos(2(s\u2212\u03c6)): P0=2B={P0:.4f} W, floor C_bg=A\u2212|B|={Cbg:.4f} W \"\n        f\"(~{100*Cbg/(Cbg+P0):.1f}%% of peak). The floor is REAL (well above the \"\n        f\"cos\u00b2\u22480.008 expected at extinction) \u2014 a constant background / finite \"\n        f\"extinction ratio. It is an additive vertical offset, so it does NOT bias \"\n        f\"angle offsets (those come from the phase \u03c6). Peak transmission at set-angle \"\n        f\"\u03c6={phi:.2f}\u00b0 (mod 180). Fit residual RMS={rms:.5f} W \u2248 noise \u03c3/\u221a8, so the \"\n        f\"sinusoid model is excellent. NOTE: \u03c6 mixes the polarizer offset with the \"\n        f\"HWP-induced rotation (light direction = 2\u00b7hwp_true); it is NOT yet the pure \"\n        f\"polarizer offset. Will fit A,B(amplitude),phi per sweep in the full scans; \"\n        f\"amplitude B is background-immune and is what the QWP calibration uses.\"),\n    data={\"angles\": angles, \"power\": pw, \"A\": A, \"B\": B, \"phi_deg\": phi,\n          \"P0\": P0, \"C_bg\": Cbg, \"resid_rms\": rms, \"perr\": perr},\n    references=[\"batch_20260702_110113_319978\"],\n    script=open(__file__).read(),\n    figures=[\"polsweep_qh0.png\"],\n)\nnp.savez(f\"{SCR}/polsweep.npz\", angles=angles, power=pw, popt=popt, P0=P0, Cbg=Cbg)\nprint(\"DONE\")\n",
+  "figures": [
+    {
+      "_type": "figure",
+      "file": "noise_model.png"
+    }
+  ],
+  "h5_file": "analysis_20260702_110345_744615.h5"
+}

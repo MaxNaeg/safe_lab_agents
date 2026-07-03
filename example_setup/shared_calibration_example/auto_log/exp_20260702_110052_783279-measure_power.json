@@ -1,0 +1,14 @@
+{
+  "type": "individual",
+  "id": "exp_20260702_110052_783279",
+  "title": "measure_power",
+  "timestamp": "2026-07-02T11:00:52.783279+00:00",
+  "duration_ms": 52,
+  "parameters": {},
+  "result": {
+    "power": {
+      "value": 0.05036933945489286,
+      "unit": "W"
+    }
+  }
+}

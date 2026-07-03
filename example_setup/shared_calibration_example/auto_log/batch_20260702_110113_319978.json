@@ -1,0 +1,479 @@
+{
+  "id": "batch_20260702_110113_319978",
+  "type": "batch",
+  "label": "Probe: coarse polarizer sweep 0:20:360 at qwp=hwp=0",
+  "description": "",
+  "started_at": "2026-07-02T11:01:13.319985+00:00",
+  "completed_at": "2026-07-02T11:01:13.348730+00:00",
+  "experiment_count": 36,
+  "experiments": [
+    {
+      "id": "exp_20260702_110113_320697",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.320697+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 0.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 0.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_321404",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.321404+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05105952100410125,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_322163",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.322163+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 20.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 20.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_322850",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.322850+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20384211652019227,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_323597",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.323597+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 40.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 40.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_324286",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.324286+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49868213345464835,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_325019",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.325019+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 60.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 60.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_325722",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.325722+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7907011061132692,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_326431",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.326431+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 80.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 80.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_327105",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.327105+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9560087545397944,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_327881",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.327881+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 100.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 100.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_328532",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.328532+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8945202137165924,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_329217",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.329217+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 120.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 120.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_329966",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.329966+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6520518740947038,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_330695",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.330695+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 140.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 140.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_331393",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.331393+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34708237103202727,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_332087",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.332087+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 160.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 160.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_332815",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.332815+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.10485770960154636,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_333495",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.333495+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 180.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 180.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_334266",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.334266+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.042591647029115644,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_335154",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.335154+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 200.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 200.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_335969",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.335969+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.20452413114523482,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_336782",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.336782+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 220.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 220.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_337518",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.337518+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5002119964409992,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_338284",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.338284+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 240.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 240.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_339091",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.339091+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.7918596931554235,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_339978",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.339978+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 260.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 260.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_340767",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.340767+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9507352321122096,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_341539",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.341539+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 280.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 280.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_342650",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.342650+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.8887051161276012,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_343538",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.343538+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 300.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 300.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_344322",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.344322+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.6533505168953067,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_345197",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.345197+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 320.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 320.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_346094",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.346094+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.34584525441801256,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_347003",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:01:13.347003+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 340.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 340.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110113_347847",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.347847+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.11021071627357688,
+          "unit": "W"
+        }
+      }
+    }
+  ]
+}

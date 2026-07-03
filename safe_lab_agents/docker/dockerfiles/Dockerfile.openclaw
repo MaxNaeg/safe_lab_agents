@@ -1,0 +1,66 @@
+# =============================================================================
+# Dockerfile for the OpenClaw agent
+#
+# Installs Node.js (required by OpenClaw), Python 3 with common scientific
+# packages, and the OpenClaw CLI.  The entrypoint script handles MCP
+# configuration and launches the agent in interactive or autonomous mode.
+# =============================================================================
+
+FROM node:22-slim
+
+LABEL maintainer="safe_lab_agents"
+LABEL agent="openclaw"
+
+# ---- System dependencies ----
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        git \
+        curl \
+        ca-certificates \
+        openssl \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3 /usr/local/bin/python
+
+# ---- OpenClaw CLI ----
+# Install directly via npm (the official install.sh uses npm internally but
+# then opens /dev/tty for an interactive setup wizard which fails in Docker).
+RUN npm install -g openclaw
+
+# ---- Non-root user ----
+RUN useradd -m -s /bin/bash agent \
+    && mkdir -p /home/agent/.openclaw/workspace \
+                /agent/workspace /agent/context /agent/shared \
+    && chown -R agent:agent /home/agent /agent
+
+# ---- Python scientific stack (default packages) ----
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+        numpy \
+        pandas \
+        matplotlib \
+        scipy \
+        h5py
+
+# ---- Optional: user-supplied requirements ----
+ARG REQUIREMENTS_FILE=""
+COPY ${REQUIREMENTS_FILE:-.dockerignore} /tmp/user_requirements.txt
+RUN if [ -s /tmp/user_requirements.txt ] && [ "$REQUIREMENTS_FILE" != "" ]; then \
+        python3 -m pip install --break-system-packages --no-cache-dir \
+            -r /tmp/user_requirements.txt; \
+    fi && rm -f /tmp/user_requirements.txt
+
+# ---- Entrypoint script ----
+COPY entrypoint.openclaw.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+USER agent
+
+# Pre-install the Codex plugin so it doesn't install on every container start.
+# @openclaw/codex is lazily downloaded on first agent run; installing it here
+# bakes it into the image.
+RUN openclaw plugins install @openclaw/codex 2>/dev/null || true
+
+WORKDIR /agent/workspace
+
+ENTRYPOINT ["/entrypoint.sh"]

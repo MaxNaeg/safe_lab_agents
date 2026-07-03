@@ -1,0 +1,93 @@
+{
+  "type": "analysis",
+  "id": "analysis_20260702_110853_120177",
+  "title": "Scan A -> QWP offset o_q = 78.04\u00b0 (mod 90); background is ~0, not 0.043",
+  "kind": "analysis",
+  "timestamp": "2026-07-02T11:08:53.120177+00:00",
+  "text": "2D scan qwp_set\u00d7pol_set (hwp=0), per-row harmonic fit. Sweep amplitude follows (P0/2)|cos 2(q+o_q)| beautifully. Two independent estimates agree:\n  o_q(amp\u00b2 linear phase) = 78.03\u00b0,  o_q(nonlinear) = 78.04\u00b10.03\u00b0 (mod 90).\nQWP is a NEUTRAL (fully-linear, m=1) at qwp_set \u2248 [12.0, 102.0]\u00b0 and makes CIRCULAR light (m=0) at qwp_set \u2248 [57.0, 147.0]\u00b0.\n\nIMPORTANT CORRECTION: the global minimum of Scan A is 0.00040 W (\u22480) and the DC level a0 is flat (mean 0.5001, std 0.0014). So there is essentially NO constant background \u2014 the 0.043 W 'floor' seen earlier at qwp_set=0 was simply slightly-elliptical light because qwp_set=0 is ~78\u00b0 off the QWP neutral (m=|cos2\u00b7o_q|\u22480.91), NOT a dark offset. Peak transmission P0 = 2\u00b7Amax = 1.0003 W. o_q is only defined mod 90\u00b0 (fast/slow axis indistinguishable by intensity).\nAnalyzer-peak vs qwp has slope \u2248 \u22121 (as predicted), cross-checking the model.",
+  "data": {
+    "qwp_set": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110853_120177.h5",
+      "dataset": "/qwp_set/data",
+      "shape": [
+        36
+      ],
+      "dtype": "float64"
+    },
+    "pol_set": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110853_120177.h5",
+      "dataset": "/pol_set/data",
+      "shape": [
+        12
+      ],
+      "dtype": "float64"
+    },
+    "amp": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110853_120177.h5",
+      "dataset": "/amp/data",
+      "shape": [
+        36
+      ],
+      "dtype": "float64"
+    },
+    "dc": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110853_120177.h5",
+      "dataset": "/dc/data",
+      "shape": [
+        36
+      ],
+      "dtype": "float64"
+    },
+    "phase_peak": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110853_120177.h5",
+      "dataset": "/phase_peak/data",
+      "shape": [
+        36
+      ],
+      "dtype": "float64"
+    },
+    "o_q_deg": 78.03863809959894,
+    "o_q_err_deg": 0.02755847719090184,
+    "o_q_linfit_deg": 78.02836709138434,
+    "P0_est": 1.0002891714074655,
+    "Cbg_est": 0.00039696867775082295,
+    "neutral_qwp_set": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110853_120177.h5",
+      "dataset": "/neutral_qwp_set/data",
+      "shape": [
+        2
+      ],
+      "dtype": "float64"
+    },
+    "circular_qwp_set": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_110853_120177.h5",
+      "dataset": "/circular_qwp_set/data",
+      "shape": [
+        2
+      ],
+      "dtype": "float64"
+    }
+  },
+  "references": [
+    "batch_20260702_110714_779653"
+  ],
+  "script": "\"\"\"Analyze Scan A (qwp x pol, hwp=0) -> QWP offset o_q.\n\nPer polarizer row we fit P(theta) = a0 + a1*cos(2theta) + a2*sin(2theta)\n(LINEAR least squares, robust). The sweep amplitude\n    amp(q) = sqrt(a1^2+a2^2) = (P0/2)|cos(2*(q+o_q))|\npeaks (=P0/2) at qwp_true = 0 mod 90, i.e. qwp_set = -o_q mod 90.\n\namp(q)^2 = (P0^2/8)(1 + cos(4*(q+o_q))) is a pure 4q sinusoid -> another\nLINEAR fit [1,cos4q,sin4q] gives o_q from its phase, with uncertainty.\nAlso verify the DC level a0 is q-independent and that the global minimum ~0\n=> background C_bg ~ 0 (correcting the earlier 'floor' interpretation).\n\"\"\"\nimport sys\nsys.path.insert(0, \"/agent/shared/scripts\"); sys.path.insert(0, \"/agent/workspace\")\nimport numpy as np, matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\nfrom scipy.optimize import curve_fit\nfrom auto_log_client import log_analysis, AUTO_LOG_DIR\n\nSCR = \"/tmp/claude-1001/-agent-workspace/5b062f49-458b-430d-8d6c-7c8ec035f7d0/scratchpad\"\nSIGMA = 0.005  # additive detector noise (W), single shot\nd = np.load(f\"{SCR}/scanA.npz\")\nqwp, pol, power = d[\"qwp_ax\"], d[\"pol_ax\"], d[\"power\"]\n\n# ---- per-row harmonic fit (linear) ---------------------------------------\nth = np.deg2rad(pol)\nXd = np.column_stack([np.ones_like(th), np.cos(2*th), np.sin(2*th)])   # (12,3)\ncoef, *_ = np.linalg.lstsq(Xd, power.T, rcond=None)                    # (3,36)\na0, a1, a2 = coef\namp = np.hypot(a1, a2)\ndc  = a0\nphase = np.rad2deg(0.5*np.arctan2(a2, a1)) % 180.0   # analyzer peak set-angle\n\n# ---- fit amp^2 as a 4q sinusoid to get o_q -------------------------------\nq = np.deg2rad(qwp)\nX4 = np.column_stack([np.ones_like(q), np.cos(4*q), np.sin(4*q)])\nb, *_ = np.linalg.lstsq(X4, amp**2, rcond=None)\ndelta = np.arctan2(b[2], b[1])                # amp^2 peak at 4q = delta\no_q_lin = (-np.rad2deg(delta)/4.0) % 90.0\n\n# nonlinear cross-check + uncertainty on amp(q) = Amax*|cos(2(q+o_q))|\ndef ampmodel(qd, Amax, oq):\n    return Amax*np.abs(np.cos(2*np.deg2rad(qd + oq)))\n# try both candidate offsets (o_q and o_q+... ) via good p0\np0 = [amp.max(), o_q_lin]\npopt, pcov = curve_fit(ampmodel, qwp, amp, p0=p0,\n                       sigma=np.full_like(amp, SIGMA/np.sqrt(len(pol)/2)), absolute_sigma=True)\nAmax_fit, o_q_fit = popt[0], popt[1] % 90.0\no_q_err = float(np.sqrt(pcov[1, 1]))\nP0_est = 2*Amax_fit\nCbg_est = float(np.nanmin(power))\n\n# neutral (linear, m=1) qwp set-angles in [0,180): where q+o_q = 0 mod 90\nneutrals = sorted([(-o_q_fit) % 90, ((-o_q_fit) % 90) + 90])\n# circular (m=0) qwp set-angles: q+o_q = 45 mod 90\ncirculars = sorted([(45 - o_q_fit) % 90, ((45 - o_q_fit) % 90) + 90])\n\nprint(\"o_q (linear amp^2 fit) = %.3f deg (mod 90)\" % o_q_lin)\nprint(\"o_q (nonlinear fit)    = %.3f +/- %.3f deg (mod 90)\" % (o_q_fit, o_q_err))\nprint(\"Amax=P0/2=%.4f -> P0=%.4f ; DC mean=%.4f std=%.4f ; global min(=Cbg)=%.5f\"\n      % (Amax_fit, P0_est, dc.mean(), dc.std(), Cbg_est))\nprint(\"neutral (linear) qwp_set:\", np.round(neutrals,2), \" circular qwp_set:\", np.round(circulars,2))\n\n# ---- figures --------------------------------------------------------------\nfig, ax = plt.subplots(figsize=(7.5,4.2))\nim = ax.pcolormesh(pol, qwp, power, shading=\"auto\", cmap=\"viridis\")\nax.set_xlabel(\"polarizer set-angle (deg)\"); ax.set_ylabel(\"QWP set-angle (deg)\")\nax.set_title(\"Scan A: power(QWP, polarizer), HWP=0\")\nfor qc in circulars: ax.axhline(qc, color=\"w\", ls=\":\", lw=1)\nfor qn in neutrals:  ax.axhline(qn, color=\"r\", ls=\"--\", lw=1)\nfig.colorbar(im, label=\"power (W)\"); fig.tight_layout()\nfig.savefig(f\"{AUTO_LOG_DIR}/scanA_heatmap.png\", dpi=110); plt.close(fig)\n\nfig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7.5,6), sharex=True)\nax1.plot(qwp, amp, \"o\", ms=4, label=\"sweep amplitude (data)\")\nxs = np.linspace(0, 180, 500); ax1.plot(xs, ampmodel(xs, *popt), \"r-\",\n         label=f\"(P0/2)|cos 2(q+o_q)|, o_q={o_q_fit:.2f}\u00b0\")\nax1.plot(qwp, dc, \"s\", ms=3, color=\"gray\", label=\"DC level a0 (\u2248 const)\")\nfor qn in neutrals:  ax1.axvline(qn, color=\"r\", ls=\"--\", lw=1)\nfor qc in circulars: ax1.axvline(qc, color=\"b\", ls=\":\", lw=1)\nax1.set_ylabel(\"power (W)\"); ax1.legend(fontsize=8)\nax1.set_title(f\"QWP calibration: linear (m=1) at qwp_set={np.round(neutrals,1)}, \"\n              f\"circular at {np.round(circulars,1)}  =>  o_q={o_q_fit:.2f}\u00b1{o_q_err:.2f}\u00b0 (mod 90)\")\nax2.plot(qwp, phase, \"o\", ms=4, color=\"purple\")\nax2.set_xlabel(\"QWP set-angle (deg)\"); ax2.set_ylabel(\"analyzer peak (deg)\")\nax2.set_title(\"analyzer peak vs QWP (slope \u22121 where amplitude is significant)\")\nfig.tight_layout(); fig.savefig(f\"{AUTO_LOG_DIR}/scanA_qwp_fit.png\", dpi=110); plt.close(fig)\n\nlog_analysis(\n    title=\"Scan A -> QWP offset o_q = %.2f\u00b0 (mod 90); background is ~0, not 0.043\" % o_q_fit,\n    kind=\"analysis\",\n    text=(\n        f\"2D scan qwp_set\u00d7pol_set (hwp=0), per-row harmonic fit. Sweep amplitude \"\n        f\"follows (P0/2)|cos 2(q+o_q)| beautifully. Two independent estimates agree:\\n\"\n        f\"  o_q(amp\u00b2 linear phase) = {o_q_lin:.2f}\u00b0,  o_q(nonlinear) = {o_q_fit:.2f}\u00b1{o_q_err:.2f}\u00b0 (mod 90).\\n\"\n        f\"QWP is a NEUTRAL (fully-linear, m=1) at qwp_set \u2248 {np.round(neutrals,1).tolist()}\u00b0 and makes \"\n        f\"CIRCULAR light (m=0) at qwp_set \u2248 {np.round(circulars,1).tolist()}\u00b0.\\n\\n\"\n        f\"IMPORTANT CORRECTION: the global minimum of Scan A is {Cbg_est:.5f} W (\u22480) and the \"\n        f\"DC level a0 is flat (mean {dc.mean():.4f}, std {dc.std():.4f}). So there is essentially \"\n        f\"NO constant background \u2014 the 0.043 W 'floor' seen earlier at qwp_set=0 was simply \"\n        f\"slightly-elliptical light because qwp_set=0 is ~{o_q_fit:.0f}\u00b0 off the QWP neutral \"\n        f\"(m=|cos2\u00b7o_q|\u22480.91), NOT a dark offset. Peak transmission P0 = 2\u00b7Amax = {P0_est:.4f} W. \"\n        f\"o_q is only defined mod 90\u00b0 (fast/slow axis indistinguishable by intensity).\\n\"\n        f\"Analyzer-peak vs qwp has slope \u2248 \u22121 (as predicted), cross-checking the model.\"),\n    data={\"qwp_set\": qwp, \"pol_set\": pol, \"amp\": amp, \"dc\": dc, \"phase_peak\": phase,\n          \"o_q_deg\": o_q_fit, \"o_q_err_deg\": o_q_err, \"o_q_linfit_deg\": o_q_lin,\n          \"P0_est\": P0_est, \"Cbg_est\": Cbg_est,\n          \"neutral_qwp_set\": np.array(neutrals), \"circular_qwp_set\": np.array(circulars)},\n    references=[\"batch_20260702_110714_779653\"],\n    script=open(__file__).read(),\n    figures=[\"scanA_heatmap.png\", \"scanA_qwp_fit.png\"],\n)\nnp.savez(f\"{SCR}/scanA_fit.npz\", qwp=qwp, pol=pol, amp=amp, dc=dc, phase=phase,\n         o_q=o_q_fit, o_q_err=o_q_err, P0=P0_est, Cbg=Cbg_est,\n         neutrals=neutrals, circulars=circulars)\nprint(\"DONE\")\n",
+  "figures": [
+    {
+      "_type": "figure",
+      "file": "scanA_heatmap.png"
+    },
+    {
+      "_type": "figure",
+      "file": "scanA_qwp_fit.png"
+    }
+  ],
+  "h5_file": "analysis_20260702_110853_120177.h5"
+}

@@ -1,0 +1,69 @@
+# =============================================================================
+# Dockerfile for the Claude Code agent
+#
+# Installs Node.js (for Claude Code CLI), Python 3 with common scientific
+# packages, and the Claude Code CLI.  The entrypoint script handles
+# MCP configuration and launching the agent.
+# =============================================================================
+
+FROM node:22-slim
+
+LABEL maintainer="safe_lab_agents"
+LABEL agent="claude-code"
+
+# ---- System dependencies ----
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        git \
+        curl \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3 /usr/local/bin/python
+
+# ---- Non-root user ----
+# Created here (before the Claude install) so the installer runs as 'agent'
+# and places the binary in /home/agent/.local/bin — the location that is
+# both writable during build and on PATH at runtime.
+RUN useradd -m -s /bin/bash agent \
+    && mkdir -p /home/agent/.local/bin /home/agent/.claude \
+                /agent/workspace /agent/context /agent/shared \
+    && chown -R agent:agent /home/agent /agent
+
+# ---- Claude Code CLI ----
+# Run as 'agent' (via su -l) so HOME=/home/agent and the binary lands in
+# /home/agent/.local/bin/claude, accessible to the same user at runtime.
+# CI=true suppresses interactive prompts in the installer.
+RUN su -l agent -c 'CI=true curl -fsSL https://claude.ai/install.sh | bash -s'
+
+# ---- Python scientific stack (default packages) ----
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+        numpy \
+        pandas \
+        matplotlib \
+        scipy \
+        h5py
+
+# ---- Optional: user-supplied requirements ----
+# When building with --build-arg REQUIREMENTS_FILE=requirements.txt,
+# this layer installs additional Python packages.
+ARG REQUIREMENTS_FILE=""
+COPY ${REQUIREMENTS_FILE:-.dockerignore} /tmp/user_requirements.txt
+RUN if [ -s /tmp/user_requirements.txt ] && [ "$REQUIREMENTS_FILE" != "" ]; then \
+        python3 -m pip install --break-system-packages --no-cache-dir \
+            -r /tmp/user_requirements.txt; \
+    fi && rm -f /tmp/user_requirements.txt
+
+# ---- Entrypoint script ----
+COPY entrypoint.claude-code.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+USER agent
+
+# The Claude Code installer places the binary in ~/.local/bin.
+ENV PATH="/home/agent/.local/bin:${PATH}"
+
+WORKDIR /agent/workspace
+
+ENTRYPOINT ["/entrypoint.sh"]

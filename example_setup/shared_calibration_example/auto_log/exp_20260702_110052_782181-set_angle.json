@@ -1,0 +1,14 @@
+{
+  "type": "individual",
+  "id": "exp_20260702_110052_782181",
+  "title": "set_angle",
+  "timestamp": "2026-07-02T11:00:52.782181+00:00",
+  "duration_ms": 0,
+  "parameters": {
+    "param_angle": 0.0,
+    "param_component": "lambda_half"
+  },
+  "result": {
+    "result": "Lambda_half angle set to 0.0 degrees."
+  }
+}

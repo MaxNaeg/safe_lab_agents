@@ -1,0 +1,47 @@
+{
+  "type": "analysis",
+  "id": "analysis_20260702_111244_597313",
+  "title": "Global fit: o_q=78.04\u00b0 (mod90), C=2o_h\u2212o_p=73.04\u00b0 (mod180), P0=1.001 W, Cbg\u22480",
+  "kind": "analysis",
+  "timestamp": "2026-07-02T11:12:44.597313+00:00",
+  "text": "Joint least-squares fit of the full Mueller model to all 864 single-shot points (Scan A + Scan B), gauge o_h:=0.\nIDEAL waveplates: o_q=78.039\u00b10.028\u00b0 (mod 90 = 78.04\u00b0), o_p=-73.038\u00b10.032\u00b0 => C=2\u00b7o_h\u2212o_p=73.038\u00b0 (mod 180), P0=1.0006\u00b10.0006 W, C_bg=-0.00038\u00b10.00033 W (consistent with 0). Reduced \u03c7\u00b2=1.01, residual RMS=0.00502 W \u2248 detector \u03c3 (0.005 W): the ideal model explains the data to the noise floor.\nEXTENDED fit (free retardances): ret_q=90.07\u00b10.06\u00b0 (ideal 90), ret_h=179.95\u00b10.06\u00b0 (ideal 180) \u2014 the waveplates are ideal within error, so no need to correct for imperfect retardance.\nThese global values agree with the per-scan results (o_q 78.04\u00b0, C 73.05\u00b0) and reproduce the independent qwp=hwp=0 sweep peak (85.0\u00b0). Reminder: o_q is mod 90\u00b0 (fast/slow unresolved by intensity), and only C is physical \u2014 o_h, o_p are individually gauge.",
+  "data": {
+    "o_q_deg": 78.03900289670491,
+    "o_q_err": 0.027548594690670516,
+    "o_q_mod90": 78.03900289670491,
+    "o_p_gauge_oh0_deg": -73.03804686160755,
+    "o_p_err": 0.03181037715709262,
+    "C_deg": 73.03804686160755,
+    "P0": 1.0006479453879973,
+    "P0_err": 0.0005555555567896701,
+    "Cbg": -0.0003779509873232661,
+    "Cbg_err": 0.00032572331703191,
+    "redchi2": 1.013515103272662,
+    "resid_rms": 0.005022008820483277,
+    "ret_q": 90.0659013854711,
+    "ret_q_err": 0.055097235835215634,
+    "ret_h": 179.94926815796424,
+    "ret_h_err": 0.05509721324345563,
+    "residuals": {
+      "_type": "ndarray",
+      "file": "analysis_20260702_111244_597313.h5",
+      "dataset": "/residuals/data",
+      "shape": [
+        864
+      ],
+      "dtype": "float64"
+    }
+  },
+  "references": [
+    "batch_20260702_110714_779653",
+    "batch_20260702_110949_886033"
+  ],
+  "script": "\"\"\"Global joint fit of the full Mueller forward model to ALL raw scan data\n(Scan A: qwp x pol @ hwp=0 ; Scan B: hwp x pol @ qwp=neutral), 864 single-shot\npoints. Because o_h and o_p are degenerate (only C=2o_h-o_p is observable) we\nFIX THE GAUGE o_h := 0 and fit o_p (=> C = -o_p). Free parameters:\n\n  ideal model (primary):   o_q, o_p, P0, Cbg            (waveplates ideal)\n  extended model (check):  o_q, o_p, P0, Cbg, ret_q, ret_h\n\nReports offsets + uncertainties, reduced chi^2, residual RMS vs noise, and a\ndata-vs-model validation figure.\n\"\"\"\nimport sys\nsys.path.insert(0, \"/agent/shared/scripts\"); sys.path.insert(0, \"/agent/workspace\")\nimport numpy as np, matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\nfrom scipy.optimize import least_squares\nfrom physics_model import predict_power\nfrom auto_log_client import log_analysis, AUTO_LOG_DIR\n\nSCR = \"/tmp/claude-1001/-agent-workspace/5b062f49-458b-430d-8d6c-7c8ec035f7d0/scratchpad\"\nSIGMA = 0.005\n\n# ---- assemble combined dataset -------------------------------------------\nA = np.load(f\"{SCR}/scanA.npz\"); B = np.load(f\"{SCR}/scanB.npz\")\nqA, pA, PA = A[\"qwp_ax\"], A[\"pol_ax\"], A[\"power\"]\nhB, pB, PB = B[\"hwp_ax\"], B[\"pol_ax\"], B[\"power\"]; qN = float(B[\"qwp_neutral\"])\n\n# Scan A grid (hwp=0)\nQA, PPA = np.meshgrid(qA, pA, indexing=\"ij\")\nq_all = list(QA.ravel());          h_all = [0.0]*QA.size;         p_all = list(PPA.ravel()); P_all = list(PA.ravel())\n# Scan B grid (qwp=neutral)\nHB, PPB = np.meshgrid(hB, pB, indexing=\"ij\")\nq_all += [qN]*HB.size;             h_all += list(HB.ravel());     p_all += list(PPB.ravel()); P_all += list(PB.ravel())\nq_all = np.array(q_all); h_all = np.array(h_all); p_all = np.array(p_all); P_all = np.array(P_all)\nprint(\"combined points:\", P_all.size)\n\ndef resid(params, free_ret=False):\n    if free_ret:\n        o_q, o_p, P0, Cbg, rq, rh = params\n    else:\n        o_q, o_p, P0, Cbg = params; rq, rh = 90.0, 180.0\n    model = predict_power(q_all, h_all, p_all, o_q=o_q, o_h=0.0, o_p=o_p,\n                          P0=P0, Cbg=Cbg, ret_q=rq, ret_h=rh)\n    return (model - P_all)/SIGMA\n\ndef fit(p0, free_ret=False, bounds=(-np.inf, np.inf)):\n    sol = least_squares(resid, p0, args=(free_ret,), method=\"trf\", bounds=bounds, x_scale=\"jac\")\n    J = sol.jac; dof = P_all.size - len(p0)\n    chi2 = float(np.sum(sol.fun**2)); redchi2 = chi2/dof\n    # covariance (residuals already /sigma): cov = (J^T J)^-1\n    cov = np.linalg.inv(J.T @ J)\n    perr = np.sqrt(np.diag(cov))\n    rms = float(np.sqrt(np.mean((sol.fun*SIGMA)**2)))\n    return sol.x, perr, redchi2, rms\n\n# primary ideal-waveplate fit\np0 = [78.0, -73.0, 1.0, 0.0]\nx, e, rc, rms = fit(p0, free_ret=False)\no_q, o_p, P0, Cbg = x\nC = (-o_p) % 180.0\noq_mod = o_q % 90.0\nprint(\"\\n=== IDEAL model ===\")\nprint(\"o_q  = %.3f \u00b1 %.3f deg (mod 90)  -> %.3f\" % (o_q, e[0], oq_mod))\nprint(\"o_p  = %.3f \u00b1 %.3f deg (gauge o_h=0) -> C=2o_h-o_p = %.3f (mod 180)\" % (o_p, e[1], C))\nprint(\"P0   = %.4f \u00b1 %.4f W\" % (P0, e[2]))\nprint(\"Cbg  = %.5f \u00b1 %.5f W\" % (Cbg, e[3]))\nprint(\"reduced chi2 = %.3f   residual RMS = %.5f W  (noise \u03c3=%.4f)\" % (rc, rms, SIGMA))\n\n# extended fit with free retardances\np0e = [o_q, o_p, P0, Cbg, 90.0, 180.0]\nxe, ee, rce, rmse = fit(p0e, free_ret=True)\nprint(\"\\n=== EXTENDED model (free retardances) ===\")\nprint(\"o_q=%.3f\u00b1%.3f  o_p=%.3f\u00b1%.3f  P0=%.4f  Cbg=%.5f\" % (xe[0],ee[0],xe[1],ee[1],xe[2],xe[3]))\nprint(\"ret_q = %.3f \u00b1 %.3f deg (ideal 90)   ret_h = %.3f \u00b1 %.3f deg (ideal 180)\"\n      % (xe[4], ee[4], xe[5], ee[5]))\nprint(\"reduced chi2 = %.3f   residual RMS = %.5f W\" % (rce, rmse))\n\n# ---- validation figure ----------------------------------------------------\nmodel_all = predict_power(q_all, h_all, p_all, o_q=o_q, o_h=0.0, o_p=o_p, P0=P0, Cbg=Cbg)\nres = P_all - model_all\nfig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11,4.3))\nax1.plot(P_all, model_all, \".\", ms=4, alpha=0.4)\nax1.plot([0,1.05],[0,1.05], \"r-\", lw=1)\nax1.set_xlabel(\"measured power (W)\"); ax1.set_ylabel(\"model power (W)\")\nax1.set_title(f\"Global fit: measured vs model (864 pts)\\nreduced \u03c7\u00b2={rc:.2f}, RMS={rms:.4f} W \u2248 \u03c3\")\nax2.hist(res, bins=40, color=\"steelblue\", edgecolor=\"k\", alpha=0.8)\nax2.axvline(0, color=\"k\", lw=0.8)\nax2.set_xlabel(\"residual (W)\"); ax2.set_ylabel(\"count\")\nax2.set_title(f\"Residuals: mean={res.mean():.4f}, std={res.std():.4f} W (\u03c3={SIGMA})\")\nfig.tight_layout(); fig.savefig(f\"{AUTO_LOG_DIR}/global_fit_validation.png\", dpi=110); plt.close(fig)\n\nlog_analysis(\n    title=\"Global fit: o_q=%.2f\u00b0 (mod90), C=2o_h\u2212o_p=%.2f\u00b0 (mod180), P0=%.3f W, Cbg\u22480\" % (oq_mod, C, P0),\n    kind=\"analysis\",\n    text=(\n        f\"Joint least-squares fit of the full Mueller model to all 864 single-shot \"\n        f\"points (Scan A + Scan B), gauge o_h:=0.\\n\"\n        f\"IDEAL waveplates: o_q={o_q:.3f}\u00b1{e[0]:.3f}\u00b0 (mod 90 = {oq_mod:.2f}\u00b0), \"\n        f\"o_p={o_p:.3f}\u00b1{e[1]:.3f}\u00b0 => C=2\u00b7o_h\u2212o_p={C:.3f}\u00b0 (mod 180), \"\n        f\"P0={P0:.4f}\u00b1{e[2]:.4f} W, C_bg={Cbg:.5f}\u00b1{e[3]:.5f} W (consistent with 0). \"\n        f\"Reduced \u03c7\u00b2={rc:.2f}, residual RMS={rms:.5f} W \u2248 detector \u03c3 ({SIGMA} W): the ideal \"\n        f\"model explains the data to the noise floor.\\n\"\n        f\"EXTENDED fit (free retardances): ret_q={xe[4]:.2f}\u00b1{ee[4]:.2f}\u00b0 (ideal 90), \"\n        f\"ret_h={xe[5]:.2f}\u00b1{ee[5]:.2f}\u00b0 (ideal 180) \u2014 the waveplates are ideal within error, \"\n        f\"so no need to correct for imperfect retardance.\\n\"\n        f\"These global values agree with the per-scan results (o_q 78.04\u00b0, C 73.05\u00b0) and reproduce \"\n        f\"the independent qwp=hwp=0 sweep peak (85.0\u00b0). Reminder: o_q is mod 90\u00b0 (fast/slow \"\n        f\"unresolved by intensity), and only C is physical \u2014 o_h, o_p are individually gauge.\"),\n    data={\"o_q_deg\": o_q, \"o_q_err\": e[0], \"o_q_mod90\": oq_mod,\n          \"o_p_gauge_oh0_deg\": o_p, \"o_p_err\": e[1], \"C_deg\": C,\n          \"P0\": P0, \"P0_err\": e[2], \"Cbg\": Cbg, \"Cbg_err\": e[3],\n          \"redchi2\": rc, \"resid_rms\": rms,\n          \"ret_q\": xe[4], \"ret_q_err\": ee[4], \"ret_h\": xe[5], \"ret_h_err\": ee[5],\n          \"residuals\": res},\n    references=[\"batch_20260702_110714_779653\", \"batch_20260702_110949_886033\"],\n    script=open(__file__).read(),\n    figures=[\"global_fit_validation.png\"],\n)\nnp.savez(f\"{SCR}/global_fit.npz\", o_q=o_q, o_q_err=e[0], o_p=o_p, C=C, P0=P0, Cbg=Cbg,\n         redchi2=rc, rms=rms, ret_q=xe[4], ret_h=xe[5])\nprint(\"DONE\")\n",
+  "figures": [
+    {
+      "_type": "figure",
+      "file": "global_fit_validation.png"
+    }
+  ],
+  "h5_file": "analysis_20260702_111244_597313.h5"
+}

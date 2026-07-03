@@ -1,0 +1,36 @@
+# safe-lab-agents.config.yaml
+# Defaults for `agent start`, auto-discovered when you run `agent start` from
+# this directory. Any flag passed on the command line overrides a value here.
+# Path-valued keys resolve relative to THIS file's location, so the setup is portable.
+
+agent: claude-code
+tools: ./tools.py            # the experiment tools (set_angle, measure_power, ...)
+context: ./context           # experiment description, mounted read-only for the agent
+shared: ./shared             # data-exchange directory, mounted read-write
+
+# Run Claude Code on Opus with maximum thinking budget.
+agent-args:
+  model: opus
+  effort: max
+
+# Log every tool call as a local ELN record (JSON + HDF5 for arrays) under shared/auto_log/.
+auto-log: true
+
+# --- Other handy options (uncomment to enable) --------------------------------
+
+# Container runtime, if you don't want to be prompted each start.
+# container: podman
+
+# Reload the tools file automatically while the container runs, so you can edit
+# tools.py without restarting the session. Handy while developing the setup.
+# update-tools: true
+
+# Soft-disable web tools — a lab agent driving hardware usually shouldn't browse.
+# (Note: this is a soft restriction; it does not block network access.)
+# no-web: true
+
+# Push each logged record to a Kadi4Mat ELN project (auto-enables auto-log).
+# kadi4mat-project: my-lab
+
+# Run autonomously against a fixed task instead of interactively.
+# task: "Find the waveplate angles that maximize detected power, then report them."

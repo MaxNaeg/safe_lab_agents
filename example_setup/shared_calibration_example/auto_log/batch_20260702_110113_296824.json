@@ -1,0 +1,271 @@
+{
+  "id": "batch_20260702_110113_296824",
+  "type": "batch",
+  "label": "Probe: noise (20x at qwp=hwp=pol=0)",
+  "description": "",
+  "started_at": "2026-07-02T11:01:13.296832+00:00",
+  "completed_at": "2026-07-02T11:01:13.316492+00:00",
+  "experiment_count": 20,
+  "experiments": [
+    {
+      "id": "exp_20260702_110113_298106",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.298106+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.045450648035621904,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_299057",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.299057+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.042504240831159515,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_300039",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.300039+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.042316434841059625,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_300904",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.300904+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05139429046094531,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_301820",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.301820+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04549915984853764,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_302828",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.302828+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04885693590617992,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_303778",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.303778+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.060140822367772795,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_304686",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.304686+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04414852696257613,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_305562",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.305562+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05262796334990381,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_306497",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.306497+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.050067004379538975,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_307455",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.307455+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.051534178013409496,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_308414",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.308414+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.044852253331340956,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_309324",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.309324+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.047314955181527535,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_310227",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.310227+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04083745299517777,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_311082",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.311082+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04722645879729462,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_311955",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.311955+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04124130488128805,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_312805",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.312805+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05375995551599943,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_313718",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.313718+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05422376566133207,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_314658",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.314658+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.045792388415714,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110113_315597",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:01:13.315597+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04776507686692756,
+          "unit": "W"
+        }
+      }
+    }
+  ]
+}

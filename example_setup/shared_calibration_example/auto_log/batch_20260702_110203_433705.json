@@ -1,0 +1,1220 @@
+{
+  "id": "batch_20260702_110203_433705",
+  "type": "batch",
+  "label": "Noise characterization: 30 reps at low/mid/high power",
+  "description": "",
+  "started_at": "2026-07-02T11:02:03.433716+00:00",
+  "completed_at": "2026-07-02T11:02:03.516477+00:00",
+  "experiment_count": 93,
+  "experiments": [
+    {
+      "id": "exp_20260702_110203_434818",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:02:03.434818+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 0.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 0.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110203_435785",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.435785+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.053445850454117635,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_436897",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.436897+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05928456645256384,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_437865",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.437865+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.052858647596038894,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_438812",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.438812+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04856410405539337,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_439775",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.439775+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.055812788757609436,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_440740",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.440740+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04748318011109652,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_441743",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.441743+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05365486853013736,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_442778",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.442778+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.053060898866303455,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_443716",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.443716+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04794826077859968,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_444611",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.444611+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04261000032536298,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_445608",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.445608+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04860770094168193,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_446421",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.446421+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.049603246766820354,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_447217",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.447217+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.049860095227722015,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_447994",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.447994+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.046219220906648345,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_448725",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.448725+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05780204473304587,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_449660",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.449660+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.0475383958381672,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_450526",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.450526+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05299567060716323,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_451316",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.451316+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.044689071395107374,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_452187",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.452187+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.06401670995052655,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_453078",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.453078+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04730402909234789,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_453913",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.453913+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.043140163711772136,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_454729",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.454729+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05649536965623432,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_455837",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.455837+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.042142194620931286,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_456805",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.456805+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.03756888257461389,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_457932",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.457932+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.053357662254175556,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_458960",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.458960+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04451717384025943,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_459936",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.459936+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04577522984020069,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_460795",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.460795+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05215898707192026,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_461701",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.461701+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.04847935254673806,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_462611",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.462611+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.05841202618796199,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_463454",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:02:03.463454+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 40.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 40.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110203_464335",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.464335+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4963704227399993,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_465212",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.465212+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49464066932399603,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_466041",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.466041+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5005510298056038,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_466884",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.466884+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5057006603897772,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_467681",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.467681+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49146114641257427,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_468499",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.468499+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5025861685281886,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_469304",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.469304+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49658241425675553,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_470263",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.470263+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5079994729744044,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_471081",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.471081+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49804562919667084,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_471914",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.471914+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5021651739154225,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_472774",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.472774+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.501586748753146,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_473655",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.473655+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5005980672352079,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_474559",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.474559+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5066748523293835,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_475382",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.475382+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49168969310213223,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_476265",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.476265+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.497336184174833,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_477157",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.477157+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49718610042334027,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_477985",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.477985+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5059557158995894,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_478818",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.478818+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5011934898117388,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_479626",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.479626+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49592721374408416,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_480483",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.480483+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4975019480873072,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_481260",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.481260+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49122567477205376,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_482050",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.482050+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5022004540951822,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_482851",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.482851+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49399977523411,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_483715",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.483715+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49509975318732613,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_484569",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.484569+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4990497644550349,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_485444",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.485444+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.49303429482131683,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_486410",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.486410+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5003535952224645,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_487346",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.487346+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4971266116144846,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_488242",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.488242+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.4949144933457128,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_489146",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.489146+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.5054164591162467,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_490128",
+      "title": "set_angle",
+      "timestamp": "2026-07-02T11:02:03.490128+00:00",
+      "duration_ms": 0,
+      "parameters": {
+        "param_angle": 80.0,
+        "param_component": "polarizer"
+      },
+      "result": {
+        "result": "Polarizer angle set to 80.0 degrees."
+      }
+    },
+    {
+      "id": "exp_20260702_110203_490970",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.490970+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9463413270726524,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_491894",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.491894+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9421283046978892,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_492713",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.492713+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9552050715911744,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_493598",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.493598+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9502523497498373,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_494456",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.494456+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.937760896094047,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_495331",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.495331+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9450920725857848,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_496319",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.496319+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.947448227202696,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_497136",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.497136+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9497827928047102,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_498018",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.498018+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9440030524768177,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_498849",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.498849+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9459088991861951,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_499672",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.499672+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9489139942689832,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_500521",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.500521+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9535297390182007,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_501346",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.501346+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9419257873204759,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_502172",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.502172+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9451481419123654,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_502961",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.502961+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9459036145353349,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_503857",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.503857+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9470917455116856,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_504776",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.504776+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9505115882823272,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_505661",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.505661+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.956468450036219,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_506523",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.506523+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9545143462389942,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_507365",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.507365+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9442578099773945,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_508160",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.508160+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9493777280654683,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_508971",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.508971+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9506662148260391,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_509768",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.509768+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.955727506047487,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_510624",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.510624+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.949088533447858,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_511416",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.511416+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9553043598710338,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_512297",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.512297+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9426718430655326,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_513115",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.513115+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.950037511768868,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_513868",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.513868+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9551946255326204,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_514730",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.514730+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9407736051448801,
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "id": "exp_20260702_110203_515585",
+      "title": "measure_power",
+      "timestamp": "2026-07-02T11:02:03.515585+00:00",
+      "duration_ms": 0,
+      "parameters": {},
+      "result": {
+        "power": {
+          "value": 0.9461407265800528,
+          "unit": "W"
+        }
+      }
+    }
+  ]
+}
