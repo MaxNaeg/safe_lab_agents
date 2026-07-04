@@ -121,13 +121,15 @@ Give it instructions like `Characterize this optical setup` and let it run. In t
 
 It will go through a series of measurements, will try to analyze, form hypotheses, run simulations, produce plots, and so on. Finally it converges on the assessment that this device has a Lorentzian transmission spectrum. 
 
-To finish, type `/exit` in `Claude Code`, and then `exit` again in the terminal. This last `exit` takes you out of the sandbox, back to the folder where you started. Now inside the `shared` subfolder you will find all kinds of files. Since we switched on auto-logging, we can generate a nice report of the experiment.
+To finish, type `/exit` in `Claude Code`, and then `exit` again in the terminal. This last `exit` takes you out of the sandbox, back to the folder where you started. Now inside the `shared` subfolder you will find all kinds of files. Since we switched on auto-logging, we can generate a nice report of the experiment, using `agent report shared/auto_log/ --open`.
 
 ![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_auto_log.jpg)
 
-This will open in a browser a convenient html representation of the log. This shows you all the data that have been taken and the various analysis outcomes, including figures.
+This will open the electronic lab notebook in a browser, as a searchable html document. That document shows you all the data that have been taken and the various analysis outcomes, including figures and analysis scripts. 
 
 ![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_browsing_auto_log.jpg)
+
+Besides this log, there is also the full agent conversation history, including everything it was saying while exploring the experimental setup. In this example, you would use `agent history --name session-20260704-085415 --open` to show the html document for the history.
 
 That's it for now! See below for a more complete example and explanation of the various options.
 
