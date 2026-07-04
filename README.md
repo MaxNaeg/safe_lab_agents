@@ -121,7 +121,7 @@ Give it instructions like `Characterize this optical setup` and let it run. In t
 
 It will go through a series of measurements, will try to analyze, form hypotheses, run simulations, produce plots, and so on. Finally it converges on the assessment that this device has a Lorentzian transmission spectrum. 
 
-To finish, type `/exit` in `Claude Code`, and then `exit` again in the terminal. This last `exit` takes you out of the sandbox, back to the folder where you started. Now inside the `shared` subfolder you will find all kinds of files. Since we switched on auto-logging, we can generate a nice report of the experiment, using `agent report shared/auto_log/ --open`.
+To finish, type `/exit` in `Claude Code`, and then `exit` again in the terminal. This last `exit` takes you out of the sandbox, back to the folder where you started. Now inside the `shared` subfolder you will find all kinds of files, representing the data that were taken. Since we switched on auto-logging, we can generate a nice report of the experiment, using `agent report shared/auto_log/ --open`.
 
 ![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_auto_log.jpg)
 
