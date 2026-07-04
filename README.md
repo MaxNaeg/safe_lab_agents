@@ -85,7 +85,7 @@ pip install -e .
 
 ## Minimal Example
 
-(docs/figures_mini_example/fig_agent_start.jpg)
+![Terminal window with command "agent start" entered](docs/figures_mini_example/fig_agent_start.jpg)
 
 ## Quick Start
 
