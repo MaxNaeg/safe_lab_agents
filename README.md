@@ -77,12 +77,18 @@ Tested on **macOS 15**, **Windows 11**, and **Ubuntu 24.04**. If you hit runtime
 
 ### Install the package
 
-For now, just install from source. We recommend installing into a virtual environment (e.g. `venv` or `conda`) to keep the dependencies isolated:
+We recommend installing into a virtual environment (e.g. `venv` or `conda`) to keep the dependencies isolated.
+To install from source:
 
 ```bash
 git clone git@github.com:MaxNaeg/safe_lab_agents.git
 cd safe_lab_agents
 pip install -e .
+```
+
+or simply use pip:
+```bash
+pip install safe-lab-agents
 ```
 
 ## Minimal Example
@@ -111,29 +117,29 @@ Now run `mkdir shared` inside the same folder to produce a subfolder in which th
 
 To launch the AI agent safely inside a sandbox, simply run `agent start` inside your folder!
 
-![Terminal window with command "agent start" entered](docs/figures_mini_example/fig_agent_start.jpg)
+![Terminal window with command "agent start" entered](https://raw.githubusercontent.com/MaxNaeg/safe_lab_agents/main/docs/figures_mini_example/fig_agent_start.jpg)
 
 You will be asked a few questions by the setup wizard. In this example, we assume you had installed the open `podman` Docker alternative and you have a `Claude Pro (or Max)` subscription (though not necessarily a working installation of claude code) -- otherwise change as needed. Also enter `my_tools.py` when asked for the path to your tools python file, and enter `shared` when asked for the path to the shared folder. Say yes (`y`) when asked about auto-logging the experimental data.
 
-![Terminal window showing a set of interactive prompts and user answers](docs/figures_mini_example/fig_further_questions.jpg)
+![Terminal window showing a set of interactive prompts and user answers](https://raw.githubusercontent.com/MaxNaeg/safe_lab_agents/main/docs/figures_mini_example/fig_further_questions.jpg)
 
 Now you will observe some startup messages and the installation of various packages (such as numpy). Eventually `Claude Code` will launch. It will ask you to copy a link into a browser for getting the login credentials. This demonstrates that the sandbox works, as the agent cannot just launch a web page inside a browser on your machine (which would be what happens normally at this point). Copy that link to a browser, authorize access, and copy the resulting code back into the terminal. Afterwards, `Claude Code` is ready to take your instructions.
 
-![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_claude_launch.jpg)
+![Terminal window showing a freshly launched Claude Code instance](https://raw.githubusercontent.com/MaxNaeg/safe_lab_agents/main/docs/figures_mini_example/fig_claude_launch.jpg)
 
 Give it instructions like `Characterize this optical setup` and let it run. In this example, it will still ask for permissions, but since you are inside the sandbox, feel free to let it run autonomously without any danger! You can do so by pressing shift-tab several times to reach 'auto' mode. Alternatively, you could have used `agent start --task "Analyze the optical setup!"` in the beginning to directly go to automatic mode.
 
-![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_run.jpg)
+![Terminal window showing a freshly launched Claude Code instance](https://raw.githubusercontent.com/MaxNaeg/safe_lab_agents/main/docs/figures_mini_example/fig_run.jpg)
 
 The agent will go through a series of measurements, will try to analyze, form hypotheses, run simulations, produce plots, and so on. Finally it converges on the assessment that this device has a Lorentzian transmission spectrum. 
 
 To finish, type `/exit` in `Claude Code`, and then `exit` again in the terminal. This last `exit` takes you out of the sandbox, back to the folder where you started. Now inside the `shared` subfolder you will find all kinds of files, representing the data that were taken. Since we switched on auto-logging, we can generate a nice report of the experiment, using `agent report shared/auto_log/ --open`.
 
-![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_auto_log.jpg)
+![Terminal window showing a freshly launched Claude Code instance](https://raw.githubusercontent.com/MaxNaeg/safe_lab_agents/main/docs/figures_mini_example/fig_auto_log.jpg)
 
 This will open the electronic lab notebook in a browser, as a searchable html document. That document shows you all the data that have been taken and the various analysis outcomes, including figures and analysis scripts. 
 
-![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_browsing_auto_log.jpg)
+![Terminal window showing a freshly launched Claude Code instance](https://raw.githubusercontent.com/MaxNaeg/safe_lab_agents/main/docs/figures_mini_example/fig_browsing_auto_log.jpg)
 
 Besides this log, there is also the full agent conversation history, including everything it was saying while exploring the experimental setup. In this example, you would use `agent history --name session-20260704-085415 --open` to show the html document for the history.
 

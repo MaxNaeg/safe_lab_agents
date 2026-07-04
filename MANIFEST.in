@@ -5,6 +5,10 @@
 # so don't ship it in the sdist.
 prune example_setup
 
+# README figures (~2.3 MB of JPGs) are referenced via absolute GitHub raw URLs,
+# so they render on GitHub and PyPI without travelling inside the package.
+prune docs/figures_mini_example
+
 # Cruft that should never be packaged.
 global-exclude .DS_Store
 global-exclude *.py[cod]
