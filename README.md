@@ -14,7 +14,7 @@
 
 Safely run AI agents in Docker to control scientific experiments via MCP (Model Context Protocol).
 
-By Maximilian Nägele and Florian Marquardt. Made at the [Max Planck Institute for the Science of Light](https://mpl.mpg.de) in Germany. Open source and free. First release July 2026.
+By Maximilian Nägele and Florian Marquardt. Made at the [Max Planck Institute for the Science of Light](https://mpl.mpg.de/divisions/marquardt-division/research) in Germany. Open source and forever free. First release July 2026.
 
 ## Overview
 
