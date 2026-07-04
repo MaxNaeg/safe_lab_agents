@@ -87,6 +87,8 @@ pip install -e .
 
 ## Minimal Example
 
+We will go step by step through a minimal example where we pretend to run microwave transmission measurements on some experimental setup. We will have the AI agent analyze that setup from scratch, without any prior knowledge, and document its results.
+
 After installation, create the following python file (here called `my_tools.py`) inside a new folder somewhere on your hard drive. In this example, we define a single function that returns a mock measurement result of a microwave transmission spectrum.
 
 ```python my_tools.py
@@ -105,9 +107,9 @@ Args:
 PYTHON_TOOLS=[measure_transmission]
 ```
 
-Now run `mkdir shared` inside the same folder to produce a subfolder in which the agent can place files that you also might later want to access outside the agent's sandbox.
+Now run `mkdir shared` inside the same folder to produce a subfolder in which the agent can place files that you can later access outside the sandbox -- for example documented measurement results.
 
-To launch the AI agent, run `agent start` inside your folder!
+To launch the AI agent safely inside a sandbox, simply run `agent start` inside your folder!
 
 ![Terminal window with command "agent start" entered](docs/figures_mini_example/fig_agent_start.jpg)
 
