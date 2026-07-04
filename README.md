@@ -85,7 +85,7 @@ pip install -e .
 
 ## Minimal Example
 
-After installation, create the following python file (here called `my_tools.py`) inside a new folder somewhere on your hard drive. In this example, we define a single function that returns a mock measurement result of an optical transmission spectrum.
+After installation, create the following python file (here called `my_tools.py`) inside a new folder somewhere on your hard drive. In this example, we define a single function that returns a mock measurement result of a microwave transmission spectrum.
 
 ```python my_tools.py
 def measure_transmission(omega: float) -> dict:
@@ -118,6 +118,8 @@ Now you will observe some startup messages and the installation of various packa
 Give it instructions like `Characterize this optical setup` and let it run. In this example, it will still ask for permissions, but since you are inside the sandbox, feel free to let it run autonomously without any danger! 
 
 ![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_run.jpg)
+
+It will go through a series of measurements, will try to analyze, form hypotheses, run simulations, produce plots, and so on. Finally it converges on the assessment that this device has a Lorentzian transmission spectrum. 
 
 That's it for now! See below for a more complete example and explanation of the various options.
 
