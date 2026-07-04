@@ -85,6 +85,22 @@ pip install -e .
 
 ## Minimal Example
 
+After installation, create the following python file inside a new folder somewhere on your hard drive:
+
+```python my_tools.py
+def measure_transmission(omega: float) -> dict:
+   """
+Measure the transmission amplitude at a given frequency.
+
+Args:
+   omega - frequency in GHz
+   """
+   if omega>1.0 and omega<10.0:
+      return { "transmission": 1/((omega-3)**2 + 0.5), "omega": omega }
+
+PYTHON_TOOLS=[measure_transmission]
+```
+
 ![Terminal window with command "agent start" entered](docs/figures_mini_example/fig_agent_start.jpg)
 
 ## Quick Start
