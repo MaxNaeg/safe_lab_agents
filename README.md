@@ -85,7 +85,7 @@ pip install -e .
 
 ## Minimal Example
 
-After installation, create the following python file inside a new folder somewhere on your hard drive:
+After installation, create the following python file (here called `my_tools.py`) inside a new folder somewhere on your hard drive. In this example, we define a single function that returns a mock measurement result of an optical transmission spectrum.
 
 ```python my_tools.py
 def measure_transmission(omega: float) -> dict:
@@ -101,7 +101,13 @@ Args:
 PYTHON_TOOLS=[measure_transmission]
 ```
 
+Now run `mkdir shared` inside the same folder to produce a folder in which the agent can place files that you also might want to access outside the agent's sandbox.
+
+To start, run `agent start` inside the same folder!
+
 ![Terminal window with command "agent start" entered](docs/figures_mini_example/fig_agent_start.jpg)
+
+
 
 ## Quick Start
 
