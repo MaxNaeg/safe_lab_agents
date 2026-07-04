@@ -111,6 +111,15 @@ You will be asked a few questions for the setup. In this example, we assume you 
 
 ![Terminal window showing a set of interactive prompts and user answers](docs/figures_mini_example/fig_further_questions.jpg)
 
+Now you will observe some startup messages and the installation of various packages (such as numpy). Eventually `Claude Code` will start up. It will ask you to copy a link into a browser for getting the login credentials. This demonstrates that the sandbox works, as the agent cannot just launch a web page inside a browser on your machine (which would be what happens normally at this point). Copy that link to a browser, authorize access, and copy the resulting code back into the terminal. Afterwards, `Claude Code` is ready to take your instructions.
+
+![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_claude_launch.jpg)
+
+Give it instructions like `Characterize this optical setup` and let it run. In this example, it will still ask for permissions, but since you are inside the sandbox, feel free to let it run autonomously without any danger! 
+
+![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_run.jpg)
+
+That's it for now! See below for a more complete example and explanation of the various options.
 
 ## Quick Start
 
