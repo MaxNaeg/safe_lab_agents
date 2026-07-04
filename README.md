@@ -83,9 +83,13 @@ cd safe_lab_agents
 pip install -e .
 ```
 
+## Minimal Example
+
+(docs/figures_mini_example/fig_agent_start.jpg)
+
 ## Quick Start
 
-A complete, runnable example lives in [`example_setup/`](example_setup/) — a simulated optical bench with an experiment class ([`setup.py`](example_setup/setup.py)), the tools file ([`tools.py`](example_setup/tools.py)), a config file, and a captured agent run.
+Note: A complete, runnable example lives in [`example_setup/`](example_setup/) — a simulated optical bench with an experiment class ([`setup.py`](example_setup/setup.py)), the tools file ([`tools.py`](example_setup/tools.py)), a config file, and a captured agent run.
 
 ### 1. Define your tools
 
