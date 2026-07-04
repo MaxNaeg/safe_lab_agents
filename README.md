@@ -113,7 +113,7 @@ To launch the AI agent safely inside a sandbox, simply run `agent start` inside 
 
 ![Terminal window with command "agent start" entered](docs/figures_mini_example/fig_agent_start.jpg)
 
-You will be asked a few questions by the setup wizard. In this example, we assume you had installed the open `podman` Docker alternative and you have a `Claude Code` subscription (otherwise change as needed). Also enter `my_tools.py` when asked for the path to your tools python file, and enter `shared` when asked for the path to the shared folder. Also say yes (`y`) when asked about auto-logging the experimental data.
+You will be asked a few questions by the setup wizard. In this example, we assume you had installed the open `podman` Docker alternative and you have a `Claude Pro (or Max)` subscription (though not necessarily a working installation of claude code) -- otherwise change as needed. Also enter `my_tools.py` when asked for the path to your tools python file, and enter `shared` when asked for the path to the shared folder. Also say yes (`y`) when asked about auto-logging the experimental data.
 
 ![Terminal window showing a set of interactive prompts and user answers](docs/figures_mini_example/fig_further_questions.jpg)
 
