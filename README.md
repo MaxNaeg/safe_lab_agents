@@ -103,9 +103,9 @@ Args:
 PYTHON_TOOLS=[measure_transmission]
 ```
 
-Now run `mkdir shared` inside the same folder to produce a folder in which the agent can place files that you also might want to access outside the agent's sandbox.
+Now run `mkdir shared` inside the same folder to produce a subfolder in which the agent can place files that you also might later want to access outside the agent's sandbox.
 
-To start, run `agent start` inside the same folder!
+To launch the AI agent, run `agent start` inside your folder!
 
 ![Terminal window with command "agent start" entered](docs/figures_mini_example/fig_agent_start.jpg)
 
@@ -113,11 +113,11 @@ You will be asked a few questions for the setup. In this example, we assume you 
 
 ![Terminal window showing a set of interactive prompts and user answers](docs/figures_mini_example/fig_further_questions.jpg)
 
-Now you will observe some startup messages and the installation of various packages (such as numpy). Eventually `Claude Code` will start up. It will ask you to copy a link into a browser for getting the login credentials. This demonstrates that the sandbox works, as the agent cannot just launch a web page inside a browser on your machine (which would be what happens normally at this point). Copy that link to a browser, authorize access, and copy the resulting code back into the terminal. Afterwards, `Claude Code` is ready to take your instructions.
+Now you will observe some startup messages and the installation of various packages (such as numpy). Eventually `Claude Code` will launch. It will ask you to copy a link into a browser for getting the login credentials. This demonstrates that the sandbox works, as the agent cannot just launch a web page inside a browser on your machine (which would be what happens normally at this point). Copy that link to a browser, authorize access, and copy the resulting code back into the terminal. Afterwards, `Claude Code` is ready to take your instructions.
 
 ![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_claude_launch.jpg)
 
-Give it instructions like `Characterize this optical setup` and let it run. In this example, it will still ask for permissions, but since you are inside the sandbox, feel free to let it run autonomously without any danger! 
+Give it instructions like `Characterize this optical setup` and let it run. In this example, it will still ask for permissions, but since you are inside the sandbox, feel free to let it run autonomously without any danger! You can do so by pressing shift-tab several times to reach 'auto' mode. Alternatively, you could have used `agent start --task "Analyze the optical setup!"` in the beginning to directly go to automatic mode.
 
 ![Terminal window showing a freshly launched Claude Code instance](docs/figures_mini_example/fig_run.jpg)
 
