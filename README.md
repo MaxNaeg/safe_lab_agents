@@ -14,6 +14,8 @@
 
 Safely run AI agents in Docker to control scientific experiments via MCP (Model Context Protocol).
 
+By Maximilian Nägele and Florian Marquardt. Made at the Max Planck Institute for the Science of Light in Germany. Open source and free. First release July 2026.
+
 ## Overview
 
 **Safe Lab Agents** lets experimental scientists hand control of their experiment to an AI agent — while keeping safety guarantees. The agent runs **sandboxed inside a Docker container** and can only interact with lab hardware through **user-defined MCP tools** running on the host.
