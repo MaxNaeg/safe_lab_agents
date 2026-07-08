@@ -64,6 +64,10 @@ Inspired by our earlier [SciExplorer publication](https://github.com/MaxNaeg/Sci
 - **Conversation history** — all agent actions are stored and can be viewed with rich terminal formatting or exported as a self-contained HTML viewer.
 - **Autonomous mode** — give the agent a task and let it run without interaction.
 
+**Website:**
+
+[safe-lab-agents.org](https://safe-lab-agents.org/)
+
 ## Installation
 
 ### Prerequisites
