@@ -16,7 +16,7 @@ Safely run AI agents in a sandbox to autonomously control scientific experiments
 
 By Maximilian Nägele and Florian Marquardt. Made at the [Max Planck Institute for the Science of Light](https://mpl.mpg.de/divisions/marquardt-division/research) in Germany. Open source (MIT license) and forever free. First release July 2026.
 
-Inspired by our earlier [SciExplorer publication](https://github.com/MaxNaeg/SciExplorer).
+Inspired by our earlier [SciExplorer publication](https://journals.aps.org/prx/abstract/10.1103/xnqc-q6nt) (code also on [github](https://github.com/MaxNaeg/SciExplorer)).
 
 ## Overview
 
