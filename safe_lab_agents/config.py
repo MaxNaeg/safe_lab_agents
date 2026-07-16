@@ -92,7 +92,7 @@ class SessionConfig(BaseModel):
         description=(
             "Disable web tools. This is a SOFT restriction for both agents: it removes "
             "the dedicated web tools but does not block network access. For Claude Code "
-            "the built-in web tools are disabled via --allowedTools / --disallowedTools, "
+            "the built-in web tools are disabled via --disallowedTools, "
             "but Bash is still allowed so curl/wget/python can reach the network. For "
             "OpenClaw there is no CLI flag, so only a system-prompt instruction is injected."
         ),

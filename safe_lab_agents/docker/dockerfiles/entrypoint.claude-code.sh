@@ -9,10 +9,10 @@
 #   MODE          – "interactive" or "autonomous".
 #   TASK_PROMPT   – The task description (only used in autonomous mode).
 #   CONTEXT_DIR   – Path to the read-only context directory (optional).
-#   NO_WEB        – If "true", applies two layers of web blocking:
-#                   1. autonomous: --allowedTools positive list excludes web tools.
-#                   2. interactive: --disallowedTools explicit deny list.
-#                   Also injects a system-prompt restriction covering all vectors.
+#   NO_WEB        – If "true", web tools are hard-blocked in every mode via
+#                   --disallowedTools (deny rules apply even under
+#                   --dangerously-skip-permissions), plus a system-prompt
+#                   restriction covering all vectors.
 #   CLAUDE_MODEL  – Optional model alias or full name passed to --model.
 #   CLAUDE_EFFORT – Optional effort level (low/medium/high/xhigh/max) passed to --effort.
 # =============================================================================
@@ -83,14 +83,17 @@ export API_TIMEOUT_MS="${API_TIMEOUT_MS:-600000}"
 # ---- Configure MCP server connection ----
 # Remove any stale entry from a previous session before re-adding
 # (committed images already contain the previous MCP config).
-claude mcp remove experiment-tools 2>/dev/null || true
+# stdout is silenced ("Added HTTP MCP server … / Headers … / File modified …"
+# would otherwise clutter the host terminal right after the start banner);
+# stderr stays visible so real failures still surface.
+claude mcp remove experiment-tools >/dev/null 2>&1 || true
 if [ -n "${MCP_AUTH_TOKEN:-}" ]; then
     claude mcp add --transport http experiment-tools \
         "http://${MCP_HOST:-host.docker.internal}:${MCP_PORT}/mcp" \
-        --header "Authorization: Bearer ${MCP_AUTH_TOKEN}"
+        --header "Authorization: Bearer ${MCP_AUTH_TOKEN}" >/dev/null
 else
     claude mcp add --transport http experiment-tools \
-        "http://${MCP_HOST:-host.docker.internal}:${MCP_PORT}/mcp"
+        "http://${MCP_HOST:-host.docker.internal}:${MCP_PORT}/mcp" >/dev/null
 fi
 
 # ---- Mark onboarding complete (only when credentials were injected) ----
@@ -179,16 +182,18 @@ fi
 
 # ---- Autonomous mode ----
 if [ "$MODE" = "autonomous" ]; then
-    # Build the allowed-tools list. Web tools are included by default and
-    # removed when NO_WEB=true (hard block via positive allowlist).
-    ALLOWED_TOOLS="mcp__experiment-tools*,Read,Edit,Bash,Write"
-    if [ "${NO_WEB:-}" != "true" ]; then
-        ALLOWED_TOOLS="${ALLOWED_TOOLS},WebSearch,WebFetch"
+    # No allowlist: --dangerously-skip-permissions bypasses allow rules
+    # entirely (permission order: deny → allow → mode), so an allowlist would
+    # be dead weight. Deny rules ARE evaluated before the bypass, so
+    # --disallowedTools is a real hard block for the web tools.
+    NO_WEB_FLAG=()
+    if [ "${NO_WEB:-}" = "true" ]; then
+        NO_WEB_FLAG=(--disallowedTools "WebSearch,WebFetch")
     fi
     exec claude -p "$TASK_PROMPT" \
         --verbose \
         --append-system-prompt "$SYSTEM_PROMPT" \
-        --allowedTools "$ALLOWED_TOOLS" \
+        "${NO_WEB_FLAG[@]}" \
         --output-format stream-json \
         --dangerously-skip-permissions \
         "${CLAUDE_OPTS[@]}"
