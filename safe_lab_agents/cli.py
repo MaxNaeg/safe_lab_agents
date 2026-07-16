@@ -473,9 +473,14 @@ def start(
     _activate_container_runtime(container)
 
     agent = agent or _prompt_agent()
-    tools = tools or _prompt_path(
-        "Path to your tools Python file", must_exist=True, suffix=".py"
-    )
+    if tools is None:
+        default_tools = Path.cwd() / "tools.py"
+        tools = _prompt_path(
+            "Path to your tools Python file",
+            must_exist=True,
+            suffix=".py",
+            default=default_tools if default_tools.is_file() else None,
+        )
     shared = shared or _prompt_optional_path(
         "Path to SHARED DATA DIRECTORY. The agent can read and write to this. Useful for data exchange between the agent and the host."
     )
@@ -1393,11 +1398,17 @@ def _prompt_agent() -> str:
 
 
 def _prompt_path(
-    label: str, must_exist: bool = False, suffix: Optional[str] = None
+    label: str,
+    must_exist: bool = False,
+    suffix: Optional[str] = None,
+    default: Optional[Path] = None,
 ) -> Path:
     """Prompt until the user provides a valid path."""
     while True:
-        raw = Prompt.ask(label)
+        if default is not None:
+            raw = Prompt.ask(label, default=str(default))
+        else:
+            raw = Prompt.ask(label)
         p = Path(raw).expanduser().resolve()
         if must_exist and not p.exists():
             console.print(f"[red]Path does not exist: {p}[/red]")
