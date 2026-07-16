@@ -322,14 +322,37 @@ def _configure_podman_machine_memory(target_mb: int, running: bool) -> None:
 # macOS
 # ---------------------------------------------------------------------------
 
-def _start_podman_machine_macos() -> None:
-    """Run ``podman machine start``, hiding the irrelevant mac-helper notice.
+# Known-noise patterns in `podman machine start` output. None of them applies
+# here: we set DOCKER_HOST ourselves (helper-service / API-forwarding notes),
+# the rootless hint is irrelevant to our container use, and the progress lines
+# duplicate our own "Starting Podman machine …" message.
+_PODMAN_START_NOISE = [
+    # Advisory block: install the system helper so the default Docker socket
+    # routes to Podman, through the suggested `export DOCKER_HOST=` command.
+    re.compile(
+        r"The system helper service is not installed;.*?"
+        r"export DOCKER_HOST=.*?\n\s*?\n",
+        re.DOTALL,
+    ),
+    # Advisory block: machine is rootless, switch via `podman machine set --rootful`.
+    re.compile(
+        r"This machine is currently configured in rootless mode\..*?"
+        r"podman machine set --rootful\s*\n",
+        re.DOTALL,
+    ),
+    re.compile(r'^Starting machine ".*"[ \t]*\n?', re.MULTILINE),
+    re.compile(r"^API forwarding listening on: .*\n?", re.MULTILINE),
+    re.compile(r"^Docker API clients default to this address\. ?.*\n?", re.MULTILINE),
+    re.compile(r"^You do not need to set DOCKER_HOST\..*\n?", re.MULTILINE),
+]
 
-    On macOS, ``podman machine start`` advises installing the system helper
-    service so the *default* Docker socket routes to Podman. We set
-    ``DOCKER_HOST`` ourselves to the machine's own socket, so that advice is
-    moot and only alarms users — strip the advisory block while still passing
-    through everything else (and any real failure).
+
+def _start_podman_machine_macos() -> None:
+    """Run ``podman machine start``, hiding known-noise output.
+
+    ``podman machine start`` prints several advisories and progress lines that
+    don't apply here (see ``_PODMAN_START_NOISE``) — strip them while still
+    passing through everything else (and any real failure).
     """
     result = subprocess.run(
         ["podman", "machine", "start"],
@@ -338,16 +361,9 @@ def _start_podman_machine_macos() -> None:
         text=True,
     )
     output = (result.stdout or "") + (result.stderr or "")
-    # Drop the contiguous advisory block: from its opening line through the
-    # suggested `export DOCKER_HOST=` command (and the trailing blank line).
-    filtered = re.sub(
-        r"The system helper service is not installed;.*?"
-        r"export DOCKER_HOST=.*?\n\s*?\n",
-        "",
-        output,
-        flags=re.DOTALL,
-    )
-    cleaned = filtered.strip()
+    for pattern in _PODMAN_START_NOISE:
+        output = pattern.sub("", output)
+    cleaned = output.strip()
     if cleaned:
         print(cleaned, flush=True)
     if result.returncode != 0:

@@ -249,6 +249,49 @@ def _print_banner() -> None:
     console.print(f"[cyan]{BANNER}[/cyan]")
 
 
+def _print_session_start_banner(message: str) -> None:
+    """Print a highly visible panel right before the agent is launched.
+
+    Marks the point where all host-side setup is done and the container /
+    agent takes over the terminal.
+    """
+    console.print()
+    console.print(
+        Panel(
+            f"[bold]{message}[/bold]",
+            title="[bold green]▶ SESSION STARTING[/bold green]",
+            border_style="bold green",
+        )
+    )
+    console.print()
+
+
+def _print_session_exit_summary(config: SessionConfig, resumable: bool) -> None:
+    """Print follow-up commands for a stopped session (resume + HTML exports)."""
+    lines = []
+    if resumable:
+        lines.append(
+            f"Resume session:           [cyan]agent resume --name {config.name}[/cyan]"
+        )
+    lines.append(
+        f"Conversation log → HTML:  [cyan]agent history --name {config.name} --open[/cyan]"
+    )
+    if config.auto_log_dir:
+        lines.append(
+            f"Auto-log report → HTML:   [cyan]agent report {config.auto_log_dir} --open[/cyan]"
+        )
+    title = f"Session '{config.name}' " + (
+        "committed — you can resume later" if resumable else "stopped"
+    )
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title=f"[bold green]{title}[/bold green]",
+            border_style="green",
+        )
+    )
+
+
 # ======================================================================
 # start
 # ======================================================================
@@ -320,7 +363,7 @@ def start(
         "--no-web",
         help=(
             "Disable web tools (SOFT restriction for both agents — does not block network access). "
-            "Claude Code: built-in web tools disabled via --allowedTools / --disallowedTools, but "
+            "Claude Code: built-in web tools disabled via --disallowedTools, but "
             "Bash is still allowed so curl/wget/python can still reach the network. "
             "OpenClaw: system-prompt instruction only, no CLI enforcement."
         ),
@@ -434,8 +477,7 @@ def start(
         "Path to your tools Python file", must_exist=True, suffix=".py"
     )
     shared = shared or _prompt_optional_path(
-        "Path to SHARED DATA DIRECTORY. The agent can read and write to this. Useful for data exchange between the agent and the host. "
-        "Use this to save tool results that are not text based, such as large arrays. You can access this directory from within your tools Python file via the variable SHARED_DATA_DIR. (Enter to skip)"
+        "Path to SHARED DATA DIRECTORY. The agent can read and write to this. Useful for data exchange between the agent and the host."
     )
     name = name or _prompt_session_name()
     # Kadi4Mat requires auto-log, so it's forced on downstream regardless — only
@@ -650,7 +692,7 @@ def start(
                     _mcp[0].stop()
                     raise typer.Exit(1)
                 extra_env["CLAUDE_CODE_OAUTH_TOKEN"] = token
-            else:
+            elif copy_host:
                 console.print(
                     "[dim]No Claude credentials found on host — you may need to log in inside the container.[/dim]"
                 )
@@ -697,7 +739,9 @@ def start(
         # Copy native logs out of the container before it is committed/removed.
         if container_obj is not None:
             try:
-                docker_mgr.copy_agent_logs(container_obj.id, session_dir, config.agent_type)
+                docker_mgr.copy_agent_logs(
+                    container_obj.id, session_dir, config.agent_type
+                )
             except Exception as exc:
                 logger.warning("Could not copy agent logs: %s", exc)
 
@@ -708,12 +752,11 @@ def start(
         except Exception as exc:
             logger.warning("Could not import history: %s", exc)
 
+        committed = False
         if container_obj is not None:
             try:
                 docker_mgr.commit_container(container_obj.id, config.name)
-                console.print(
-                    f"[green]Session '{config.name}' committed — you can resume later.[/green]"
-                )
+                committed = True
             except Exception as exc:
                 logger.warning("Could not commit container: %s", exc)
             try:
@@ -734,6 +777,7 @@ def start(
         metadata.status = "committed"
         metadata.stopped_at = datetime.now()
         metadata.save()
+        _print_session_exit_summary(config, resumable=committed)
         if signum is not None:
             sys.exit(0)
 
@@ -742,9 +786,7 @@ def start(
     atexit.register(_cleanup)
 
     # ---- Run ----
-    console.print(
-        f"\n[bold green]Launching {config.agent_type} in {mode} mode …[/bold green]\n"
-    )
+    _print_session_start_banner(f"Launching {config.agent_type} in {mode} mode …")
 
     try:
         if mode == "autonomous":
@@ -929,11 +971,10 @@ def resume(
         except Exception as exc:
             logger.warning("Could not import history: %s", exc)
 
+        committed = False
         try:
             docker_mgr.commit_container(container.id, config.name)
-            console.print(
-                f"[green]Session '{config.name}' committed — you can resume later.[/green]"
-            )
+            committed = True
         except Exception:
             pass
         try:
@@ -954,6 +995,7 @@ def resume(
         metadata.status = "committed"
         metadata.stopped_at = datetime.now()
         metadata.save()
+        _print_session_exit_summary(config, resumable=committed)
         if signum is not None:
             sys.exit(0)
 
@@ -961,8 +1003,8 @@ def resume(
     signal.signal(signal.SIGTERM, _cleanup)
     atexit.register(_cleanup)
 
-    console.print(
-        f"\n[bold green]Resuming {config.agent_type} ({name}) interactively …[/bold green]\n"
+    _print_session_start_banner(
+        f"Resuming {config.agent_type} ({name}) interactively …"
     )
 
     try:
@@ -1029,7 +1071,9 @@ def history(
             metadata = None
 
         entries = HistoryStore(name).load_history()
-        out_path = html_out or (get_sessions_dir() / name / "conversation_safe_lab_agents.html")
+        out_path = html_out or (
+            get_sessions_dir() / name / "conversation_safe_lab_agents.html"
+        )
         build_conversation_html(entries, metadata, out_path)
         console.print(f"[green]Conversation written →[/green] {out_path}")
         if open_browser:
