@@ -231,7 +231,7 @@ agent resume --name session-20260413-153042
 
 ### See a real run
 
-The example ships with a **complete captured run** where the agent calibrated the optical bench from scratch. See [`example_setup/example_agent_run.md`](example_setup/example_agent_run.md) for the walkthrough, plus the self-contained [HTML data report](example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) and [conversation transcript](example_setup/shared_calibration_example/conversation_safe_lab_agents.html) — open these `.html` files in a browser (they're self-contained and render offline).
+The example ships with a **complete captured run** where the agent calibrated the optical bench from scratch. See [`example_setup/example_agent_run.md`](example_setup/example_agent_run.md) for the walkthrough, plus the self-contained [HTML data report](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) and [conversation transcript](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/conversation_safe_lab_agents.html) — the links open directly in your browser (the underlying `.html` files live in `example_setup/shared_calibration_example/` and also render offline).
 
 ## Defining tools (reference)
 
@@ -356,7 +356,7 @@ Units flow through the logs, HTML report, and .eln export, so the recorded data 
 
 **On exit**, a `session_summary.json` and a standard **`<session>.eln`** archive are written automatically to the log folder.
 
-**View the log** as a single self-contained HTML page (embedded figures, filter/search by kind, provenance links) — see the [example report](example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) (open it in a browser):
+**View the log** as a single self-contained HTML page (embedded figures, filter/search by kind, provenance links) — see the [example report](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) (opens in your browser):
 
 ```bash
 agent report path/to/auto_log --open

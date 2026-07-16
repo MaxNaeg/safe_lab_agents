@@ -30,9 +30,9 @@ The headline finding: with the QWP neutral, detected power follows Malus's law,
 ## Where to find things
 
 - **HTML report of the data/auto-log** (measurements, batches, analyses, embedded
-  figures): [shared_calibration_example/auto_log/report_safe_lab_agents.html](shared_calibration_example/auto_log/report_safe_lab_agents.html)
+  figures): [shared_calibration_example/auto_log/report_safe_lab_agents.html](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) (opens in your browser)
 - **HTML report of the conversation** (the full agent transcript):
-  [shared_calibration_example/conversation_safe_lab_agents.html](shared_calibration_example/conversation_safe_lab_agents.html)
+  [shared_calibration_example/conversation_safe_lab_agents.html](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/conversation_safe_lab_agents.html) (opens in your browser)
 - **Calibration write-up:** [shared_calibration_example/SETUP_CALIBRATION.md](shared_calibration_example/SETUP_CALIBRATION.md)
 - **Analysis scripts the agent wrote:** [shared_calibration_example/scripts/](shared_calibration_example/scripts/)
 - **Raw auto-log records** (JSON + HDF5 + `.png` figures + `.eln` export):
