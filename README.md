@@ -243,16 +243,22 @@ When your tools share a stateful object — an instrument driver holding a seria
 
 ```python
 from safe_lab_agents import experiment
+# import any library controlling your hardware
+from pylablib.devices.example_provider import ElliptecMotor, ... 
 
 class Setup:
     def __init__(self, port: str = "/dev/ttyUSB0"):
+        self.motor = ElliptecMotor(port)
         ...  # open the hardware connection
 
     def get_position(self, component: str) -> float:
         """Measure the position of an optical component, in millimeters."""
+        pos = self.motor.get_position()
         ...
+        
 
     def close(self) -> None:
+        self.motor.close()
         ...  # release the connection
 
 exp = experiment(Setup, port="/dev/ttyUSB0")
