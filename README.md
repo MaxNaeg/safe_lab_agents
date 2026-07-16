@@ -374,6 +374,10 @@ agent report path/to/auto_log --open
 agent export-eln path/to/auto_log -o session.eln
 ```
 
+### Kadi4Mat integration
+You can automatically push all the log enties to the lab notebook Kadi4Mat:
+Install the extra (`pip install -e ".[kadi4mat]"`), configure once with `kadi-apy config`, then pass `--kadi4mat-project <name>` to push every logged record to a [Kadi4Mat](https://kadi4mat.iam.kit.edu) ELN (auto-enables `--auto-log`; rate-limited via `--kadi-max-per-minute`/`--kadi-max-per-session`).
+
 ## CLI Reference
 
 ### `agent start`
@@ -555,7 +559,6 @@ Smaller or optional capabilities, one line each:
 - **`--port`** — pin the host-side MCP server port (default auto-selects a free one).
 - **`@results_to_shared`** — decorator that copies selected return values of an MCP tool into the shared directory and hands the agent a confirmation string (a niche helper — `PYTHON_TOOLS` already return native objects directly). `from safe_lab_agents import results_to_shared`.
 - **`@no_autolog`** — decorator to exclude a specific tool from auto-logging. `from safe_lab_agents import no_autolog`.
-- **Kadi4Mat push** — install the extra (`pip install -e ".[kadi4mat]"`), configure once with `kadi-apy config`, then pass `--kadi4mat-project <name>` to push every logged record to a [Kadi4Mat](https://kadi4mat.iam.kit.edu) ELN (auto-enables `--auto-log`; rate-limited via `--kadi-max-per-minute`/`--kadi-max-per-session`).
 - **Predefined MCP servers** (`--server`) — enable a built-in bundle of tools by name; for example, `--server lab-notebook` adds a simple Markdown-based lab-notebook server.
 - **Podman support** — Docker and Podman are equal choices per session (`--container`); the Podman machine (macOS/Windows) or socket (Linux) is started automatically, and the runtime is autodetected on `resume`.
 - **Docker auto-start** — Docker Desktop is launched automatically on macOS/Windows (and the daemon started via `systemctl` on Linux) if it isn't already running.
