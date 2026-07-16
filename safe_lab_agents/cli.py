@@ -1758,7 +1758,7 @@ Tag each entry with the `kind` parameter so the record is self-describing:
 When a script errors, capture the traceback and log it before moving on, e.g.:
 
     import sys, traceback
-    sys.path.insert(0, "/agent/shared/scripts")
+    sys.path.insert(0, "/agent/workspace")
     from auto_log_client import log_analysis
     try:
         ...                       # the analysis that might fail
@@ -1779,7 +1779,7 @@ Workflow:
   2. Run the script: python /agent/shared/scripts/my_analysis.py
   3. The script calls log_analysis() as its last step (or in an except block on failure)
 
-    import sys; sys.path.insert(0, "/agent/shared/scripts")
+    import sys; sys.path.insert(0, "/agent/workspace")
     from auto_log_client import log_analysis, AUTO_LOG_DIR
 
 Signature:
@@ -1813,7 +1813,7 @@ Parameters:
 
 Full example — save this as /agent/shared/scripts/fit_voltage_sweep.py, then run it:
 
-    import sys; sys.path.insert(0, "/agent/shared/scripts")
+    import sys; sys.path.insert(0, "/agent/workspace")
     from auto_log_client import log_analysis, AUTO_LOG_DIR
     import json, h5py, numpy as np, matplotlib
     matplotlib.use("Agg")
@@ -1873,7 +1873,7 @@ Import inside Docker to group tool calls into batches or record analysis results
 
 Example::
 
-    import sys; sys.path.insert(0, "/agent/shared/scripts")
+    import sys; sys.path.insert(0, "/agent/workspace")
     from auto_log_client import start_batch, stop_batch, log_analysis, AUTO_LOG_DIR
 """
 import base64 as _base64
