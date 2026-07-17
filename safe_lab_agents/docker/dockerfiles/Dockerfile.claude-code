@@ -68,6 +68,14 @@ RUN chmod +x /entrypoint.sh /firewall.sh
 # The Claude Code installer places the binary in ~/.local/bin.
 ENV PATH="/home/agent/.local/bin:${PATH}"
 
+# ---- Toolchain provenance ----
+# The Claude Code install above is deliberately unpinned (see AUDIT.md), so
+# record what was actually installed. Placed last so it never invalidates the
+# expensive layers above. Read back with:
+#   docker run --rm --entrypoint cat <image> /image-versions.txt
+RUN su -l agent -c '/home/agent/.local/bin/claude --version' > /image-versions.txt \
+    && cat /image-versions.txt
+
 WORKDIR /agent/workspace
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -69,6 +69,16 @@ RUN openclaw plugins install @openclaw/codex 2>/dev/null || true
 # egress firewall, then drops to 'agent' via setpriv.
 USER root
 
+# ---- Toolchain provenance ----
+# The npm install above is deliberately unpinned (see AUDIT.md), so record
+# what was actually installed. Placed last so it never invalidates the
+# expensive layers above; falls back to the npm listing should the CLI ever
+# stop supporting --version. Read back with:
+#   docker run --rm --entrypoint cat <image> /image-versions.txt
+RUN (openclaw --version || npm list -g openclaw --depth=0 | grep openclaw) \
+        > /image-versions.txt \
+    && cat /image-versions.txt
+
 WORKDIR /agent/workspace
 
 ENTRYPOINT ["/entrypoint.sh"]
