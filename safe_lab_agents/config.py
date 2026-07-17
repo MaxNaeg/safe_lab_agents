@@ -97,6 +97,18 @@ class SessionConfig(BaseModel):
             "OpenClaw there is no CLI flag, so only a system-prompt instruction is injected."
         ),
     )
+    egress_lockdown: bool = Field(
+        default=True,
+        description=(
+            "Apply an in-container egress firewall before the agent starts: the host "
+            "is reachable ONLY on the MCP port, and private/link-local LAN ranges are "
+            "blocked, while the public internet (the agent's model API) stays open. "
+            "Limitation: LAN hosts numbered with public IPv4 / global IPv6 are "
+            "indistinguishable from the internet and remain reachable. Disable with "
+            "--no-egress-lockdown if the container runtime cannot support "
+            "in-container iptables (the container then fails closed at start)."
+        ),
+    )
     update_tools: bool = Field(
         default=False,
         description="Watch tools file for changes and automatically reload the MCP server.",

@@ -47,6 +47,7 @@ CONFIG_KEY_MAP: dict[str, str] = {
     "port": "port",
     "container": "container",
     "no-web": "no_web",
+    "egress-lockdown": "egress_lockdown",
     "update-tools": "update_tools",
     "auto-log": "auto_log",
 }

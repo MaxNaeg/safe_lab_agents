@@ -26,6 +26,8 @@ class TestSessionConfig:
         assert cfg.task is None
         assert cfg.predefined_servers == []
         assert cfg.agent_args == {}
+        # Egress lockdown (host reachable only on the MCP port) is on by default.
+        assert cfg.egress_lockdown is True
 
     def test_container_runtime_rejects_unknown_value(self, tmp_path: Path) -> None:
         """container_runtime is a Literal — only 'docker'/'podman' are accepted."""

@@ -403,6 +403,7 @@ Start a new agent session. All options are optional — missing ones are prompte
 | `--port` | MCP server port (0 = auto) |
 | `--container` | Container runtime: `docker` or `podman` (prompted if omitted; Podman auto-initializes the machine if needed) |
 | `--no-web` | Disable web tools (soft restriction — does not block network access). Claude Code: built-in web tools disabled, but Bash can still reach the network. OpenClaw: system-prompt instruction only. |
+| `--egress-lockdown/--no-egress-lockdown` | In-container egress firewall (default: **on**): the host is reachable only on the MCP port and private/LAN ranges are blocked, while the public internet (the agent's model API) stays open. If the rules cannot be applied the container refuses to start (fail-closed) — disable only if your runtime cannot support in-container iptables. |
 | `--update-tools` | Expose a `reload_tools` MCP tool the agent can call to reload your tools file without restarting the container |
 | `--auto-log` | Automatically log every tool call as a local ELN record (JSON + HDF5). See [Automatic logging & ELN export](#automatic-logging--eln-export). |
 | `--config` | Path to a YAML config file supplying defaults for the options above. See [Config file](#config-file). |
@@ -556,6 +557,7 @@ Smaller or optional capabilities, one line each:
 - **Agent workspace** — the agent's working directory (`/agent/workspace` inside the container — scripts, analysis, output files) is bind-mounted to `~/.safe_lab_agents/sessions/<name>/workspace/` on your host, so everything it creates is available there.
 - **`--update-tools`** — exposes a `reload_tools` MCP tool the agent can call to pick up edits to your tools file without restarting the container (handy while developing tools).
 - **`--no-web`** — soft-disable the agent's web tools (a lab agent driving hardware usually shouldn't browse); does not block network access.
+- **Egress lockdown** (default on) — before the agent starts, the container installs an internal firewall so the host is reachable *only* on the MCP tool-server port and private/LAN addresses are blocked; the public internet stays open for the agent's model API. Note: LAN machines with public IP addresses can't be told apart from the internet and remain reachable. Opt out with `--no-egress-lockdown` if your runtime can't support in-container iptables (the container fails closed otherwise).
 - **`--port`** — pin the host-side MCP server port (default auto-selects a free one).
 - **`@results_to_shared`** — decorator that copies selected return values of an MCP tool into the shared directory and hands the agent a confirmation string (a niche helper — `PYTHON_TOOLS` already return native objects directly). `from safe_lab_agents import results_to_shared`.
 - **`@no_autolog`** — decorator to exclude a specific tool from auto-logging. `from safe_lab_agents import no_autolog`.

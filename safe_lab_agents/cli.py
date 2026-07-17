@@ -368,6 +368,18 @@ def start(
             "OpenClaw: system-prompt instruction only, no CLI enforcement."
         ),
     ),
+    egress_lockdown: bool = typer.Option(
+        True,
+        "--egress-lockdown/--no-egress-lockdown",
+        help=(
+            "Firewall the container's egress before the agent starts (default: on): "
+            "the host is reachable ONLY on the MCP port and private/LAN ranges are "
+            "blocked, while the public internet (model API) stays open. If the rules "
+            "cannot be applied the container fails closed at start — pass "
+            "--no-egress-lockdown only if your runtime cannot support in-container "
+            "iptables."
+        ),
+    ),
     update_tools: bool = typer.Option(
         False,
         "--update-tools",
@@ -462,6 +474,7 @@ def start(
     port = _from_config("port", port)
     container = _from_config("container", container)
     no_web = _from_config("no_web", no_web)
+    egress_lockdown = _from_config("egress_lockdown", egress_lockdown)
     update_tools = _from_config("update_tools", update_tools)
     auto_log = _from_config("auto_log", auto_log)
 
@@ -572,6 +585,7 @@ def start(
         kadi4mat_max_per_session=kadi_max_per_session,
         container_runtime=cast(Literal["docker", "podman"], container),
         no_web=no_web,
+        egress_lockdown=egress_lockdown,
         update_tools=update_tools,
         agent_args=agent_args,
     )

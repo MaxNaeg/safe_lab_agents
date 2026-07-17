@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
         curl \
         ca-certificates \
+        iptables \
+        util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/python3 /usr/local/bin/python
 
@@ -55,11 +57,13 @@ RUN if [ -s /tmp/user_requirements.txt ] && [ "$REQUIREMENTS_FILE" != "" ]; then
             -r /tmp/user_requirements.txt; \
     fi && rm -f /tmp/user_requirements.txt
 
-# ---- Entrypoint script ----
+# ---- Entrypoint + egress-firewall scripts ----
 COPY entrypoint.claude-code.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY firewall.sh /firewall.sh
+RUN chmod +x /entrypoint.sh /firewall.sh
 
-USER agent
+# No USER directive: the container starts as root so the entrypoint can apply
+# the egress firewall (CAP_NET_ADMIN), then drops to 'agent' via setpriv.
 
 # The Claude Code installer places the binary in ~/.local/bin.
 ENV PATH="/home/agent/.local/bin:${PATH}"

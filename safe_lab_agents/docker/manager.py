@@ -49,6 +49,16 @@ _HARDENING_CAP_DROP = ["ALL"]
 _HARDENING_SECURITY_OPT = ["no-new-privileges:true"]
 _HARDENING_PIDS_LIMIT = 512
 
+# Capabilities added back on top of ``cap_drop ALL``. Every container starts
+# as root only so the entrypoint can run its root phase, then drops to the
+# unprivileged ``agent`` user via setpriv — which needs SETUID/SETGID.
+# Session containers additionally get NET_ADMIN so the entrypoint can install
+# the egress firewall (scope host access to the MCP port) before the drop.
+# After the drop the capabilities survive only in the bounding set, where the
+# ``no-new-privileges`` flag makes them unreacquirable.
+_LOGIN_CAP_ADD = ["SETUID", "SETGID"]
+_SESSION_CAP_ADD = ["NET_ADMIN", *_LOGIN_CAP_ADD]
+
 
 def _make_agent_writable(path: Path) -> None:
     """Recursively make a host bind-mount tree writable by the container ``agent``.
@@ -245,6 +255,15 @@ class DockerManager:
         mcp_host = self._resolve_mcp_host(config)
         if mcp_host:
             environment["MCP_HOST"] = mcp_host
+        # Tell the entrypoint whether to install the egress firewall before
+        # dropping privileges (see firewall.sh). The host-gateway mapping
+        # itself must stay: the entrypoint's MCP URL and the firewall's
+        # host-IP resolution both rely on the host.docker.internal name
+        # (rootless Podman does not define it on its own), and the firewall —
+        # not the absence of the name — is what scopes host access.
+        environment["EGRESS_LOCKDOWN"] = (
+            "true" if config.egress_lockdown else "false"
+        )
         command = (
             agent.get_resume_command() if resume else agent.get_entrypoint_command()
         )
@@ -256,6 +275,7 @@ class DockerManager:
             environment=environment,
             volumes=volumes,
             extra_hosts={"host.docker.internal": "host-gateway"},
+            cap_add=_SESSION_CAP_ADD,
             tty=tty,
             stdin_open=tty,
             detach=True,
@@ -281,13 +301,19 @@ class DockerManager:
 
         The container is created but **not** started; run it with
         :meth:`start_interactive`.
+
+        Unlike session containers it gets no ``host.docker.internal`` mapping
+        and no ``NET_ADMIN`` — the OAuth flow only needs the public internet,
+        so the host is not exposed to it at all (and with ``EGRESS_LOCKDOWN``
+        unset the entrypoint skips the firewall). SETUID/SETGID remain so the
+        entrypoint can drop from root to the ``agent`` user.
         """
         container = self._containers_create(
             image=image_tag,
             name=f"safe-lab-agents-login-{os.getpid()}",
             command=agent.get_login_command(),
             environment={"TERM": os.environ.get("TERM", "xterm-256color")},
-            extra_hosts={"host.docker.internal": "host-gateway"},
+            cap_add=_LOGIN_CAP_ADD,
             tty=True,
             stdin_open=True,
             detach=True,

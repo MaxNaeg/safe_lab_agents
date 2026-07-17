@@ -75,7 +75,7 @@ class _CapturingContainers:
 
     def create(self, **kwargs):
         self.kwargs = kwargs
-        return "created-container"
+        return types.SimpleNamespace(name=kwargs.get("name", "c"), short_id="abc123")
 
 
 def test_containers_create_applies_hardening_defaults() -> None:
@@ -101,6 +101,79 @@ def test_containers_create_caller_can_override_hardening() -> None:
     # The other hardening defaults are still applied.
     assert capturing.kwargs["security_opt"] == ["no-new-privileges:true"]
     assert capturing.kwargs["pids_limit"] == 512
+
+
+class _StubAgent:
+    """Minimal agent backend for exercising container creation."""
+
+    def get_environment_variables(self, config, mcp_port):
+        return {"MCP_PORT": str(mcp_port), "MODE": "interactive"}
+
+    def get_entrypoint_command(self):
+        return None
+
+    def get_resume_command(self):
+        return None
+
+    def get_login_command(self):
+        return ["--login"]
+
+
+def _session_config(tmp_path: Path, **overrides) -> SessionConfig:
+    return SessionConfig(
+        name="s",
+        agent_type="claude-code",
+        tools_file=tmp_path / "tools.py",
+        workspace_dir=tmp_path / "ws",
+        container_runtime="docker",
+        **overrides,
+    )
+
+
+def test_create_container_scopes_host_access(tmp_path: Path) -> None:
+    """Session containers get the host mapping plus the caps and env the
+    entrypoint needs to firewall egress (NET_ADMIN) and drop to 'agent'
+    (SETUID/SETGID); the lockdown is on by default."""
+    capturing = _CapturingContainers()
+    mgr = DockerManager(docker_client=types.SimpleNamespace(containers=capturing))
+
+    mgr.create_container(
+        _session_config(tmp_path), _StubAgent(), mcp_port=5000, image_tag="img"
+    )
+
+    assert capturing.kwargs["extra_hosts"] == {"host.docker.internal": "host-gateway"}
+    assert capturing.kwargs["cap_add"] == ["NET_ADMIN", "SETUID", "SETGID"]
+    assert capturing.kwargs["cap_drop"] == ["ALL"]
+    assert capturing.kwargs["environment"]["EGRESS_LOCKDOWN"] == "true"
+
+
+def test_create_container_egress_lockdown_can_be_disabled(tmp_path: Path) -> None:
+    """--no-egress-lockdown propagates to the entrypoint as EGRESS_LOCKDOWN=false."""
+    capturing = _CapturingContainers()
+    mgr = DockerManager(docker_client=types.SimpleNamespace(containers=capturing))
+
+    mgr.create_container(
+        _session_config(tmp_path, egress_lockdown=False),
+        _StubAgent(),
+        mcp_port=5000,
+        image_tag="img",
+    )
+
+    assert capturing.kwargs["environment"]["EGRESS_LOCKDOWN"] == "false"
+
+
+def test_create_login_container_is_not_host_exposed() -> None:
+    """The login container gets no host.docker.internal mapping and no NET_ADMIN —
+    only the SETUID/SETGID caps needed for the entrypoint's privilege drop."""
+    capturing = _CapturingContainers()
+    mgr = DockerManager(docker_client=types.SimpleNamespace(containers=capturing))
+
+    mgr.create_login_container("img", _StubAgent())
+
+    assert "extra_hosts" not in capturing.kwargs
+    assert capturing.kwargs["cap_add"] == ["SETUID", "SETGID"]
+    assert capturing.kwargs["cap_drop"] == ["ALL"]
+    assert "EGRESS_LOCKDOWN" not in capturing.kwargs["environment"]
 
 
 def test_build_volumes_makes_writable_mounts_agent_writable(tmp_path: Path) -> None:

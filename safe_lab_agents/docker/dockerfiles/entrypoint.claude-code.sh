@@ -18,8 +18,38 @@
 #                   agent's own model API).
 #   CLAUDE_MODEL  – Optional model alias or full name passed to --model.
 #   CLAUDE_EFFORT – Optional effort level (low/medium/high/xhigh/max) passed to --effort.
+#   EGRESS_LOCKDOWN – If "true", apply the in-container egress firewall
+#                   (/firewall.sh) before dropping privileges: the host is then
+#                   reachable ONLY on the MCP port and private/LAN ranges are
+#                   blocked, while the public internet (model API) stays open.
 # =============================================================================
 set -euo pipefail
+
+# ---- Egress lockdown + privilege drop (root phase) ----
+# The container starts as root (no USER directive) solely so this block can
+# install the egress firewall, which needs CAP_NET_ADMIN. It must run before
+# anything else — especially before any file is written — and must not create
+# files itself (root-owned files in the bind mounts would be unwritable for
+# the host user). It then permanently drops to the 'agent' user via setpriv
+# and re-execs this script; the exec keeps PID 1 and the controlling TTY, so
+# interactive/resume/login flows behave exactly as before. After the drop no
+# capabilities remain and no-new-privileges prevents reacquisition, so the
+# firewall rules are immutable from inside the container.
+if [ "$(id -u)" = "0" ]; then
+    if [ "${EGRESS_LOCKDOWN:-}" = "true" ]; then
+        if ! /firewall.sh; then
+            echo "ERROR: could not apply the egress firewall (host/LAN lockdown)." >&2
+            echo "If your container runtime cannot support in-container iptables," >&2
+            echo "rerun with --no-egress-lockdown to start without it." >&2
+            exit 1
+        fi
+    fi
+    # The runtime chowns the console device to the image's configured user
+    # (root here); hand it to 'agent' so TUIs can reopen /dev/tty.
+    chown agent "$(tty)" 2>/dev/null || true
+    exec setpriv --reuid=agent --regid=agent --init-groups --inh-caps=-all \
+        env HOME=/home/agent USER=agent LOGNAME=agent /entrypoint.sh "$@"
+fi
 
 # ---- Make everything the agent creates writable from the host ----
 # The agent runs as the non-root 'agent' user, whose UID never matches the host

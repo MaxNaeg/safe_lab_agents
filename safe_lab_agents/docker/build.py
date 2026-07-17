@@ -96,6 +96,9 @@ def _compute_hash(agent_type: str, requirements_file: Optional[Path]) -> str:
     entrypoint_content = _read_packaged_file(entrypoint_name)
     h.update(entrypoint_content.encode())
 
+    # Hash the shared egress-firewall script (baked into every agent image).
+    h.update(_read_packaged_file("firewall.sh").encode())
+
     # Hash the requirements file if present.
     if requirements_file is not None and requirements_file.exists():
         h.update(requirements_file.read_bytes())
@@ -166,6 +169,9 @@ def _build_image(
         # Copy entrypoint script (LF newlines, or the shebang breaks on Windows).
         entrypoint_name = f"entrypoint.{agent_type}.sh"
         _write_text_lf(tmp / entrypoint_name, _read_packaged_file(entrypoint_name))
+
+        # Copy the shared egress-firewall script (COPY'd by both Dockerfiles).
+        _write_text_lf(tmp / "firewall.sh", _read_packaged_file("firewall.sh"))
 
         # Copy requirements file (or create an empty .dockerignore as fallback
         # so the COPY instruction in the Dockerfile does not fail).
