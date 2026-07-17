@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -14,10 +15,24 @@ def get_base_dir() -> Path:
     """Return the base directory for safe_lab_agents data.
 
     Defaults to ``~/.safe_lab_agents``.  The directory is created if it does
-    not already exist.
+    not already exist and is kept owner-only (``0700``): reaching any file
+    requires traverse permission on every directory along the path, so gating
+    the tree at the top makes everything beneath unreachable to other local
+    users — even though session workspaces below are deliberately
+    world-writable (bind-mount UID mismatch, see ``_make_agent_writable``) and
+    ``metadata.json`` can hold secrets.  Containers are unaffected: bind
+    mounts are set up by the runtime/owner, not by path traversal.  Applied on
+    every call so pre-existing installs are tightened too; best-effort because
+    exotic filesystems (e.g. some network mounts) may not support chmod.
     """
     base = Path.home() / ".safe_lab_agents"
     base.mkdir(parents=True, exist_ok=True)
+    try:
+        base.chmod(0o700)
+    except OSError as exc:
+        logging.getLogger(__name__).warning(
+            "Could not restrict %s to owner-only permissions: %s", base, exc
+        )
     return base
 
 

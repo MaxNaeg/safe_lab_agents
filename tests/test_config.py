@@ -89,6 +89,27 @@ class TestSessionConfig:
         assert cfg.agent_args["api-key"] == "sk-test"
 
 
+class TestGetBaseDir:
+    """Tests for :func:`get_base_dir` permissions."""
+
+    def test_base_dir_is_owner_only(self, tmp_path: Path, monkeypatch) -> None:
+        """The base dir is gated at 0700 so other local users cannot traverse
+        into the (deliberately world-writable) session trees or read secrets
+        in metadata.json — and pre-existing wide installs are tightened."""
+        import safe_lab_agents.config as config_mod
+
+        monkeypatch.setattr(config_mod.Path, "home", lambda: tmp_path)
+
+        base = config_mod.get_base_dir()
+        assert base == tmp_path / ".safe_lab_agents"
+        assert (base.stat().st_mode & 0o777) == 0o700
+
+        # An existing install with loose permissions is re-tightened.
+        base.chmod(0o755)
+        config_mod.get_base_dir()
+        assert (base.stat().st_mode & 0o777) == 0o700
+
+
 class TestSessionMetadata:
     """Tests for :class:`SessionMetadata` persistence."""
 
