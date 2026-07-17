@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from safe_lab_agents.utils import safe_under
 from safe_lab_agents.mcp.predefined.records import (
     is_quantity,
     json_safe,
@@ -165,8 +166,11 @@ def _entry_files(log_dir: Path, entry: dict) -> list[Path]:
         name = fig.get("file") if isinstance(fig, dict) else fig
         if not name or name in seen:
             continue
-        p = log_dir / name
-        if p.is_file():
+        # Figure names come from agent-written records; confine to log_dir so a
+        # crafted absolute/../ name can't smuggle arbitrary host files into the
+        # archive.
+        p = safe_under(log_dir, name)
+        if p is not None and p.is_file():
             files.append(p)
             seen.add(name)
     return files

@@ -58,3 +58,22 @@ def resolve_path(path_str: str) -> Path:
     directory.
     """
     return Path(path_str).expanduser().resolve()
+
+
+def safe_under(base: Path, name: str) -> Path | None:
+    """Resolve *name* against *base*, returning it only if it stays inside *base*.
+
+    Guards against path traversal from untrusted record data (e.g. figure names
+    read from agent-written auto-log records).  Joining ``base / name`` with
+    ``pathlib`` does *not* keep the result inside ``base``: an absolute *name*
+    (``/etc/passwd``) discards ``base`` entirely, and ``../`` segments escape it.
+
+    Returns the resolved absolute path if it is contained in ``base``, otherwise
+    ``None``.  ``resolve()`` follows symlinks, so a symlink planted inside
+    ``base`` that points outside is also rejected.
+    """
+    base_resolved = base.resolve()
+    candidate = (base_resolved / name).resolve()
+    if candidate == base_resolved or candidate.is_relative_to(base_resolved):
+        return candidate
+    return None

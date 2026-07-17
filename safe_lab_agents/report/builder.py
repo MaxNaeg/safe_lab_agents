@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from safe_lab_agents.mcp.predefined.records import is_quantity, split_quantity
+from safe_lab_agents.utils import safe_under
 
 logger = logging.getLogger(__name__)
 
@@ -223,8 +224,10 @@ def _render_kv_table(log_dir: Path, title: str, mapping: dict) -> str:
 
 def _embed_figure(log_dir: Path, fname: str) -> str:
     """Return an <img>/<a> fragment with the figure base64-embedded, or a note."""
-    path = log_dir / fname
-    if not path.exists():
+    # Figure names come from agent-written records; confine to log_dir so a
+    # crafted absolute/../ name can't base64-embed arbitrary host files.
+    path = safe_under(log_dir, fname)
+    if path is None or not path.exists():
         return f"<div class='missing'>figure not found: {_esc(fname)}</div>"
     suffix = path.suffix.lower()
     if suffix not in _IMAGE_SUFFIXES:
