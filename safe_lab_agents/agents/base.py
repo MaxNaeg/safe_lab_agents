@@ -186,6 +186,10 @@ class BaseAgent(ABC):
             "Instruments write data there; you can read it and also write results there."
         )
         if config.no_web:
+            # Prompt-level (soft) restriction. The container keeps network egress
+            # (needed for the agent's own model API), so for vectors other than
+            # the hard-blocked WebSearch/WebFetch tools this instruction — not a
+            # network block — is what discourages web access.
             parts.append(
                 "RESTRICTION: All internet and web access is strictly forbidden. Do not "
                 "access the web by any means — including built-in tools, shell commands "

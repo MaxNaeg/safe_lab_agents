@@ -9,10 +9,13 @@
 #   MODE          – "interactive" or "autonomous".
 #   TASK_PROMPT   – The task description (only used in autonomous mode).
 #   CONTEXT_DIR   – Path to the read-only context directory (optional).
-#   NO_WEB        – If "true", web tools are hard-blocked in every mode via
-#                   --disallowedTools (deny rules apply even under
-#                   --dangerously-skip-permissions), plus a system-prompt
-#                   restriction covering all vectors.
+#   NO_WEB        – If "true", the WebSearch/WebFetch tools are hard-blocked in
+#                   every mode via --disallowedTools (deny rules apply even under
+#                   --dangerously-skip-permissions).  This is a TOOL-level block,
+#                   not a network one: other egress vectors (Bash curl/wget,
+#                   Python) are covered only by a system-prompt restriction, since
+#                   the container keeps full network egress (required for the
+#                   agent's own model API).
 #   CLAUDE_MODEL  – Optional model alias or full name passed to --model.
 #   CLAUDE_EFFORT – Optional effort level (low/medium/high/xhigh/max) passed to --effort.
 # =============================================================================
