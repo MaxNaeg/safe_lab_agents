@@ -380,6 +380,25 @@ def start(
             "iptables."
         ),
     ),
+    mem_limit: Optional[str] = typer.Option(
+        None,
+        "--mem-limit",
+        help=(
+            "Container memory limit, e.g. '8g' or '512m'. Default: half the RAM "
+            "visible to the container runtime (min 2g). Swap is always disabled "
+            "alongside, so the limit is a hard ceiling (OOM-kill, no host "
+            "swap-thrashing)."
+        ),
+    ),
+    cpu_limit: Optional[float] = typer.Option(
+        None,
+        "--cpu-limit",
+        help=(
+            "Container CPU limit in cores, e.g. 2 or 2.5. Default: all but one "
+            "of the runtime's cores (the spare keeps the host-side MCP tool "
+            "server responsive)."
+        ),
+    ),
     update_tools: bool = typer.Option(
         False,
         "--update-tools",
@@ -475,6 +494,8 @@ def start(
     container = _from_config("container", container)
     no_web = _from_config("no_web", no_web)
     egress_lockdown = _from_config("egress_lockdown", egress_lockdown)
+    mem_limit = _from_config("mem_limit", mem_limit)
+    cpu_limit = _from_config("cpu_limit", cpu_limit)
     update_tools = _from_config("update_tools", update_tools)
     auto_log = _from_config("auto_log", auto_log)
 
@@ -586,6 +607,8 @@ def start(
         container_runtime=cast(Literal["docker", "podman"], container),
         no_web=no_web,
         egress_lockdown=egress_lockdown,
+        mem_limit=mem_limit,
+        cpu_limit=cpu_limit,
         update_tools=update_tools,
         agent_args=agent_args,
     )

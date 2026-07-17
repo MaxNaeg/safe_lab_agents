@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 def get_base_dir() -> Path:
@@ -109,6 +109,25 @@ class SessionConfig(BaseModel):
             "in-container iptables (the container then fails closed at start)."
         ),
     )
+    mem_limit: Optional[str] = Field(
+        default=None,
+        description=(
+            "Container memory limit, e.g. '8g' or '512m' (also plain bytes). "
+            "Default: half the RAM visible to the container runtime (min 2g). "
+            "Swap is always disabled alongside (memswap = mem) so the limit is "
+            "a hard ceiling — the container is OOM-killed instead of swap-"
+            "thrashing the host."
+        ),
+    )
+    cpu_limit: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Container CPU limit in cores, e.g. 2 or 2.5 (fractions allowed). "
+            "Default: all but one of the runtime's cores, so the host-side MCP "
+            "tool server stays responsive."
+        ),
+    )
     update_tools: bool = Field(
         default=False,
         description="Watch tools file for changes and automatically reload the MCP server.",
@@ -118,6 +137,25 @@ class SessionConfig(BaseModel):
         description="Agent-specific arguments passed via --agent-args.",
     )
     created_at: datetime = Field(default_factory=datetime.now)
+
+    @field_validator("mem_limit")
+    @classmethod
+    def _validate_mem_limit(cls, value: Optional[str]) -> Optional[str]:
+        """Fail early on a malformed memory limit instead of at container create.
+
+        Accepts what the Docker SDK's ``parse_bytes`` accepts: a number with an
+        optional b/k/m/g unit (case-insensitive, optional trailing 'b', e.g.
+        '8g', '512M', '2gb', '1073741824').
+        """
+        import re
+
+        if value is not None and not re.fullmatch(
+            r"\d+(\.\d+)?([bkmg]b?)?", value, flags=re.IGNORECASE
+        ):
+            raise ValueError(
+                f"Invalid memory limit {value!r} — use e.g. '8g', '512m', or bytes."
+            )
+        return value
 
 
 class SessionMetadata(BaseModel):

@@ -64,7 +64,9 @@ class TestLoadStartConfig:
             "kadi-max-per-minute: 5\n"
             "auto-log: true\n"
             "no-web: true\n"
-            "egress-lockdown: false\n",
+            "egress-lockdown: false\n"
+            "mem-limit: 4g\n"
+            "cpu-limit: 2\n",
         )
         loaded = load_start_config(cfg)
         assert loaded == {
@@ -74,6 +76,8 @@ class TestLoadStartConfig:
             "auto_log": True,
             "no_web": True,
             "egress_lockdown": False,
+            "mem_limit": "4g",
+            "cpu_limit": 2,
         }
 
     def test_unknown_key_raises(self, tmp_path: Path) -> None:

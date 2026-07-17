@@ -5,6 +5,7 @@ from __future__ import annotations
 import types
 from pathlib import Path
 
+import docker
 import requests
 
 from safe_lab_agents.config import SessionConfig
@@ -174,6 +175,102 @@ def test_create_login_container_is_not_host_exposed() -> None:
     assert capturing.kwargs["cap_add"] == ["SETUID", "SETGID"]
     assert capturing.kwargs["cap_drop"] == ["ALL"]
     assert "EGRESS_LOCKDOWN" not in capturing.kwargs["environment"]
+
+
+_GB = 1024**3
+
+
+def _client_with_info(containers, mem_total: int = 16 * _GB, ncpu: int = 8):
+    """Client stub whose ``info()`` reports the runtime's RAM and CPU count."""
+    return types.SimpleNamespace(
+        containers=containers, info=lambda: {"MemTotal": mem_total, "NCPU": ncpu}
+    )
+
+
+def test_containers_create_applies_default_resource_limits() -> None:
+    """Defaults: half the runtime's RAM (swap disabled: memswap == mem) and
+    all-but-one of its CPU cores."""
+    capturing = _CapturingContainers()
+    mgr = DockerManager(docker_client=_client_with_info(capturing))
+
+    mgr._containers_create(image="img", name="c")
+
+    assert capturing.kwargs["mem_limit"] == 8 * _GB
+    assert capturing.kwargs["memswap_limit"] == 8 * _GB
+    assert capturing.kwargs["nano_cpus"] == 7_000_000_000
+
+
+def test_default_mem_limit_has_floor() -> None:
+    """On a small runtime (3 GB), half would starve scientific workloads —
+    the 2 GB floor applies (still capped at the total)."""
+    capturing = _CapturingContainers()
+    mgr = DockerManager(docker_client=_client_with_info(capturing, mem_total=3 * _GB, ncpu=2))
+
+    mgr._containers_create(image="img", name="c")
+
+    assert capturing.kwargs["mem_limit"] == 2 * _GB
+    assert capturing.kwargs["memswap_limit"] == 2 * _GB
+    assert capturing.kwargs["nano_cpus"] == 1_000_000_000
+
+
+def test_no_limits_when_runtime_does_not_report_resources() -> None:
+    """A runtime whose info() is unavailable gets no limits (warned, not fatal)."""
+    capturing = _CapturingContainers()
+    mgr = DockerManager(docker_client=types.SimpleNamespace(containers=capturing))
+
+    mgr._containers_create(image="img", name="c")
+
+    assert "mem_limit" not in capturing.kwargs
+    assert "memswap_limit" not in capturing.kwargs
+    assert "nano_cpus" not in capturing.kwargs
+
+
+def test_create_container_resource_overrides(tmp_path: Path) -> None:
+    """--mem-limit/--cpu-limit override the runtime-sized defaults; memswap
+    follows the overridden mem_limit so swap stays disabled."""
+    capturing = _CapturingContainers()
+    mgr = DockerManager(docker_client=_client_with_info(capturing))
+
+    mgr.create_container(
+        _session_config(tmp_path, mem_limit="1g", cpu_limit=2.5),
+        _StubAgent(),
+        mcp_port=5000,
+        image_tag="img",
+    )
+
+    assert capturing.kwargs["mem_limit"] == "1g"
+    assert capturing.kwargs["memswap_limit"] == "1g"
+    assert capturing.kwargs["nano_cpus"] == 2_500_000_000
+
+
+class _LimitRejectingContainers:
+    """Rejects the first create (as a limits-incapable runtime would), then accepts."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(dict(kwargs))
+        if len(self.calls) == 1:
+            raise docker.errors.APIError("crun: the requested cgroup controller is not available")
+        return types.SimpleNamespace(name=kwargs.get("name", "c"), short_id="abc123")
+
+
+def test_containers_create_retries_without_limits_on_rejection() -> None:
+    """If the runtime rejects the limits (e.g. rootless Podman on cgroups v1),
+    the create is retried once without them — availability over enforcement."""
+    rejecting = _LimitRejectingContainers()
+    mgr = DockerManager(docker_client=_client_with_info(rejecting))
+
+    mgr._containers_create(image="img", name="c")
+
+    assert len(rejecting.calls) == 2
+    assert rejecting.calls[0]["mem_limit"] == 8 * _GB
+    for key in ("mem_limit", "memswap_limit", "nano_cpus"):
+        assert key not in rejecting.calls[1]
+    # The security hardening is NOT dropped on retry.
+    assert rejecting.calls[1]["cap_drop"] == ["ALL"]
+    assert rejecting.calls[1]["security_opt"] == ["no-new-privileges:true"]
 
 
 def test_build_volumes_makes_writable_mounts_agent_writable(tmp_path: Path) -> None:

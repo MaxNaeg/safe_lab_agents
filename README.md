@@ -404,6 +404,8 @@ Start a new agent session. All options are optional — missing ones are prompte
 | `--container` | Container runtime: `docker` or `podman` (prompted if omitted; Podman auto-initializes the machine if needed) |
 | `--no-web` | Disable web tools (soft restriction — does not block network access). Claude Code: built-in web tools disabled, but Bash can still reach the network. OpenClaw: system-prompt instruction only. |
 | `--egress-lockdown/--no-egress-lockdown` | In-container egress firewall (default: **on**): the host is reachable only on the MCP port and private/LAN ranges are blocked, while the public internet (the agent's model API) stays open. If the rules cannot be applied the container refuses to start (fail-closed) — disable only if your runtime cannot support in-container iptables. |
+| `--mem-limit` | Container memory limit, e.g. `8g` or `512m`. Default: half the RAM visible to the container runtime (min 2 GB). Swap is disabled alongside, so the limit is a hard ceiling (the container is OOM-killed instead of swap-thrashing the host). |
+| `--cpu-limit` | Container CPU limit in cores, e.g. `2` or `2.5`. Default: all but one of the runtime's cores, so the host-side MCP tool server stays responsive. |
 | `--update-tools` | Expose a `reload_tools` MCP tool the agent can call to reload your tools file without restarting the container |
 | `--auto-log` | Automatically log every tool call as a local ELN record (JSON + HDF5). See [Automatic logging & ELN export](#automatic-logging--eln-export). |
 | `--config` | Path to a YAML config file supplying defaults for the options above. See [Config file](#config-file). |

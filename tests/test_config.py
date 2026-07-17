@@ -28,6 +28,31 @@ class TestSessionConfig:
         assert cfg.agent_args == {}
         # Egress lockdown (host reachable only on the MCP port) is on by default.
         assert cfg.egress_lockdown is True
+        # No explicit resource limits — the runtime-sized defaults apply.
+        assert cfg.mem_limit is None
+        assert cfg.cpu_limit is None
+
+    def test_mem_limit_accepts_docker_byte_strings(self, tmp_path: Path) -> None:
+        """mem_limit takes anything Docker's parse_bytes takes; junk fails early."""
+        for good in ("8g", "512M", "2gb", "1073741824", "1.5g"):
+            cfg = SessionConfig(
+                name="t", tools_file=tmp_path / "t.py",
+                workspace_dir=tmp_path / "ws", mem_limit=good,
+            )
+            assert cfg.mem_limit == good
+        for bad in ("8 g", "lots", "-1g", "g8", ""):
+            with pytest.raises(ValueError):
+                SessionConfig(
+                    name="t", tools_file=tmp_path / "t.py",
+                    workspace_dir=tmp_path / "ws", mem_limit=bad,
+                )
+
+    def test_cpu_limit_must_be_positive(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError):
+            SessionConfig(
+                name="t", tools_file=tmp_path / "t.py",
+                workspace_dir=tmp_path / "ws", cpu_limit=0,
+            )
 
     def test_container_runtime_rejects_unknown_value(self, tmp_path: Path) -> None:
         """container_runtime is a Literal — only 'docker'/'podman' are accepted."""

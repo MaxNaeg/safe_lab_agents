@@ -59,6 +59,12 @@ _HARDENING_PIDS_LIMIT = 512
 _LOGIN_CAP_ADD = ["SETUID", "SETGID"]
 _SESSION_CAP_ADD = ["NET_ADMIN", *_LOGIN_CAP_ADD]
 
+# Floor for the default memory limit. The default is half the RAM visible to
+# the container runtime, but never less than this — scientific workloads
+# (numpy arrays, plots) need real headroom, and a too-small limit would turn
+# ordinary analyses into OOM kills.
+_MIN_MEM_LIMIT_BYTES = 2 * 1024**3
+
 
 def _make_agent_writable(path: Path) -> None:
     """Recursively make a host bind-mount tree writable by the container ``agent``.
@@ -268,6 +274,14 @@ class DockerManager:
             agent.get_resume_command() if resume else agent.get_entrypoint_command()
         )
 
+        # User-configured memory/CPU limits override the runtime-sized
+        # defaults applied in _containers_create (setdefault semantics).
+        resource_overrides: dict = {}
+        if config.mem_limit is not None:
+            resource_overrides["mem_limit"] = config.mem_limit
+        if config.cpu_limit is not None:
+            resource_overrides["nano_cpus"] = int(config.cpu_limit * 1_000_000_000)
+
         container = self._containers_create(
             image=image_tag,
             name=f"safe-lab-agents-{config.name}",
@@ -279,6 +293,7 @@ class DockerManager:
             tty=tty,
             stdin_open=tty,
             detach=True,
+            **resource_overrides,
         )
 
         logger.info(
@@ -375,17 +390,91 @@ class DockerManager:
             self.client = _connect_or_start_docker()
             return operation()
 
+    def _resource_limit_defaults(self) -> dict:
+        """Return default memory/CPU limits sized from the runtime's resources.
+
+        Sized against what the *daemon* reports (``client.info()``), not the
+        physical host: on macOS/Windows that is the Docker Desktop / Podman VM
+        (whose size already caps total usage — the in-container limit stops one
+        session from wedging the VM), while on native Linux it is the host
+        itself — the case where a runaway agent could otherwise exhaust host
+        RAM mid-experiment.
+
+        Defaults: half the visible RAM (floor :data:`_MIN_MEM_LIMIT_BYTES`,
+        capped at the total) and all-but-one visible CPU core — the spared
+        core keeps the host-side MCP server (which drives the real lab
+        hardware) responsive. Returns ``{}`` with a warning if the runtime
+        does not report its resources.
+        """
+        try:
+            info = self.client.info()
+            mem_total = int(info.get("MemTotal") or 0)
+            ncpu = int(info.get("NCPU") or 0)
+        except Exception as exc:
+            logger.warning("Could not query runtime resources: %s", exc)
+            mem_total, ncpu = 0, 0
+        if mem_total <= 0 or ncpu <= 0:
+            logger.warning(
+                "Container runtime did not report its RAM/CPUs — creating the "
+                "container without memory/CPU limits."
+            )
+            return {}
+        return {
+            "mem_limit": min(max(mem_total // 2, _MIN_MEM_LIMIT_BYTES), mem_total),
+            "nano_cpus": max(1, ncpu - 1) * 1_000_000_000,
+        }
+
     def _containers_create(self, **kwargs) -> Container:
         """Create a container, reconnecting once if the connection went stale.
 
         Applies the hardening defaults (drop all capabilities, no-new-privileges,
-        PID cap) to every container unless the caller explicitly overrides them.
-        Both Docker and Podman honour these options.
+        PID cap, memory/CPU limits) to every container unless the caller
+        explicitly overrides them.  ``memswap_limit`` always follows
+        ``mem_limit`` so the container gets **no swap**: with swap available a
+        runaway agent would not OOM inside the container but swap-thrash the
+        whole host — itself a DoS.  Both Docker and Podman honour these options.
+
+        The memory/CPU limits are availability hardening, not a security
+        boundary, so they degrade gracefully: if the runtime rejects them
+        (rootless Podman without cgroups-v2 delegation), the create is retried
+        once without limits and a warning is printed.
         """
         kwargs.setdefault("cap_drop", _HARDENING_CAP_DROP)
         kwargs.setdefault("security_opt", _HARDENING_SECURITY_OPT)
         kwargs.setdefault("pids_limit", _HARDENING_PIDS_LIMIT)
-        return self._with_reconnect(lambda: self.client.containers.create(**kwargs))
+        limits = self._resource_limit_defaults()
+        if limits:
+            kwargs.setdefault("mem_limit", limits["mem_limit"])
+            kwargs.setdefault("nano_cpus", limits["nano_cpus"])
+        if kwargs.get("mem_limit") is not None:
+            # Same value, same unit string if the caller passed one — docker's
+            # SDK parses both fields identically.
+            kwargs.setdefault("memswap_limit", kwargs["mem_limit"])
+
+        def _create() -> Container:
+            try:
+                return self.client.containers.create(**kwargs)
+            except docker.errors.APIError as exc:
+                limit_keys = [
+                    k
+                    for k in ("mem_limit", "memswap_limit", "nano_cpus")
+                    if kwargs.get(k) is not None
+                ]
+                if not limit_keys:
+                    raise
+                logger.warning(
+                    "Container runtime rejected the resource limits (%s) — "
+                    "retrying without memory/CPU limits. A runaway agent can "
+                    "then exhaust host resources; on rootless Podman, enable "
+                    "cgroups-v2 delegation to make limits enforceable. Error: %s",
+                    ", ".join(limit_keys),
+                    exc,
+                )
+                for key in limit_keys:
+                    kwargs.pop(key)
+                return self.client.containers.create(**kwargs)
+
+        return self._with_reconnect(_create)
 
     def engine_is_podman(self) -> bool:
         """Return True if the connected container engine is actually Podman.
