@@ -45,7 +45,14 @@ def test_build_eln_produces_valid_crate(tmp_path: Path):
     assert out.exists()
 
     crate = _crate(out)
-    assert crate["@context"] == "https://w3id.org/ro/crate/1.1/context"
+    # @context is a list: the RO-Crate 1.1 context plus a local term declaring
+    # ``sha256`` (not defined upstream) so the key resolves in compacted JSON-LD.
+    assert crate["@context"][0] == "https://w3id.org/ro/crate/1.1/context"
+    assert "sha256" in crate["@context"][1]
+
+    # RO-Crate 1.1 REQUIRES a license on the root data entity.
+    root = next(n for n in crate["@graph"] if n["@id"] == "./")
+    assert root["license"]
 
     # Descriptor + root Dataset MUSTs.
     descriptor = next(
@@ -53,7 +60,6 @@ def test_build_eln_produces_valid_crate(tmp_path: Path):
     )
     assert descriptor["@type"] == "CreativeWork"
     assert descriptor["conformsTo"]["@id"] == "https://w3id.org/ro/crate/1.1"
-    root = next(n for n in crate["@graph"] if n["@id"] == "./")
     assert root["@type"] == "Dataset"
     assert root["hasPart"]
 

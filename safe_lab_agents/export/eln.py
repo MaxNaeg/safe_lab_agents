@@ -40,10 +40,16 @@ from safe_lab_agents.report.builder import _load_entries
 
 logger = logging.getLogger(__name__)
 
-_CRATE_CONTEXT = "https://w3id.org/ro/crate/1.1/context"
+_CRATE_CONTEXT = [
+    "https://w3id.org/ro/crate/1.1/context",
+    {"sha256": "https://w3id.org/ro/terms/#sha256"},
+]
 _CRATE_CONFORMS = "https://w3id.org/ro/crate/1.1"
 _SOFTWARE_ID = "#safe-lab-agents"
 _SOFTWARE_URL = "https://pypi.org/project/safe-lab-agents/"
+_DEFAULT_LICENSE = (
+    "License not specified. Refer to individual records or contact the data author."
+)
 
 # A small, extensible lookup of common units → QUDT IRIs for schema.org
 # ``unitCode``.  Unknown units still get a human-readable ``unitText``.
@@ -219,13 +225,17 @@ def _entry_dataset(
     if var_refs:
         node["variableMeasured"] = var_refs
 
-    # Files belonging to this record, packed under its folder.
+    # Files belonging to this record, packed under its folder.  The File @id is
+    # the crate-root-relative path with an explicit ``./`` prefix: importers such
+    # as Kadi4Mat's strip the first path segment of the @id to locate the file on
+    # disk, so a bare ``eid/name`` would drop the folder and fail to resolve.
     packed: list[tuple[str, Path]] = []
     has_part: list[dict[str, str]] = []
     for path in _entry_files(log_dir, entry):
         arc = f"{eid}/{path.name}"
-        graph.append(_file_node(arc, path))
-        has_part.append({"@id": arc})
+        file_id = f"./{arc}"
+        graph.append(_file_node(file_id, path))
+        has_part.append({"@id": file_id})
         packed.append((arc, path))
     if has_part:
         node["hasPart"] = has_part
@@ -304,8 +314,8 @@ def build_eln(
             continue
         if path.resolve() == out_path.resolve():
             continue
-        graph.append(_file_node(path.name, path))
-        root_parts.append({"@id": path.name})
+        graph.append(_file_node(f"./{path.name}", path))
+        root_parts.append({"@id": f"./{path.name}"})
         packed.append((path.name, path))
 
     # Root data entity + metadata descriptor.
@@ -315,6 +325,7 @@ def build_eln(
         "name": name or log_dir.parent.name or "safe-lab-agents session",
         "datePublished": datetime.now(timezone.utc).isoformat(),
         "description": "Experiment session logged by safe-lab-agents.",
+        "license": _DEFAULT_LICENSE,
         "hasPart": root_parts,
     }
     descriptor = {
