@@ -131,11 +131,16 @@ def _array_stats(log_dir: Path, ref: dict) -> str:
     dataset = ref.get("dataset")
     if not fname or not dataset:
         return base
+    # fname comes from an agent-written record; confine to log_dir so a crafted
+    # absolute/../ name (or an out-of-tree symlink) can't open host files.
+    h5_path = safe_under(log_dir, fname)
+    if h5_path is None:
+        return base
     try:
         import h5py  # local import: keep the module importable without h5py
         import numpy as np
 
-        with h5py.File(str(log_dir / fname), "r") as f:
+        with h5py.File(str(h5_path), "r") as f:
             arr = np.asarray(f[dataset.lstrip("/")][()])
         if arr.size and np.issubdtype(arr.dtype, np.number):
             return f"{base} · min {arr.min():.4g}, max {arr.max():.4g}, mean {arr.mean():.4g}"

@@ -158,8 +158,16 @@ def _measurements(
 def _entry_files(log_dir: Path, entry: dict) -> list[Path]:
     """Disk files belonging to *entry*: id-prefixed records + referenced figures."""
     eid = entry.get("id", "")
+    # ``iterdir`` + ``is_file`` follows symlinks, so an agent-planted symlink in
+    # the (bind-mounted) log dir pointing at a host file would otherwise be
+    # packed.  ``safe_under`` resolves each entry and rejects out-of-tree targets.
     files = [
-        p for p in log_dir.iterdir() if p.is_file() and eid and p.name.startswith(eid)
+        p
+        for p in log_dir.iterdir()
+        if p.is_file()
+        and eid
+        and p.name.startswith(eid)
+        and safe_under(log_dir, p.name) is not None
     ]
     seen = {p.name for p in files}
     for fig in entry.get("figures", []):
@@ -313,6 +321,9 @@ def build_eln(
     # Remaining files (summary JSON, orphan figures, npy) → flat File entities.
     for path in sorted(log_dir.iterdir()):
         if not path.is_file() or path.name in claimed:
+            continue
+        # Skip symlinks resolving outside log_dir (see _entry_files).
+        if safe_under(log_dir, path.name) is None:
             continue
         if path.suffix.lower() in _EXCLUDE_SUFFIXES or path.name in _EXCLUDE_NAMES:
             continue

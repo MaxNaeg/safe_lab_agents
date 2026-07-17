@@ -65,16 +65,30 @@ def _collapsible(label: str, inner: str, open: bool = True) -> str:
 
 
 def _render_markdown(text: str) -> str:
-    """Render assistant markdown to HTML; fall back to escaped text if the
-    ``markdown`` library is unavailable."""
+    """Render assistant markdown to sanitized HTML.
+
+    Assistant content is model output that can be steered by untrusted data
+    (prompt injection), so python-markdown's raw-HTML passthrough would embed
+    live ``<script>``/``onerror`` payloads into the report.  The rendered HTML
+    is therefore passed through an allowlist sanitizer (``nh3``) that keeps
+    formatting tags but strips scripts, event handlers, and other active
+    content.  If either dependency is unavailable we fall back to fully escaped
+    text rather than emit unsanitized HTML.
+    """
     if not text:
         return ""
     try:
-        import markdown  # local import: keep the module importable without it
-    except Exception:  # pragma: no cover - exercised only when dep missing
+        import markdown  # local imports: keep the module importable without them
+        import nh3
+    except Exception:  # pragma: no cover - exercised only when a dep is missing
         return f"<div class='text'>{_render_text(text)}</div>"
     rendered = markdown.markdown(text, extensions=["fenced_code", "tables"])
-    return f"<div class='text md'>{rendered}</div>"
+    # Preserve the language ``class`` on code/table tags so styling survives.
+    attributes = {tag: set(attrs) for tag, attrs in nh3.ALLOWED_ATTRIBUTES.items()}
+    for tag in ("code", "pre", "span", "div", "table", "th", "td"):
+        attributes[tag] = attributes.get(tag, set()) | {"class"}
+    safe = nh3.clean(rendered, attributes=attributes)
+    return f"<div class='text md'>{safe}</div>"
 
 
 def _guess_language(key: str, value: str) -> str:
