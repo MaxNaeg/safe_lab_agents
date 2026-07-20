@@ -1402,7 +1402,18 @@ def _prompt_required_agent_args(
             if arg.type is bool:
                 result[arg.name] = raw_val.lower() in ("1", "true", "yes", "")
             elif arg.type is int:
-                result[arg.name] = int(raw_val)
+                # Re-prompt instead of crashing with a ValueError traceback.
+                while True:
+                    try:
+                        result[arg.name] = int(raw_val)
+                        break
+                    except ValueError:
+                        console.print(
+                            f"[bold red]'{raw_val}' is not an integer.[/bold red]"
+                        )
+                        raw_val = Prompt.ask(
+                            f"{arg.description}{suffix}", password=arg.is_secret
+                        )
             else:
                 result[arg.name] = raw_val
     return result
