@@ -54,6 +54,22 @@ if _TOKEN:
     _HEADERS["Authorization"] = f"Bearer {_TOKEN}"
 
 
+class _MissingType:
+    """Sentinel for an omitted optional argument.
+
+    Optional parameters default to _MISSING; the wrapper simply doesn't send
+    them, so the real tool on the host applies its own default. The true
+    default value is shown in each function's docstring / signature.
+    """
+    __slots__ = ()
+
+    def __repr__(self):
+        return "<use tool default>"
+
+
+_MISSING = _MissingType()
+
+
 def _encode_arg(obj):
     """Encode one argument for JSON transport. Numpy arrays use the .npy byte stream."""
     if _NUMPY and isinstance(obj, np.ndarray):
@@ -121,29 +137,50 @@ def _write_client_py(tools: list[Callable], output: Path) -> None:
 def _render_function(func: Callable) -> str:
     sig = inspect.signature(func)
     source_anns = _source_annotations(func)
-    params_str = _render_params(sig, source_anns)
+    source_defaults = _source_defaults(func)
     ret_str = _render_return(sig, source_anns)
-    kwargs_str = ", ".join(f"{n}={n}" for n in sig.parameters)
-    invoke_args = repr(func.__name__)
-    if kwargs_str:
-        invoke_args += f", {kwargs_str}"
+
+    defaulted = [
+        n for n, p in sig.parameters.items()
+        if p.default is not inspect.Parameter.empty
+    ]
+    # Executable signature: every default becomes the _MISSING sentinel so the
+    # stub is always importable (a non-literal repr like PosixPath('.') is not).
+    exec_defaults = {n: "_MISSING" for n in defaulted}
+    params_str = _render_params(sig, source_anns, exec_defaults)
+
+    # Documented signature: the real defaults (from source), shown so the agent
+    # still knows the true type hints AND default values.
+    true_sig = (
+        f"{func.__name__}({_render_params(sig, source_anns, source_defaults)}){ret_str}"
+    )
 
     lines = [f"def {func.__name__}({params_str}){ret_str}:\n"]
+
+    # Docstring: the true signature first, then the user's own docstring.
+    doc = true_sig
     if func.__doc__:
-        doc = textwrap.dedent(func.__doc__).strip()
-        if "\n" in doc:
-            lines.append(f'    """{doc}\n    """\n')
-        else:
-            lines.append(f'    """{doc}"""\n')
-    lines.append(f"    return _invoke({invoke_args})\n\n")
+        doc += "\n\n" + textwrap.dedent(func.__doc__).strip()
+    lines.append(f'    """{doc}\n    """\n')
+
+    # Body: forward only the args the caller actually supplied, so any omitted
+    # optional argument is resolved to its real default on the host.
+    if sig.parameters:
+        lines.append("    _kw = {}\n")
+        for name, param in sig.parameters.items():
+            if param.default is inspect.Parameter.empty:
+                lines.append(f"    _kw[{name!r}] = {name}\n")
+            else:
+                lines.append(f"    if {name} is not _MISSING:\n")
+                lines.append(f"        _kw[{name!r}] = {name}\n")
+        lines.append(f"    return _invoke({func.__name__!r}, **_kw)\n\n")
+    else:
+        lines.append(f"    return _invoke({func.__name__!r})\n\n")
     return "".join(lines)
 
 
-def _source_annotations(func: Callable) -> dict[str, str]:
-    """Return annotations as written in source (e.g. 'np.ndarray', not 'ndarray').
-
-    Falls back to an empty dict if the source is unavailable.
-    """
+def _find_funcdef(func: Callable) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    """Return the AST definition node for *func*, or ``None`` if unavailable."""
     try:
         source = textwrap.dedent(inspect.getsource(func))
         tree = ast.parse(source)
@@ -152,24 +189,66 @@ def _source_annotations(func: Callable) -> dict[str, str]:
                 isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
                 and node.name == func.__name__
             ):
-                result: dict[str, str] = {}
-                all_args = [
-                    *node.args.posonlyargs,
-                    *node.args.args,
-                    *node.args.kwonlyargs,
-                ]
-                for arg in all_args:
-                    if arg.annotation:
-                        result[arg.arg] = ast.unparse(arg.annotation)
-                if node.returns:
-                    result["return"] = ast.unparse(node.returns)
-                return result
+                return node
     except Exception:
         pass
-    return {}
+    return None
 
 
-def _render_params(sig: inspect.Signature, source_anns: dict[str, str] | None = None) -> str:
+def _source_annotations(func: Callable) -> dict[str, str]:
+    """Return annotations as written in source (e.g. 'np.ndarray', not 'ndarray').
+
+    Falls back to an empty dict if the source is unavailable.
+    """
+    node = _find_funcdef(func)
+    if node is None:
+        return {}
+    result: dict[str, str] = {}
+    all_args = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
+    for arg in all_args:
+        if arg.annotation:
+            result[arg.arg] = ast.unparse(arg.annotation)
+    if node.returns:
+        result["return"] = ast.unparse(node.returns)
+    return result
+
+
+def _source_defaults(func: Callable) -> dict[str, str]:
+    """Return default values as written in source (e.g. 'Path(".")', 'float("inf")').
+
+    Reproducing a default's ``repr()`` in generated code is unsafe — non-literal
+    reprs (``PosixPath('.')``, ``<Color.RED: 1>``, ``inf``) are unimportable — so
+    the executable stub uses a sentinel and the *real* default is surfaced as
+    documentation text via this map.  Falls back to an empty dict if unavailable.
+    """
+    node = _find_funcdef(func)
+    if node is None:
+        return {}
+    result: dict[str, str] = {}
+    positional = [*node.args.posonlyargs, *node.args.args]
+    defaults = node.args.defaults  # right-aligned over posonly + positional
+    offset = len(positional) - len(defaults)
+    for i, arg in enumerate(positional):
+        if i >= offset:
+            result[arg.arg] = ast.unparse(defaults[i - offset])
+    for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+        if default is not None:
+            result[arg.arg] = ast.unparse(default)
+    return result
+
+
+def _render_params(
+    sig: inspect.Signature,
+    source_anns: dict[str, str] | None = None,
+    default_render: dict[str, str] | None = None,
+) -> str:
+    """Render a parameter list.
+
+    *default_render* maps a parameter name to the exact text to emit after
+    ``=``.  A defaulted parameter absent from the map falls back to ``repr()``
+    (safe only for literals — callers emitting executable code pass an explicit
+    map for every defaulted parameter).
+    """
     parts = []
     for name, param in sig.parameters.items():
         part = name
@@ -177,7 +256,10 @@ def _render_params(sig: inspect.Signature, source_anns: dict[str, str] | None = 
             ann_str = (source_anns or {}).get(name) or _annotation_str(param.annotation)
             part += f": {ann_str}"
         if param.default is not inspect.Parameter.empty:
-            part += f" = {param.default!r}"
+            rendered = (default_render or {}).get(name)
+            if rendered is None:
+                rendered = repr(param.default)
+            part += f" = {rendered}"
         parts.append(part)
     return ", ".join(parts)
 
@@ -212,7 +294,8 @@ def _format_tools_info(tools: list[Callable]) -> str:
     for func in tools:
         sig = inspect.signature(func)
         source_anns = _source_annotations(func)
-        sig_str = f"{func.__name__}({_render_params(sig, source_anns)}){_render_return(sig, source_anns)}"
+        source_defaults = _source_defaults(func)
+        sig_str = f"{func.__name__}({_render_params(sig, source_anns, source_defaults)}){_render_return(sig, source_anns)}"
         lines.append(f"  {sig_str}")
         if func.__doc__:
             for line in textwrap.dedent(func.__doc__).strip().splitlines():

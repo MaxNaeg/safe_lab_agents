@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import inspect
 import io
 import json
 import urllib.error
+from enum import Enum
+from pathlib import Path
 
 import pytest
 
-from safe_lab_agents.mcp.client_generator import _CLIENT_HEADER, _format_tools_info
+from safe_lab_agents.mcp.client_generator import (
+    _CLIENT_HEADER,
+    _format_tools_info,
+    _render_function,
+)
 
 
 def _exec_header(monkeypatch, *, port: str, host: str | None) -> dict:
@@ -97,3 +104,90 @@ def test_invoke_type_error_still_maps_to_type_error(monkeypatch) -> None:
     with pytest.raises(TypeError) as exc:
         ns["_invoke"]("my_tool")
     assert "missing required argument" in str(exc.value)
+
+
+# --- default-value rendering (non-literal reprs must not break the client) ---
+
+
+class _Mode(Enum):
+    FAST = 1
+    SLOW = 2
+
+
+def _tricky_tool(
+    p: Path = Path("."),
+    x: float = float("inf"),
+    mode: _Mode = _Mode.FAST,
+    n: int = 5,
+    label: str = "run",
+) -> dict:
+    """A tool whose defaults have non-literal reprs."""
+    return {}
+
+
+def _scan(start: float, stop: float, steps: int = 100):
+    """A tool with required args."""
+    return []
+
+
+def _exec_generated(monkeypatch, funcs):
+    """Compile+exec the full generated client (header + funcs); return its namespace."""
+    monkeypatch.setenv("MCP_PORT", "5000")
+    src = _CLIENT_HEADER + "".join(_render_function(f) for f in funcs)
+    ns: dict = {}
+    exec(compile(src, "<client>", "exec"), ns)  # must not raise
+    return ns, src
+
+
+def test_client_with_nonliteral_defaults_is_importable(monkeypatch) -> None:
+    """Path()/float('inf')/enum defaults used to emit PosixPath('.')/inf/<Mode.FAST:1>
+    — a NameError/SyntaxError on import. Now the module compiles and exec's cleanly."""
+    ns, _ = _exec_generated(monkeypatch, [_tricky_tool])
+    fn = ns["_tricky_tool"]
+    # Every optional param defaults to the sentinel in the executable signature.
+    for param in inspect.signature(fn).parameters.values():
+        assert param.default is ns["_MISSING"]
+
+
+def test_client_type_hints_preserved_in_signature(monkeypatch) -> None:
+    _, src = _exec_generated(monkeypatch, [_tricky_tool])
+    assert "p: Path = _MISSING" in src
+    assert "x: float = _MISSING" in src
+    assert "mode: _Mode = _MISSING" in src
+
+
+def test_client_docstring_shows_true_defaults(monkeypatch) -> None:
+    """The real defaults survive as documentation (source-faithful, not repr)."""
+    _, src = _exec_generated(monkeypatch, [_tricky_tool])
+    assert "p: Path = Path('.')" in src
+    assert "x: float = float('inf')" in src
+    assert "mode: _Mode = _Mode.FAST" in src
+    assert "n: int = 5" in src
+
+
+def test_client_omits_missing_args_so_host_applies_defaults(monkeypatch) -> None:
+    ns, _ = _exec_generated(monkeypatch, [_tricky_tool])
+    sent: dict = {}
+    ns["_invoke"] = lambda name, **kw: sent.update(name=name, kw=kw)
+
+    ns["_tricky_tool"](n=7)
+    assert sent["kw"] == {"n": 7}  # only the supplied arg is sent
+
+    sent.clear()
+    ns["_tricky_tool"]()
+    assert sent["kw"] == {}  # nothing sent → host uses every real default
+
+
+def test_client_required_args_always_sent(monkeypatch) -> None:
+    ns, _ = _exec_generated(monkeypatch, [_scan])
+    sent: dict = {}
+    ns["_invoke"] = lambda name, **kw: sent.update(name=name, kw=kw)
+    ns["_scan"](1.0, 2.0)
+    assert sent["kw"] == {"start": 1.0, "stop": 2.0}  # required args sent, steps omitted
+
+
+def test_tools_info_shows_true_defaults() -> None:
+    info = _format_tools_info([_tricky_tool])
+    assert "Path('.')" in info
+    assert "float('inf')" in info
+    assert "_Mode.FAST" in info
