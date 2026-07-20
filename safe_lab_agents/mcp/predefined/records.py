@@ -59,6 +59,23 @@ def _h5_target(h5_path: Path, h5_file: Any):
 # ---------------------------------------------------------------------------
 
 
+def to_native_scalar(value: Any) -> Any:
+    """Convert a numpy scalar to its Python-native equivalent; pass others through.
+
+    numpy's ``int64``/``float32``/``bool_`` are **not** subclasses of Python's
+    ``int``/``float``/``bool`` (only ``float64`` subclasses ``float``), so
+    without this they would be stringified by :func:`json_safe` and misclassified
+    as ``str`` downstream — losing the numeric type and any attached unit.
+    """
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    return value
+
+
 def json_safe(value: Any) -> Any:
     """Convert a value to something JSON-serializable."""
     if isinstance(value, (str, int, float, bool, type(None))):
@@ -67,7 +84,10 @@ def json_safe(value: Any) -> Any:
         return {k: json_safe(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [json_safe(v) for v in value]
-    return str(value)
+    native = to_native_scalar(value)
+    if isinstance(native, (bool, int, float)):
+        return native
+    return str(native)
 
 
 # ---------------------------------------------------------------------------

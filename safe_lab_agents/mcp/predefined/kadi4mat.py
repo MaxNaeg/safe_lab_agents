@@ -22,7 +22,11 @@ from safe_lab_agents.mcp.predefined.kadi4mat_utils import (
     make_record_identifier,
     make_user_slug,
 )
-from safe_lab_agents.mcp.predefined.records import is_quantity, split_quantity
+from safe_lab_agents.mcp.predefined.records import (
+    is_quantity,
+    split_quantity,
+    to_native_scalar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -289,6 +293,10 @@ class KadiClient:
         term: str | None = None
         if is_quantity(value):
             value, unit, term = split_quantity(value)
+
+        # numpy scalars (np.int64/np.float32/np.bool_) aren't int/float/bool
+        # subclasses; coerce so they classify numerically and keep their unit.
+        value = to_native_scalar(value)
 
         if isinstance(value, bool):
             kadi_type = "bool"

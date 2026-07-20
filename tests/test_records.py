@@ -28,6 +28,24 @@ class TestJsonSafe:
     def test_unknown_stringified(self):
         assert json_safe(object()).startswith("<object")
 
+    def test_numpy_scalars_kept_numeric(self):
+        """numpy scalars must survive as native numbers, not be stringified."""
+        out = json_safe(np.int64(5))
+        assert out == 5 and isinstance(out, int) and not isinstance(out, bool)
+
+        out = json_safe(np.float32(1.5))
+        assert out == 1.5 and isinstance(out, float)
+
+        out = json_safe(np.bool_(True))
+        assert out is True and isinstance(out, bool)
+
+        # np.float64 (a float subclass) also stays numeric.
+        assert isinstance(json_safe(np.float64(2.0)), float)
+
+    def test_numpy_scalar_nested_in_dict(self):
+        assert json_safe({"count": np.int64(3)}) == {"count": 3}
+        assert isinstance(json_safe({"count": np.int64(3)})["count"], int)
+
 
 class TestQuantity:
     def test_quantity_builds_dict(self):

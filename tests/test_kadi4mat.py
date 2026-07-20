@@ -444,3 +444,34 @@ class TestAddMetadatumUnits:
         meta = record.add_metadatum.call_args[0][0]
         assert meta == {"key": "result_status", "value": "ok", "type": "str"}
         assert "unit" not in meta
+
+    def test_numpy_scalars_classified_numerically(self):
+        """np.int64/np.float32/np.bool_ must not be stringified into str extras."""
+        import numpy as np
+        from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
+
+        cases = [
+            (np.int64(5), "int", 5),
+            (np.float32(1.5), "float", 1.5),
+            (np.bool_(True), "bool", True),
+        ]
+        for value, expected_type, expected_value in cases:
+            record = self._record()
+            KadiClient._add_metadatum(record, "result_x", value)
+            meta = record.add_metadatum.call_args[0][0]
+            assert meta["type"] == expected_type
+            assert meta["value"] == expected_value
+
+    def test_numpy_valued_quantity_keeps_unit(self):
+        """A quantity whose value is a numpy scalar must still carry its unit
+        (a str-classified value would drop it)."""
+        import numpy as np
+        from safe_lab_agents import quantity
+        from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
+
+        record = self._record()
+        KadiClient._add_metadatum(record, "result_power", quantity(np.float32(2.5), "W"))
+        meta = record.add_metadatum.call_args[0][0]
+        assert meta["type"] == "float"
+        assert meta["value"] == 2.5
+        assert meta["unit"] == "W"
