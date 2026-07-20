@@ -100,7 +100,6 @@ class ExperimentMCPServer:
                 "start an instrument-control server without authentication."
             )
         self.tools_file = Path(tools_file).resolve()
-        self._requested_port = port
         self.port: int = port if port != 0 else find_free_port()
         self.predefined_servers = predefined_servers or []
         self.shared_dir = Path(shared_dir).resolve() if shared_dir is not None else None
@@ -161,11 +160,6 @@ class ExperimentMCPServer:
         is now a thin alias for ``stop()``, kept for call-site clarity.
         """
         self.stop()
-
-    @property
-    def is_running(self) -> bool:
-        """Return ``True`` if the server process is still alive."""
-        return self._process is not None and self._process.is_alive()
 
 
 def _run_server(

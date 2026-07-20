@@ -9,9 +9,10 @@
 #   MODE          – "interactive" or "autonomous".
 #   TASK_PROMPT   – The task description (only used in autonomous mode).
 #   CONTEXT_DIR   – Path to the read-only context directory (optional).
-#   NO_WEB        – If "true", injects a system-prompt restriction into
-#                   SOUL.md. NOTE: soft restriction only — OpenClaw has no
-#                   CLI flag to hard-block tool access the way Claude Code does.
+#   (no NO_WEB here: this entrypoint reads no such variable. The --no-web
+#    restriction reaches OpenClaw purely through system_prompt.txt, written on
+#    the host. It is a soft restriction only — OpenClaw has no CLI flag to
+#    hard-block tool access the way Claude Code does.)
 #   LLM_API_KEY   – Generic API key (always set when any key is provided).
 #   ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY / OPENROUTER_API_KEY
 #                 – Provider-specific key (set alongside LLM_API_KEY).
@@ -108,7 +109,8 @@ mkdir -p "$(dirname "$SOUL")"
 
 # The base environment prose is generated once on the host (OpenClawAgent.
 # get_system_prompt) and written to system_prompt.txt, so it is not duplicated
-# here. CONTEXT_DIR / NO_WEB are already reflected in that file.
+# here. The context dir and any --no-web restriction are already reflected in
+# that file.
 if [ -f "/agent/workspace/system_prompt.txt" ]; then
     cat /agent/workspace/system_prompt.txt > "$SOUL"
 else

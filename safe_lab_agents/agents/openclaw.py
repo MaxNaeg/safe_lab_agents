@@ -85,8 +85,10 @@ class OpenClawAgent(BaseAgent):
         if config.context_dir is not None:
             env["CONTEXT_DIR"] = "/agent/context"
 
-        if config.no_web:
-            env["NO_WEB"] = "true"
+        # No NO_WEB env var here: the OpenClaw entrypoint does not read one.
+        # The restriction is carried by the system prompt (get_system_prompt),
+        # which the host writes and the entrypoint loads — setting an env var
+        # the entrypoint ignores would imply enforcement that does not exist.
 
         api_key: str = config.agent_args.get("api-key", "")
         provider: str = config.agent_args.get("provider", "")

@@ -88,37 +88,14 @@ def load_tools_from_file(
     return mcp_tools, python_tools
 
 
-def load_shutdown_hook(
-    file_path: Path, shared_dir: Optional[Path] = None
-) -> Optional[Callable]:
-    """Return the ``GRACEFUL_EXPERIMENT_SHUTDOWN`` callable from *file_path*, or ``None``.
-
-    Raises:
-        FileNotFoundError: If *file_path* does not exist.
-        ValueError: If the file is not a ``.py`` file, or if
-            ``GRACEFUL_EXPERIMENT_SHUTDOWN`` exists but is not callable.
-    """
-    file_path = Path(file_path).resolve()
-
-    if not file_path.exists():
-        raise FileNotFoundError(f"Tools file not found: {file_path}")
-    if file_path.suffix != ".py":
-        raise ValueError(f"Tools file must be a .py file, got: {file_path.suffix}")
-
-    module = _load_module(file_path)
-    module.SHARED_DATA_DIR = str(shared_dir.resolve()) if shared_dir is not None else None
-    return _extract_shutdown_hook(module, file_path)
-
-
 def load_module_exports(
     file_path: Path, shared_dir: Optional[Path] = None
 ) -> tuple[list[Callable] | None, list[Callable] | None, Optional[Callable]]:
     """Load tools and the shutdown hook from a *single* evaluation of *file_path*.
 
-    Unlike calling ``load_tools_from_file`` and ``load_shutdown_hook`` separately
-    (each of which re-evaluates the module), this loads the module once so the
-    returned ``GRACEFUL_EXPERIMENT_SHUTDOWN`` closes over the *same* module state —
-    including any stateful experiment — that the returned tools use.
+    Loading the module once means the returned ``GRACEFUL_EXPERIMENT_SHUTDOWN``
+    closes over the *same* module state — including any stateful experiment —
+    that the returned tools use.
 
     Returns:
         ``(mcp_tools, python_tools, shutdown_hook)``; each tool list is the declared

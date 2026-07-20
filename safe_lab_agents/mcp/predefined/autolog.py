@@ -292,7 +292,7 @@ def log_analysis(
 
     data_out: dict[str, Any] = {}
     for k, v in (data or {}).items():
-        extracted = _extract_arrays(v, h5_path, f"/{k}")
+        extracted = extract_arrays(v, h5_path, f"/{k}")
         if isinstance(extracted, dict) and extracted.get("_type") == "ndarray":
             data_out[k] = extracted
         else:
@@ -598,10 +598,6 @@ def write_session_summary(output_dir: Path) -> Path | None:
 # ---------------------------------------------------------------------------
 
 
-# Array extraction lives in the shared serialization module so the local-log
-# path, Kadi push, and ``.eln`` export all agree on the reference shape.
-_extract_arrays = extract_arrays
-
 
 def _make_result_entry(result: Any) -> Any:
     """Apply json_safe to a result that has already had arrays extracted."""
@@ -661,13 +657,13 @@ def _record_call(
         group = ""
         h5_file = None
 
-    modified_result = _extract_arrays(result, h5_path, group, h5_file=h5_file)
+    modified_result = extract_arrays(result, h5_path, group, h5_file=h5_file)
 
     # Extract arrays from call_args (numpy params saved to HDF5)
     params_base = f"{group}/params" if group else "/params"
     modified_call_args: dict[str, Any] = {}
     for k, v in call_args.items():
-        modified_call_args[k] = _extract_arrays(
+        modified_call_args[k] = extract_arrays(
             v, h5_path, f"{params_base}/{k}", h5_file=h5_file
         )
 

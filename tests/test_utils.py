@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from safe_lab_agents.utils import find_free_port, generate_session_name, resolve_path
+from safe_lab_agents.utils import find_free_port, generate_session_name
 
 
 def test_find_free_port() -> None:
@@ -35,16 +35,3 @@ def test_generate_session_name() -> None:
     name = generate_session_name()
     assert name.startswith("session-")
     assert len(name) > len("session-")
-
-
-def test_resolve_path_tilde() -> None:
-    """resolve_path expands ~ to the home directory."""
-    p = resolve_path("~/Documents")
-    assert "~" not in str(p)
-    assert p.is_absolute()
-
-
-def test_resolve_path_relative() -> None:
-    """resolve_path converts relative paths to absolute."""
-    p = resolve_path("some/relative/path")
-    assert p.is_absolute()

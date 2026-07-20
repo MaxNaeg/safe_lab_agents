@@ -55,15 +55,6 @@ def wait_for_server(port: int, host: str = "127.0.0.1", timeout: float = 30.0) -
     return False
 
 
-def resolve_path(path_str: str) -> Path:
-    """Resolve a user-supplied path string to an absolute ``Path``.
-
-    Expands ``~`` and resolves relative paths against the current working
-    directory.
-    """
-    return Path(path_str).expanduser().resolve()
-
-
 def safe_under(base: Path, name: str) -> Path | None:
     """Resolve *name* against *base*, returning it only if it stays inside *base*.
 

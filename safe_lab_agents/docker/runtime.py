@@ -347,7 +347,7 @@ _PODMAN_START_NOISE = [
 ]
 
 
-def _start_podman_machine_macos() -> None:
+def _start_podman_machine() -> None:
     """Run ``podman machine start``, hiding known-noise output.
 
     ``podman machine start`` prints several advisories and progress lines that
@@ -398,14 +398,14 @@ def _setup_podman_macos() -> str:
             check=True,
         )
         print("Starting Podman machine …", flush=True)
-        _start_podman_machine_macos()
+        _start_podman_machine()
     else:
         machine = machines[0]
         running = machine.get("Running", False)
         if not running:
             _configure_podman_machine_memory(target_mb, running=False)
             print("Starting Podman machine …", flush=True)
-            _start_podman_machine_macos()
+            _start_podman_machine()
         else:
             _configure_podman_machine_memory(target_mb, running=True)
 
@@ -465,14 +465,14 @@ def _setup_podman_windows() -> str:
             check=True,
         )
         print("Starting Podman machine …", flush=True)
-        _start_podman_machine_macos()
+        _start_podman_machine()
     else:
         machine = machines[0]
         running = machine.get("Running", False)
         if not running:
             _configure_podman_machine_memory(target_mb, running=False)
             print("Starting Podman machine …", flush=True)
-            _start_podman_machine_macos()
+            _start_podman_machine()
         else:
             _configure_podman_machine_memory(target_mb, running=True)
 

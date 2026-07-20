@@ -1494,12 +1494,6 @@ def _prompt_optional_path(label: str) -> Optional[Path]:
     return p
 
 
-def _prompt_optional_str(label: str) -> Optional[str]:
-    """Prompt for an optional string (Enter to skip)."""
-    raw = Prompt.ask(label, default="")
-    return raw if raw else None
-
-
 def _prompt_session_name() -> str:
     """Prompt for a session name or auto-generate one."""
     default = generate_session_name()
