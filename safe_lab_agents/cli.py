@@ -749,28 +749,14 @@ def start(
     # reload_tools (MCP tool) exists only with --update-tools.
     _sync_reload_info(config, reload_available=config.update_tools)
 
-    container_obj = docker_mgr.create_container(
-        config,
-        agent_backend,
-        mcp_port,
-        image_tag=image_tag,
-        extra_env=extra_env,
-        tty=tty,
-    )
-
-    # ---- Save metadata ----
-    metadata = SessionMetadata(
-        config=config,
-        container_id=container_obj.id,
-        image_tag=image_tag,
-        status="running",
-        started_at=datetime.now(),
-    )
-    metadata.save()
-
     # ---- Cleanup on exit ----
+    # Registered BEFORE the container is created so an interrupt during creation
+    # still runs teardown. _cleanup reads container_obj/metadata late (they stay
+    # None, and are guarded, until assigned just below).
     session_dir = get_sessions_dir() / config.name
     _cleaned_up = [False]
+    container_obj: Any = None
+    metadata: Any = None
 
     def _cleanup(signum=None, frame=None):
         if _cleaned_up[0]:
@@ -816,9 +802,10 @@ def start(
                 write_session_summary(config.auto_log_dir)
             except Exception as exc:
                 logger.warning("Could not write auto-log session summary: %s", exc)
-        metadata.status = "committed"
-        metadata.stopped_at = datetime.now()
-        metadata.save()
+        if metadata is not None:
+            metadata.status = "committed"
+            metadata.stopped_at = datetime.now()
+            metadata.save()
         _print_session_exit_summary(config, resumable=committed)
         if signum is not None:
             sys.exit(0)
@@ -826,6 +813,26 @@ def start(
     signal.signal(signal.SIGINT, _cleanup)
     signal.signal(signal.SIGTERM, _cleanup)
     atexit.register(_cleanup)
+
+    # ---- Create the container (cleanup handlers are already live) ----
+    container_obj = docker_mgr.create_container(
+        config,
+        agent_backend,
+        mcp_port,
+        image_tag=image_tag,
+        extra_env=extra_env,
+        tty=tty,
+    )
+
+    # ---- Save metadata ----
+    metadata = SessionMetadata(
+        config=config,
+        container_id=container_obj.id,
+        image_tag=image_tag,
+        status="running",
+        started_at=datetime.now(),
+    )
+    metadata.save()
 
     # ---- Run ----
     _print_session_start_banner(f"Launching {config.agent_type} in {mode} mode …")
@@ -976,23 +983,12 @@ def resume(
 
     generate_client_files(config.tools_file, config.workspace_dir)
 
-    container = docker_mgr.create_container(
-        config,
-        agent_backend,
-        mcp_port,
-        image_tag=session_image,
-        resume=True,
-        extra_env=resume_extra_env,
-        tty=True,
-    )
-
-    metadata.container_id = container.id
-    metadata.status = "running"
-    metadata.started_at = datetime.now()
-    metadata.save()
-
+    # ---- Cleanup on exit ----
+    # Registered BEFORE the container is created so an interrupt during creation
+    # still runs teardown. _cleanup reads `container` late (None until assigned).
     session_dir = get_sessions_dir() / config.name
     _cleaned_up = [False]
+    container: Any = None
 
     def _cleanup(signum=None, frame=None):
         if _cleaned_up[0]:
@@ -1001,10 +997,11 @@ def resume(
         console.print("\n[bold]Shutting down …[/bold]")
 
         # Copy native logs out of the container before it is committed/removed.
-        try:
-            docker_mgr.copy_agent_logs(container.id, session_dir, config.agent_type)
-        except Exception as exc:
-            logger.warning("Could not copy agent logs: %s", exc)
+        if container is not None:
+            try:
+                docker_mgr.copy_agent_logs(container.id, session_dir, config.agent_type)
+            except Exception as exc:
+                logger.warning("Could not copy agent logs: %s", exc)
 
         # Import the freshly-copied logs into history.json.
         try:
@@ -1014,15 +1011,16 @@ def resume(
             logger.warning("Could not import history: %s", exc)
 
         committed = False
-        try:
-            docker_mgr.commit_container(container.id, config.name)
-            committed = True
-        except Exception:
-            pass
-        try:
-            docker_mgr.remove_container(container.id, force=True)
-        except Exception:
-            pass
+        if container is not None:
+            try:
+                docker_mgr.commit_container(container.id, config.name)
+                committed = True
+            except Exception:
+                pass
+            try:
+                docker_mgr.remove_container(container.id, force=True)
+            except Exception:
+                pass
         _watcher_stop.set()
         _mcp[0].shutdown()
         if config.auto_log_dir:
@@ -1044,6 +1042,22 @@ def resume(
     signal.signal(signal.SIGINT, _cleanup)
     signal.signal(signal.SIGTERM, _cleanup)
     atexit.register(_cleanup)
+
+    # ---- Create the container (cleanup handlers are already live) ----
+    container = docker_mgr.create_container(
+        config,
+        agent_backend,
+        mcp_port,
+        image_tag=session_image,
+        resume=True,
+        extra_env=resume_extra_env,
+        tty=True,
+    )
+
+    metadata.container_id = container.id
+    metadata.status = "running"
+    metadata.started_at = datetime.now()
+    metadata.save()
 
     _print_session_start_banner(
         f"Resuming {config.agent_type} ({name}) interactively …"
