@@ -9,18 +9,18 @@ import pytest
 
 from safe_lab_agents.report import build_report
 
-# The repo ships a real auto-log folder we can render end-to-end.
+# The repo ships a real auto-log folder we can render end-to-end. This is a
+# committed fixture, so the test runs unconditionally: a missing folder is a
+# real failure, not a reason to silently skip (a wrong path here previously made
+# this end-to-end test skip on every run, hiding report-rendering regressions).
 FIXTURE_DIR = (
     Path(__file__).resolve().parent.parent
     / "example_setup"
-    / "shared_data"
+    / "shared_calibration_example"
     / "auto_log"
 )
 
 
-@pytest.mark.skipif(
-    not FIXTURE_DIR.is_dir(), reason="example auto_log fixture not present"
-)
 def test_build_report_from_example_folder(tmp_path: Path):
     out = tmp_path / "report.html"
     result = build_report(FIXTURE_DIR, out)
