@@ -13,11 +13,15 @@ from urllib.request import urlopen
 def find_free_port() -> int:
     """Find and return a free TCP port on localhost.
 
-    Binds to port 0 to let the OS assign a free port, then immediately
-    releases it.  There is a small race window, but in practice this is
-    reliable for our use case.
+    Binds to port 0 to let the OS assign a free port, then releases it.
+    ``SO_REUSEADDR`` lets the eventual server bind the same port immediately
+    (e.g. if it is briefly in ``TIME_WAIT``).  A small time-of-check-to-time-of-
+    use window remains — another process could claim the port before the server
+    binds it — so callers verify the server actually came up via
+    :func:`wait_for_server` and retry as needed (see the reload path).
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("", 0))
         return s.getsockname()[1]
 

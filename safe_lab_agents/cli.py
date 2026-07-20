@@ -1716,24 +1716,37 @@ def _start_reload_monitor(mcp_holder, config, mcp_port, auth_token, stop_event):
             )
             try:
                 mcp_holder[0].stop()
-                time.sleep(0.5)  # allow OS to release the port
-                new_server = ExperimentMCPServer(
-                    tools_file=config.tools_file,
-                    port=mcp_port,
-                    predefined_servers=config.predefined_servers,
-                    shared_dir=config.shared_dir,
-                    update_tools=True,
-                    auth_token=auth_token,
-                )
-                new_server.start()
-                mcp_holder[0] = new_server
-                if wait_for_server(mcp_port):
+                # The reload must reuse the SAME port (the container's firewall
+                # and env already target mcp_port), so a fresh port is not an
+                # option. The old server accepted connections, so the port may
+                # briefly be in TIME_WAIT and the rebind can transiently fail —
+                # retry a few times with a growing settle delay.
+                started = False
+                for attempt in range(3):
+                    time.sleep(0.5 * (attempt + 1))  # allow the OS to release the port
+                    new_server = ExperimentMCPServer(
+                        tools_file=config.tools_file,
+                        port=mcp_port,
+                        predefined_servers=config.predefined_servers,
+                        shared_dir=config.shared_dir,
+                        update_tools=True,
+                        auth_token=auth_token,
+                    )
+                    new_server.start()
+                    mcp_holder[0] = new_server
+                    if wait_for_server(mcp_port):
+                        started = True
+                        break
+                    new_server.stop()  # bind likely failed; tear down before retrying
+                if started:
                     generate_client_files(config.tools_file, config.workspace_dir)
                     _watcher_print(
                         "[green]MCP server restarted – updated tools are now available.[/green]"
                     )
                 else:
-                    _watcher_print("[red]MCP server did not restart in time.[/red]")
+                    _watcher_print(
+                        "[red]MCP server did not restart after several attempts.[/red]"
+                    )
             except Exception as exc:
                 _watcher_print(f"[red]Tools reload error: {exc}[/red]")
 
