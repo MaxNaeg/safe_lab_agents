@@ -19,7 +19,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from safe_lab_agents.mcp.predefined.records import is_quantity, split_quantity
+from safe_lab_agents.mcp.predefined.records import (
+    array_shape_str,
+    is_array_ref,
+    is_quantity,
+    split_quantity,
+)
 from safe_lab_agents.utils import safe_under
 
 logger = logging.getLogger(__name__)
@@ -121,7 +126,7 @@ def _array_stats(log_dir: Path, ref: dict) -> str:
 
     Reads the HDF5 file lazily; never raises — falls back to shape/dtype only.
     """
-    shape = "×".join(str(s) for s in ref.get("shape", [])) or "scalar"
+    shape = array_shape_str(ref) or "scalar"
     dtype = ref.get("dtype", "")
     unit = ref.get("unit")
     base = f"{shape} {dtype}".strip()
@@ -155,7 +160,7 @@ def _render_value(log_dir: Path, value: Any) -> str:
     Recurses into plain dicts and lists so an array nested inside them still
     renders as an ``array …`` chip rather than a raw reference-dict JSON blob.
     """
-    if isinstance(value, dict) and value.get("_type") == "ndarray":
+    if is_array_ref(value):
         return f'<span class="chip">array {_esc(_array_stats(log_dir, value))}</span>'
     if is_quantity(value):
         v, unit, _ = split_quantity(value)

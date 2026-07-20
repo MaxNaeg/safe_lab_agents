@@ -7,10 +7,14 @@ import h5py
 import numpy as np
 
 from safe_lab_agents.mcp.predefined.records import (
+    array_shape_str,
     extract_arrays,
     flatten_record,
+    is_array_ref,
     is_quantity,
     json_safe,
+    json_safe_keep_refs,
+    ndarray_summary,
     quantity,
     split_quantity,
 )
@@ -185,3 +189,52 @@ class TestExtractArrays:
             assert sorted(f.keys()) == sorted(arrays)
             for g, arr in arrays.items():
                 assert np.array_equal(f[f"{g}/data"][()], arr)
+
+
+class TestArrayRefHelpers:
+    """The shared ndarray-reference vocabulary used by autolog, .eln and report."""
+
+    REF = {
+        "_type": "ndarray",
+        "file": "x.h5",
+        "dataset": "/scan/x",
+        "shape": [2, 3],
+        "dtype": "float64",
+    }
+
+    def test_is_array_ref_rejects_lookalikes(self):
+        assert is_array_ref(self.REF)
+        assert not is_array_ref({"shape": [2, 3], "dtype": "float64"})
+        assert not is_array_ref(quantity(2.5, "W"))
+        assert not is_array_ref("ndarray")
+
+    def test_shape_and_summary(self):
+        assert array_shape_str(self.REF) == "2×3"
+        assert array_shape_str({"shape": []}) == ""
+        assert ndarray_summary(self.REF) == "ndarray[2×3] float64"
+
+    def test_summary_unit_is_opt_out(self):
+        ref = {**self.REF, "unit": "W"}
+        assert ndarray_summary(ref) == "ndarray[2×3] float64 (W)"
+        # the .eln exporter carries the unit in unitText instead
+        assert ndarray_summary(ref, include_unit=False) == "ndarray[2×3] float64"
+
+
+class TestJsonSafeKeepRefs:
+    def test_refs_survive_at_any_depth(self, tmp_path):
+        h5 = tmp_path / "x.h5"
+        extracted = extract_arrays(
+            {"scan": {"x": np.arange(3)}, "traces": [np.arange(2)]}, h5, ""
+        )
+        out = json_safe_keep_refs(extracted)
+        assert is_array_ref(out["scan"]["x"])
+        assert is_array_ref(out["traces"][0])
+
+    def test_non_ref_values_are_coerced(self):
+        out = json_safe_keep_refs({"n": np.int64(3), "obj": object()})
+        assert out["n"] == 3 and isinstance(out["n"], int)
+        assert isinstance(out["obj"], str)
+
+    def test_quantities_pass_through_as_dicts(self):
+        out = json_safe_keep_refs({"power": quantity(np.float32(2.5), "W")})
+        assert out["power"] == {"value": 2.5, "unit": "W"}

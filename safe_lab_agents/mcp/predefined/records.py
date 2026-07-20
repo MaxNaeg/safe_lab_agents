@@ -4,13 +4,17 @@
 This module has **no dependency on kadi-apy** and is safe to import from the
 local-logging path even when Kadi4Mat is not configured.  It owns three things:
 
-* :func:`json_safe` — coerce arbitrary values to JSON-serializable ones.
+* :func:`json_safe` — coerce arbitrary values to JSON-serializable ones — and
+  :func:`json_safe_keep_refs`, its variant that leaves ndarray reference dicts
+  intact for consumers that resolve them later.
 * the **quantity** convention — :func:`quantity` / :func:`is_quantity` /
   :func:`split_quantity` — a ``{"value": …, "unit": …}`` dict that lets a tool
   attach a unit of measurement to a numeric (or array) result.
 * the single canonical numpy-array extractor :func:`extract_arrays`, which
   writes arrays to HDF5 (with a NeXus-style ``units`` attribute) and replaces
-  them with a reference dict.
+  them with a reference dict — together with the reference-dict vocabulary
+  every consumer shares: :func:`is_array_ref`, :func:`array_shape_str`, and
+  :func:`ndarray_summary`.
 """
 
 from __future__ import annotations
@@ -98,6 +102,24 @@ def json_safe(value: Any) -> Any:
     return str(native)
 
 
+def json_safe_keep_refs(value: Any) -> Any:
+    """:func:`json_safe`, but ndarray reference dicts pass through untouched.
+
+    The post-:func:`extract_arrays` serializer: arrays have already been written
+    to HDF5 and replaced by reference dicts, which downstream consumers (report,
+    ``.eln``, Kadi push) must still recognize as arrays rather than as ordinary
+    nested dicts.  Recurses through dicts and lists so a reference nested at any
+    depth survives.
+    """
+    if is_array_ref(value):
+        return value
+    if isinstance(value, dict):
+        return {k: json_safe_keep_refs(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe_keep_refs(v) for v in value]
+    return json_safe(value)
+
+
 # ---------------------------------------------------------------------------
 # Quantities — a measurement value carrying a unit
 # ---------------------------------------------------------------------------
@@ -142,9 +164,7 @@ def _is_leaf(value: Any) -> bool:
     Scalars, quantities, and ndarray reference dicts are leaves; plain dicts and
     lists are containers to flatten.
     """
-    if is_quantity(value):
-        return True
-    if isinstance(value, dict) and value.get("_type") == "ndarray":
+    if is_quantity(value) or is_array_ref(value):
         return True
     return not isinstance(value, (dict, list, tuple))
 
@@ -180,6 +200,32 @@ def flatten_record(mapping: dict | None) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # numpy array extraction → HDF5
 # ---------------------------------------------------------------------------
+
+
+def is_array_ref(value: Any) -> bool:
+    """Return ``True`` if *value* is an ndarray reference dict from :func:`extract_arrays`."""
+    return isinstance(value, dict) and value.get("_type") == "ndarray"
+
+
+def array_shape_str(ref: dict[str, Any]) -> str:
+    """Render a reference dict's shape as ``2×3`` (empty string for a 0-d array)."""
+    return "×".join(str(s) for s in ref.get("shape", []))
+
+
+def ndarray_summary(ref: dict[str, Any], *, include_unit: bool = True) -> str:
+    """Render a reference dict as ``ndarray[2×3] float64 (W)``.
+
+    The one canonical human-readable form for an array that cannot be inlined:
+    used by the Kadi push (string extras), the ``.eln`` export, and the HTML
+    report.  Pass ``include_unit=False`` where the unit is carried in a
+    dedicated field instead (the ``.eln`` ``unitText``), so it is not repeated
+    inside the value text.
+    """
+    summary = f"ndarray[{array_shape_str(ref)}] {ref.get('dtype', '')}".strip()
+    unit = ref.get("unit")
+    if include_unit and unit:
+        summary += f" ({unit})"
+    return summary
 
 
 def _array_ref(

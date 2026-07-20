@@ -56,7 +56,9 @@ from safe_lab_agents.mcp.predefined.records import (
     extract_arrays,
     flatten_record,
     has_arrays,
-    json_safe,
+    is_array_ref,
+    json_safe_keep_refs,
+    ndarray_summary,
 )
 
 logger = logging.getLogger(__name__)
@@ -292,11 +294,7 @@ def log_analysis(
 
     data_out: dict[str, Any] = {}
     for k, v in (data or {}).items():
-        extracted = extract_arrays(v, h5_path, f"/{k}")
-        if isinstance(extracted, dict) and extracted.get("_type") == "ndarray":
-            data_out[k] = extracted
-        else:
-            data_out[k] = json_safe(extracted)
+        data_out[k] = json_safe_keep_refs(extract_arrays(v, h5_path, f"/{k}"))
 
     figure_refs = [{"_type": "figure", "file": Path(f).name} for f in (figures or [])]
 
@@ -353,15 +351,11 @@ def _push_to_kadi(entry: dict, output_dir: Path) -> None:
     result: dict[str, Any] = {}
     flat_result = flatten_record(raw_result) if isinstance(raw_result, dict) else {}
     for k, v in flat_result.items():
-        if isinstance(v, dict) and v.get("_type") == "ndarray":
+        if is_array_ref(v):
             # Arrays become a string summary; Kadi forbids a unit on a string
             # extra, so the unit rides along in the summary text (the machine-
             # readable unit lives in the attached HDF5 file's ``units`` attr).
-            shape = "×".join(str(s) for s in v.get("shape", []))
-            summary = f"ndarray[{shape}] {v.get('dtype', '')}".strip()
-            if v.get("unit"):
-                summary += f" ({v['unit']})"
-            result[k] = summary
+            result[k] = ndarray_summary(v)
         else:
             # Plain values and scalar quantity dicts ({"value","unit"}) pass
             # through untouched; create_record turns quantities into a numeric
@@ -600,29 +594,14 @@ def write_session_summary(output_dir: Path) -> Path | None:
 
 
 def _make_result_entry(result: Any) -> Any:
-    """Apply json_safe to a result that has already had arrays extracted."""
+    """Serialize a result that has already had arrays extracted.
+
+    A non-dict result is wrapped under a ``result`` key so every entry's
+    ``result`` field is a mapping.
+    """
     if isinstance(result, dict):
-        return {
-            k: json_safe(v)
-            if not (isinstance(v, dict) and v.get("_type") == "ndarray")
-            else v
-            for k, v in result.items()
-        }
-    return {"result": json_safe(result)}
-
-
-def _serialize_param_value(value: Any) -> Any:
-    """Serialize a single parameter value, preserving ndarray reference dicts."""
-    if isinstance(value, dict) and value.get("_type") == "ndarray":
-        return value
-    if isinstance(value, dict):
-        return {
-            k: v
-            if (isinstance(v, dict) and v.get("_type") == "ndarray")
-            else json_safe(v)
-            for k, v in value.items()
-        }
-    return json_safe(value)
+        return json_safe_keep_refs(result)
+    return {"result": json_safe_keep_refs(result)}
 
 
 def _record_call(
@@ -673,7 +652,7 @@ def _record_call(
         "timestamp": timestamp,
         "duration_ms": duration_ms,
         "parameters": {
-            f"param_{k}": _serialize_param_value(v)
+            f"param_{k}": json_safe_keep_refs(v)
             for k, v in modified_call_args.items()
         },
         "result": _make_result_entry(modified_result),

@@ -34,8 +34,10 @@ from typing import Any
 from safe_lab_agents.utils import safe_under
 from safe_lab_agents.mcp.predefined.records import (
     flatten_record,
+    is_array_ref,
     is_quantity,
     json_safe,
+    ndarray_summary,
     split_quantity,
 )
 from safe_lab_agents.report.builder import _load_entries
@@ -126,9 +128,9 @@ def _property_value(node_id: str, name: str, value: Any) -> dict[str, Any]:
     node: dict[str, Any] = {"@id": node_id, "@type": "PropertyValue", "name": name}
     unit: str | None = None
     term: str | None = None
-    if isinstance(value, dict) and value.get("_type") == "ndarray":
-        shape = "×".join(str(s) for s in value.get("shape", []))
-        node["value"] = f"ndarray[{shape}] {value.get('dtype', '')}".strip()
+    if is_array_ref(value):
+        # unit is lifted into unitText/unitCode below, so keep it out of the text
+        node["value"] = ndarray_summary(value, include_unit=False)
         unit = value.get("unit")
     elif is_quantity(value):
         num, unit, term = split_quantity(value)
