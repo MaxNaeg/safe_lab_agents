@@ -87,6 +87,14 @@ def json_safe(value: Any) -> Any:
     native = to_native_scalar(value)
     if isinstance(native, (bool, int, float)):
         return native
+    if isinstance(native, np.ndarray):
+        # extract_arrays should have replaced every array with a reference dict
+        # before json_safe ever sees the value; if one slips through it would be
+        # stringified (truncated, unrecoverable), so surface it loudly.
+        logger.warning(
+            "json_safe: a numpy array reached json_safe un-extracted and was "
+            "stringified (shape=%s dtype=%s) — data lost", native.shape, native.dtype
+        )
     return str(native)
 
 
@@ -128,6 +136,47 @@ def split_quantity(value: dict[str, Any]) -> tuple[Any, str | None, str | None]:
     return value.get("value"), value.get("unit"), value.get("term")
 
 
+def _is_leaf(value: Any) -> bool:
+    """A value that :func:`flatten_record` should NOT descend into.
+
+    Scalars, quantities, and ndarray reference dicts are leaves; plain dicts and
+    lists are containers to flatten.
+    """
+    if is_quantity(value):
+        return True
+    if isinstance(value, dict) and value.get("_type") == "ndarray":
+        return True
+    return not isinstance(value, (dict, list, tuple))
+
+
+def flatten_record(mapping: dict | None) -> dict[str, Any]:
+    """Flatten a params/result mapping into ``{dotted_key: leaf}`` pairs.
+
+    Nested dicts and lists are flattened with dotted / indexed keys that mirror
+    :func:`extract_arrays`'s dataset naming (``scan.x``, ``traces.0``), so each
+    nested array or scalar becomes its own leaf.  Quantities and ndarray
+    reference dicts are kept whole (treated as leaves).  Consumers that produce
+    one metadata entry per value (the ``.eln`` exporter, the Kadi push) call this
+    so arrays nested below the top level get first-class treatment instead of
+    being embedded as raw reference dicts.
+    """
+    out: dict[str, Any] = {}
+
+    def _walk(value: Any, path: str) -> None:
+        if _is_leaf(value):
+            out[path] = value
+        elif isinstance(value, dict):
+            for key, sub in value.items():
+                _walk(sub, f"{path}.{key}" if path else str(key))
+        else:  # list / tuple
+            for i, sub in enumerate(value):
+                _walk(sub, f"{path}.{i}" if path else str(i))
+
+    for key, value in (mapping or {}).items():
+        _walk(value, str(key))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # numpy array extraction → HDF5
 # ---------------------------------------------------------------------------
@@ -159,16 +208,45 @@ def _array_and_unit(value: Any) -> tuple[np.ndarray, str | None] | None:
 
 
 def has_arrays(value: Any) -> bool:
-    """Return ``True`` if :func:`extract_arrays` would write an HDF5 dataset for
-    *value* (a bare array/array-quantity, or a dict with such a top-level value).
+    """Return ``True`` if :func:`extract_arrays` would write any HDF5 dataset for
+    *value* — i.e. *value* contains a numpy array (or array-valued quantity)
+    anywhere, at any nesting depth in its dicts/lists.
 
     Lets a caller skip opening an HDF5 file for array-free (scalar-only) results.
+    Must match :func:`extract_arrays`'s recursion so callers that keep one HDF5
+    file open (batch logging) open it whenever — and only when — an array exists.
     """
     if _array_and_unit(value) is not None:
         return True
     if isinstance(value, dict):
-        return any(_array_and_unit(v) is not None for v in value.values())
+        return any(has_arrays(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(has_arrays(v) for v in value)
     return False
+
+
+def _write_array(value: Any, dataset: str, f: Any, h5_filename: str) -> dict[str, Any]:
+    """Write an array (or array-quantity) *value* to *dataset* in *f*; return its ref."""
+    arr, unit = _array_and_unit(value)  # type: ignore[misc]  # caller guarantees not None
+    dset = f.create_dataset(dataset.lstrip("/"), data=arr)
+    if unit:
+        dset.attrs["units"] = unit
+    return _array_ref(h5_filename, dataset, arr, unit)
+
+
+def _extract_walk(value: Any, path: str, f: Any, h5_filename: str) -> Any:
+    """Recursively replace arrays in *value* with refs, writing them under *path*.
+
+    Dicts descend as ``<path>/<key>`` and lists/tuples as ``<path>/<index>`` so
+    every nested array gets a unique HDF5 dataset name.
+    """
+    if _array_and_unit(value) is not None:
+        return _write_array(value, path, f, h5_filename)
+    if isinstance(value, dict):
+        return {k: _extract_walk(v, f"{path}/{k}", f, h5_filename) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_extract_walk(v, f"{path}/{i}", f, h5_filename) for i, v in enumerate(value)]
+    return value
 
 
 def extract_arrays(
@@ -176,12 +254,14 @@ def extract_arrays(
 ) -> Any:
     """Extract numpy arrays from *result* into *h5_path* under *group*.
 
-    Returns a modified copy of *result* with arrays replaced by reference
-    dicts.  Handles a bare ndarray, a bare array-valued quantity, and the
-    top-level values of a dict (plain arrays or array-valued quantities).
+    Returns a modified copy of *result* with every numpy array replaced by a
+    reference dict, recursing through nested dicts and lists so arrays at any
+    depth are captured (``{"traces": [arr, arr]}``, ``{"scan": {"x": arr}}``).
     A unit (from an array-valued quantity) is written as the HDF5 dataset's
     ``units`` attribute (NeXus convention) and carried onto the reference dict.
-    Scalar quantities and deeper nesting are left untouched.
+    A bare top-level array keeps the historical ``<group>/data`` dataset name;
+    nested arrays get unique ``<group>/<key>`` / ``<group>/<index>`` names.
+    Scalar quantities and other (non-array) values are left untouched.
 
     *h5_file* is an optional caller-managed open HDF5 handle (used by batch
     logging to keep one file open across many calls); when given, arrays are
@@ -190,37 +270,12 @@ def extract_arrays(
     """
     h5_filename = h5_path.name
 
-    # Bare ndarray or bare array-valued quantity.
-    bare = _array_and_unit(result)
-    if bare is not None:
-        arr, unit = bare
-        dataset = f"{group}/data"
-        with _h5_target(h5_path, h5_file) as f:
-            dset = f.create_dataset(dataset.lstrip("/"), data=arr)
-            if unit:
-                dset.attrs["units"] = unit
-        return _array_ref(h5_filename, dataset, arr, unit)
+    # Skip opening a file at all for array-free (e.g. scalar-only) results.
+    if not has_arrays(result):
+        return result
 
-    if isinstance(result, dict):
-        to_extract: dict[str, tuple[np.ndarray, str | None]] = {}
-        for key, value in result.items():
-            arr_unit = _array_and_unit(value)
-            if arr_unit is not None:
-                to_extract[key] = arr_unit
-        if not to_extract:
-            return result
-        with _h5_target(h5_path, h5_file) as f:
-            for key, (arr, unit) in to_extract.items():
-                dset = f.create_dataset(f"{group}/{key}".lstrip("/"), data=arr)
-                if unit:
-                    dset.attrs["units"] = unit
-        modified: dict[str, Any] = {}
-        for key, value in result.items():
-            if key in to_extract:
-                arr, unit = to_extract[key]
-                modified[key] = _array_ref(h5_filename, f"{group}/{key}", arr, unit)
-            else:
-                modified[key] = value
-        return modified
-
-    return result
+    with _h5_target(h5_path, h5_file) as f:
+        # A bare top-level array/quantity keeps the historical dataset name.
+        if _array_and_unit(result) is not None:
+            return _write_array(result, f"{group}/data", f, h5_filename)
+        return _extract_walk(result, group, f, h5_filename)

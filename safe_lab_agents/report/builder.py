@@ -150,16 +150,24 @@ def _array_stats(log_dir: Path, ref: dict) -> str:
 
 
 def _render_value(log_dir: Path, value: Any) -> str:
-    """Render a single param/result/data value as an HTML fragment."""
+    """Render a single param/result/data value as an HTML fragment.
+
+    Recurses into plain dicts and lists so an array nested inside them still
+    renders as an ``array …`` chip rather than a raw reference-dict JSON blob.
+    """
     if isinstance(value, dict) and value.get("_type") == "ndarray":
         return f'<span class="chip">array {_esc(_array_stats(log_dir, value))}</span>'
     if is_quantity(value):
         v, unit, _ = split_quantity(value)
         return f"{_esc(v)}&nbsp;<span class='unit'>{_esc(unit)}</span>"
     if isinstance(value, dict):
-        return _esc(json.dumps(value, default=str))
+        inner = ", ".join(
+            f"<span class='mini-k'>{_esc(k)}</span> {_render_value(log_dir, v)}"
+            for k, v in value.items()
+        )
+        return f"{{ {inner} }}" if value else "{}"
     if isinstance(value, (list, tuple)):
-        return _esc(json.dumps(list(value), default=str))
+        return "[" + ", ".join(_render_value(log_dir, v) for v in value) + "]"
     return _esc(value)
 
 

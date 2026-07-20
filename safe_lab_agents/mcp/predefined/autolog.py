@@ -54,6 +54,7 @@ import h5py
 
 from safe_lab_agents.mcp.predefined.records import (
     extract_arrays,
+    flatten_record,
     has_arrays,
     json_safe,
 )
@@ -326,12 +327,16 @@ def _push_to_kadi(entry: dict, output_dir: Path) -> None:
         return
     title = entry.get("label") or entry.get("title", "unknown")
     call_args = {
-        k.removeprefix("param_"): v for k, v in entry.get("parameters", {}).items()
+        k.removeprefix("param_"): v
+        for k, v in flatten_record(entry.get("parameters", {})).items()
     }
     # Analysis records use "data"; experiment/batch records use "result".
+    # Flatten first so an array nested in a list/dict becomes its own extra
+    # (dotted key, e.g. scan.x) instead of a stringified reference dict.
     raw_result = entry.get("result") or entry.get("data", {})
     result: dict[str, Any] = {}
-    for k, v in raw_result.items() if isinstance(raw_result, dict) else {}.items():
+    flat_result = flatten_record(raw_result) if isinstance(raw_result, dict) else {}
+    for k, v in flat_result.items():
         if isinstance(v, dict) and v.get("_type") == "ndarray":
             # Arrays become a string summary; Kadi forbids a unit on a string
             # extra, so the unit rides along in the summary text (the machine-

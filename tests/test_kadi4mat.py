@@ -182,6 +182,29 @@ class TestAutoLogKadiIntegration:
         finally:
             self._teardown(autolog_mod)
 
+    def test_nested_array_flattened_into_dotted_extra(self, tmp_path):
+        """An array nested in a dict result reaches Kadi as its own dotted extra
+        (scan.x) with an ndarray summary, not a stringified reference dict."""
+        import numpy as np
+
+        mock_client = self._make_mock_client()
+        wrapper, autolog_mod = self._setup(tmp_path, mock_client)
+        try:
+
+            def measure() -> dict:
+                """Measure a nested trace."""
+                return {"scan": {"x": np.arange(3), "n": 5}}
+
+            wrapper(measure)()
+
+            result = mock_client.create_record.call_args[1]["result"]
+            assert result["scan.x"].startswith("ndarray[3]")
+            assert result["scan.n"] == 5
+            # No value is a raw reference dict / nested container.
+            assert not any(isinstance(v, (dict, list)) for v in result.values())
+        finally:
+            self._teardown(autolog_mod)
+
     def test_kadi_failure_does_not_break_tool(self, tmp_path):
         mock_client = self._make_mock_client()
         mock_client.create_record.side_effect = RuntimeError("Kadi is down")

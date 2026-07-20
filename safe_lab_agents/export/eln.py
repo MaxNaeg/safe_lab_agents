@@ -33,6 +33,7 @@ from typing import Any
 
 from safe_lab_agents.utils import safe_under
 from safe_lab_agents.mcp.predefined.records import (
+    flatten_record,
     is_quantity,
     json_safe,
     split_quantity,
@@ -145,9 +146,14 @@ def _property_value(node_id: str, name: str, value: Any) -> dict[str, Any]:
 def _measurements(
     graph: list[dict], dataset_id: str, prefix: str, mapping: dict | None
 ) -> list[dict[str, str]]:
-    """Append PropertyValue nodes for *mapping* to *graph*; return their refs."""
+    """Append PropertyValue nodes for *mapping* to *graph*; return their refs.
+
+    *mapping* is flattened first (``flatten_record``) so an array nested inside a
+    list/dict value becomes its own ``ndarray[…]`` PropertyValue (dotted name,
+    e.g. ``scan.x``) rather than being embedded as a raw reference dict.
+    """
     refs: list[dict[str, str]] = []
-    for key, value in (mapping or {}).items():
+    for key, value in flatten_record(mapping).items():
         name = key[6:] if key.startswith("param_") else key
         node_id = f"#{dataset_id.rstrip('/')}-{prefix}-{name}"
         graph.append(_property_value(node_id, name, value))

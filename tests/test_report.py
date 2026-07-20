@@ -74,6 +74,43 @@ def test_quantity_result_renders_value_and_unit(tmp_path: Path):
     assert "class='unit'>W<" in html
 
 
+def test_nested_array_renders_as_chip_not_json_blob(tmp_path: Path):
+    """An array nested in a dict value renders as an 'array …' chip, not a raw
+    reference-dict JSON blob."""
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    _write_record(
+        log_dir,
+        "exp_20260101_000000_000001-measure.json",
+        {
+            "type": "individual",
+            "id": "exp_20260101_000000_000001",
+            "title": "measure",
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "parameters": {},
+            "result": {
+                "scan": {
+                    "x": {
+                        "_type": "ndarray",
+                        "file": "x.h5",
+                        "dataset": "/scan/x",
+                        "shape": [5],
+                        "dtype": "float64",
+                    },
+                    "n": 5,
+                }
+            },
+        },
+    )
+
+    out = log_dir / "report.html"
+    build_report(log_dir, out)
+    html = out.read_text(encoding="utf-8")
+
+    assert "chip" in html and "array 5" in html  # rendered as an array chip
+    assert "_type" not in html  # not dumped as a raw reference dict
+
+
 def test_failed_kind_gets_its_own_badge_and_filter(tmp_path: Path):
     log_dir = tmp_path / "auto_log"
     log_dir.mkdir()
