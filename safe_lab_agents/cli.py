@@ -1400,7 +1400,9 @@ def _prompt_required_agent_args(
             suffix = f" ({'/'.join(arg.choices)})" if arg.choices else ""
             raw_val = Prompt.ask(f"{arg.description}{suffix}", password=arg.is_secret)
             if arg.type is bool:
-                result[arg.name] = raw_val.lower() in ("1", "true", "yes", "")
+                # Empty input (bare Enter) must NOT count as True — require an
+                # explicit affirmative for a bool the user is being asked for.
+                result[arg.name] = raw_val.lower() in ("1", "true", "yes", "y")
             elif arg.type is int:
                 # Re-prompt instead of crashing with a ValueError traceback.
                 while True:
