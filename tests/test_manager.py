@@ -436,3 +436,51 @@ def test_start_interactive_exec_failure_raises_not_unwinds(monkeypatch) -> None:
     with pytest.raises(RuntimeError) as exc:
         mgr.start_interactive(container)
     assert "safe-lab-no-such-binary-xyz" in str(exc.value)
+
+
+def _pingable_client(ping_error: Exception | None = None):
+    """A minimal docker-client stub whose ping() succeeds or raises *ping_error*."""
+
+    def ping():
+        if ping_error is not None:
+            raise ping_error
+        return True
+
+    return types.SimpleNamespace(ping=ping)
+
+
+def test_connect_pings_and_returns_running_client(monkeypatch) -> None:
+    """The fast path pings the daemon and returns the client without auto-starting."""
+    client = _pingable_client()
+    monkeypatch.setattr(manager_mod.docker, "from_env", lambda: client)
+
+    def _no_start(*a, **k):
+        raise AssertionError("must not try to start Docker when it is already up")
+
+    monkeypatch.setattr(manager_mod.subprocess, "Popen", _no_start)
+
+    assert manager_mod._connect_or_start_docker() is client
+
+
+def test_connect_treats_ping_failure_as_not_running(monkeypatch) -> None:
+    """from_env() succeeds but ping() fails (stopped daemon) → routed into the
+    start path, not returned as a working client."""
+    bad = _pingable_client(requests.exceptions.ConnectionError("daemon down"))
+    monkeypatch.setattr(manager_mod.docker, "from_env", lambda: bad)
+    monkeypatch.delenv("DOCKER_HOST", raising=False)
+    # Force an unsupported platform so the start path fails fast and observably.
+    monkeypatch.setattr(manager_mod.platform, "system", lambda: "Plan9")
+
+    with pytest.raises(RuntimeError, match="Unsupported platform"):
+        manager_mod._connect_or_start_docker()
+
+
+def test_connect_ping_failure_with_docker_host_raises(monkeypatch) -> None:
+    """A ping failure with DOCKER_HOST set surfaces the remote-runtime message
+    (no auto-start of a remote daemon)."""
+    bad = _pingable_client(requests.exceptions.ConnectionError("daemon down"))
+    monkeypatch.setattr(manager_mod.docker, "from_env", lambda: bad)
+    monkeypatch.setenv("DOCKER_HOST", "tcp://remote:2375")
+
+    with pytest.raises(RuntimeError, match="Could not connect to container runtime"):
+        manager_mod._connect_or_start_docker()

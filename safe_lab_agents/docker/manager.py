@@ -121,10 +121,17 @@ def _connect_or_start_docker() -> docker.DockerClient:
         RuntimeError: If Docker cannot be started or does not become ready
             within the timeout.
     """
-    # Fast path — Docker is already running.
+    # Fast path — Docker is already running. from_env() is lazy and does NOT
+    # contact the daemon, so it succeeds even when Docker is stopped; ping()
+    # forces a real round-trip so a stopped daemon is detected here (routing us
+    # into auto-start) instead of surfacing as an opaque error on the first API
+    # call. A dead socket raises requests' ConnectionError, not a
+    # DockerException, so both are caught.
     try:
-        return docker.from_env()
-    except docker.errors.DockerException as exc:
+        client = docker.from_env()
+        client.ping()
+        return client
+    except (docker.errors.DockerException, requests.exceptions.RequestException) as exc:
         if os.environ.get("DOCKER_HOST"):
             raise RuntimeError(
                 f"Could not connect to container runtime at {os.environ['DOCKER_HOST']}. "
@@ -163,14 +170,17 @@ def _connect_or_start_docker() -> docker.DockerClient:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError(f"Failed to start Docker: {exc}") from exc
 
-    # Poll until the daemon responds.
+    # Poll until the daemon responds. ping() (not just from_env(), which would
+    # succeed instantly) is what actually confirms the daemon is up, so the wait
+    # reflects Docker Desktop's real boot time.
     deadline = time.monotonic() + _DOCKER_START_TIMEOUT
     while time.monotonic() < deadline:
         try:
             client = docker.from_env()
+            client.ping()
             print("Docker is ready.", flush=True)
             return client
-        except docker.errors.DockerException:
+        except (docker.errors.DockerException, requests.exceptions.RequestException):
             remaining = int(deadline - time.monotonic())
             print(f"  Waiting for Docker … ({remaining}s remaining)", end="\r", flush=True)
             time.sleep(2)
