@@ -18,6 +18,7 @@ via ``safe_lab_agents.experiment``) sees the same instance the tools used.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import inspect
 import logging
@@ -164,7 +165,13 @@ def _load_module(file_path: Path):
     The module is added to ``sys.modules`` so that relative imports inside
     the user file work correctly.
     """
-    module_name = f"_user_tools_{file_path.stem}"
+    # Include a hash of the absolute path so two tool files that share a basename
+    # (e.g. projA/tools.py and projB/tools.py) get distinct sys.modules keys and
+    # don't clobber each other; the same file always maps to the same key.
+    path_hash = hashlib.sha1(
+        str(file_path.resolve()).encode("utf-8")
+    ).hexdigest()[:8]
+    module_name = f"_user_tools_{file_path.stem}_{path_hash}"
     spec = importlib.util.spec_from_file_location(module_name, str(file_path))
     if spec is None or spec.loader is None:
         raise ValueError(f"Cannot create module spec from {file_path}")
