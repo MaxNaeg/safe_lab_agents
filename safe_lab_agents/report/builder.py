@@ -264,8 +264,10 @@ def _resolve_reference(ref: str, ids: set[str]) -> str | None:
     """
     if ref in ids:
         return ref
+    # Require the id to end at a '-' separator so a ref for "exp_10-…" is not
+    # resolved to a shorter card id like "exp_1".
     for eid in ids:
-        if ref.startswith(eid):
+        if ref.startswith(f"{eid}-"):
             return eid
     return None
 

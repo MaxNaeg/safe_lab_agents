@@ -172,7 +172,9 @@ def _entry_files(log_dir: Path, entry: dict) -> list[Path]:
         for p in log_dir.iterdir()
         if p.is_file()
         and eid
-        and p.name.startswith(eid)
+        # Require the id to end at a separator ('.' before an extension or '-'
+        # before a title suffix) so e.g. eid "exp_1" doesn't grab "exp_10-…".
+        and (p.name == eid or p.name.startswith(f"{eid}-") or p.name.startswith(f"{eid}."))
         and safe_under(log_dir, p.name) is not None
     ]
     seen = {p.name for p in files}

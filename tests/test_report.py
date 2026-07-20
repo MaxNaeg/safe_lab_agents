@@ -50,6 +50,17 @@ def _write_record(folder: Path, name: str, record: dict) -> None:
     (folder / name).write_text(json.dumps(record), encoding="utf-8")
 
 
+def test_resolve_reference_requires_separator() -> None:
+    """A reference must not resolve to a shorter card id it merely prefixes."""
+    from safe_lab_agents.report.builder import _resolve_reference
+
+    ids = {"exp_1", "exp_10"}
+    assert _resolve_reference("exp_1", ids) == "exp_1"
+    assert _resolve_reference("exp_10-measure", ids) == "exp_10"
+    assert _resolve_reference("exp_1-measure", ids) == "exp_1"
+    assert _resolve_reference("exp_99", ids) is None
+
+
 def test_quantity_result_renders_value_and_unit(tmp_path: Path):
     log_dir = tmp_path / "auto_log"
     log_dir.mkdir()

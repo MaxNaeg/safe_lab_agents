@@ -127,6 +127,20 @@ def test_build_eln_includes_files_with_checksums(tmp_path: Path):
         assert all(n.startswith("session/") for n in zf.namelist())
 
 
+def test_entry_files_requires_separator_after_id(tmp_path: Path):
+    """A file for entry 'exp_1' must not grab 'exp_10-…' (prefix without separator)."""
+    from safe_lab_agents.export.eln import _entry_files
+
+    (tmp_path / "exp_1-measure.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "exp_1.h5").write_text("x", encoding="utf-8")
+    (tmp_path / "exp_10-measure.json").write_text("{}", encoding="utf-8")
+
+    names = {p.name for p in _entry_files(tmp_path, {"id": "exp_1"})}
+    assert "exp_1-measure.json" in names
+    assert "exp_1.h5" in names
+    assert "exp_10-measure.json" not in names
+
+
 def test_build_eln_batch_run_param_and_result_same_name_have_distinct_ids(tmp_path: Path):
     """A batch run with a param and a result of the same name must produce two
     PropertyValues with distinct @ids (duplicate @ids are invalid JSON-LD)."""
