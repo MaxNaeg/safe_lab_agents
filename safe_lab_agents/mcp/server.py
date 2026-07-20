@@ -197,7 +197,7 @@ def _run_server(
         for server_name in predefined_server_names:
             predefined = get_predefined_server(server_name)
             for func in predefined.get_tools():
-                mcp._local_provider.add_tool(func)
+                mcp.add_tool(func)
             predefined_python_tools.extend(predefined.get_python_tools())
             logger.info("Registered predefined server '%s'", server_name)
 
@@ -230,7 +230,7 @@ def _run_server(
     # ---- Register MCP tools ----
     for func in (mcp_tools or []):
         wrapped = _wrap_mcp_tool_errors(_apply_wrappers(func))
-        mcp._local_provider.add_tool(wrapped)
+        mcp.add_tool(wrapped)
     logger.info("Registered %d MCP tool(s)", len(mcp_tools or []))
 
     # ---- Register reload_tools (only when --update-tools is active) ----
@@ -277,7 +277,7 @@ def _run_server(
                 f"regenerated; re-import it to use updated Python tools.{python_tools_section}"
             )
 
-        mcp._local_provider.add_tool(reload_tools)
+        mcp.add_tool(reload_tools)
 
     # ---- Build Python-callable registry (/invoke endpoint) ----
     _python_registry: dict[str, Callable] = {}
