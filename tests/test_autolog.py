@@ -125,6 +125,50 @@ def test_start_stop_batch_writes_json(wrapper_and_tools, tmp_path: Path):
     assert "completed_at" in record
 
 
+def test_concurrent_batch_calls_record_every_experiment(tools, tmp_path):
+    """Parallel calls in one batch append to a shared list and write arrays into
+    a shared .h5.  With the state/HDF5 locks, none are lost or corrupted.
+
+    Drives ``_record_call`` directly with distinct ids so the test isolates the
+    locking (not the wrapper's timestamp-derived id generation)."""
+    import concurrent.futures
+
+    import safe_lab_agents.mcp.predefined.autolog as autolog
+
+    tools["start_batch"]("Concurrent sweep")
+    batch = autolog._current_batch
+    n = 64
+
+    def record(i: int) -> None:
+        autolog._record_call(
+            exp_id=f"exp_{i:04d}",
+            tool_name="measure",
+            timestamp="2026-07-20T00:00:00+00:00",
+            duration_ms=1,
+            call_args={"i": i},
+            result={"trace": np.arange(i, i + 4)},
+            batch=batch,
+            output_dir=tmp_path,
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+        list(ex.map(record, range(n)))
+
+    # Every concurrent append landed exactly once — no lost/torn writes.
+    assert len(batch.experiments) == n
+    assert len({e["id"] for e in batch.experiments}) == n
+
+    result = tools["stop_batch"]()
+    assert "Concurrent sweep" in result
+    saved = json.loads(next(tmp_path.glob("batch_*.json")).read_text())
+    assert saved["experiment_count"] == n
+
+    # All arrays are present and readable in the shared batch .h5.
+    with h5py.File(str(batch.h5_path), "r") as f:
+        for i in range(n):
+            assert np.array_equal(f[f"exp_{i:04d}/trace"][()], np.arange(i, i + 4))
+
+
 def test_stop_batch_without_start_returns_error(tools):
     msg = tools["stop_batch"]()
     assert "No batch is active" in msg
@@ -225,6 +269,58 @@ def test_numpy_array_in_result_saved_to_hdf5(wrapper, tmp_path: Path):
     assert ref["dataset"] == "/spectrum"
     assert ref["shape"] == [10]
     assert ref["dtype"] == "float64"
+
+
+def test_batch_opens_hdf5_once_and_closes_on_stop(tools, tmp_path: Path):
+    """In batch mode the shared .h5 is opened lazily on the first array write,
+    reused across calls (no per-call reopen), and closed at stop_batch."""
+    import safe_lab_agents.mcp.predefined.autolog as autolog
+
+    tools["start_batch"]("Sweep")
+    batch = autolog._current_batch
+    assert batch.h5_file is None  # not opened until an array is actually written
+
+    autolog._record_call(
+        exp_id="exp_0001", tool_name="m", timestamp="t", duration_ms=1,
+        call_args={}, result={"trace": np.arange(3)},
+        batch=batch, output_dir=tmp_path,
+    )
+    handle = batch.h5_file
+    assert handle is not None and bool(handle)  # open now
+
+    autolog._record_call(
+        exp_id="exp_0002", tool_name="m", timestamp="t", duration_ms=1,
+        call_args={}, result={"trace": np.arange(3, 6)},
+        batch=batch, output_dir=tmp_path,
+    )
+    assert batch.h5_file is handle  # same handle reused, not reopened
+
+    tools["stop_batch"]()
+    assert batch.h5_file is None  # cleared
+    assert not handle  # a closed h5py.File is falsy
+
+    # Both experiments landed in the single shared file, correct data.
+    with h5py.File(str(batch.h5_path), "r") as f:
+        assert set(f.keys()) == {"exp_0001", "exp_0002"}
+        np.testing.assert_array_equal(f["exp_0001/trace"][()], np.arange(3))
+        np.testing.assert_array_equal(f["exp_0002/trace"][()], np.arange(3, 6))
+
+
+def test_batch_scalar_only_never_opens_hdf5(tools, tmp_path: Path):
+    """A sweep returning only scalars never touches HDF5 — logging is a pure
+    in-memory append, so there is no per-call file cost at all."""
+    import safe_lab_agents.mcp.predefined.autolog as autolog
+
+    tools["start_batch"]("Sweep")
+    batch = autolog._current_batch
+    autolog._record_call(
+        exp_id="exp_0001", tool_name="m", timestamp="t", duration_ms=1,
+        call_args={"v": 1}, result={"reading": 2.0},
+        batch=batch, output_dir=tmp_path,
+    )
+    assert batch.h5_file is None  # scalars never open the file
+    tools["stop_batch"]()
+    assert list(tmp_path.glob("batch_*.h5")) == []
 
 
 def test_scalar_quantity_recorded_with_unit(wrapper, tmp_path: Path):

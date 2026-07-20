@@ -78,3 +78,22 @@ class TestExtractArrays:
         out = extract_arrays({"power": quantity(2.5, "W")}, h5, "")
         assert out["power"] == {"value": 2.5, "unit": "W"}
         assert not h5.exists()
+
+    def test_concurrent_appends_to_one_file_do_not_corrupt(self, tmp_path):
+        """Many threads appending distinct groups to the SAME .h5 (the batch
+        scenario) must not corrupt libhdf5; ``_h5_lock`` serializes the writes."""
+        import concurrent.futures
+
+        h5 = tmp_path / "batch.h5"
+        n = 64
+        arrays = {f"g{i}": np.arange(i, i + 5) for i in range(n)}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+            list(ex.map(lambda g: extract_arrays(arrays[g], h5, f"/{g}"), arrays))
+
+        # Every dataset must be present and readable with the value it was
+        # written with — no lost or truncated writes.
+        with h5py.File(str(h5), "r") as f:
+            assert sorted(f.keys()) == sorted(arrays)
+            for g, arr in arrays.items():
+                assert np.array_equal(f[f"{g}/data"][()], arr)

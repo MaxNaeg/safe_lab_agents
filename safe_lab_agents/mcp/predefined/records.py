@@ -15,7 +15,9 @@ local-logging path even when Kadi4Mat is not configured.  It owns three things:
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,33 @@ import h5py
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# libhdf5 is not safe for concurrent access to a file: in batch mode every tool
+# call appends to the same ``.h5``, and tool calls can run on parallel threads
+# (FastMCP worker pool + the ``/invoke`` HTTP endpoint).  Serialize all HDF5
+# writes process-wide.  Held only around the short ``h5py.File`` open/write, so
+# it does not add meaningful latency to the tool-return critical path.
+_h5_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def _h5_target(h5_path: Path, h5_file: Any):
+    """Yield an HDF5 handle for writing, serialized process-wide by ``_h5_lock``.
+
+    If *h5_file* is a caller-managed open handle — used by batch logging to keep
+    one file open across many tool calls and avoid a per-call open/close — write
+    into it and leave it open (the caller closes it when the batch stops).  A
+    batch's JSON metadata is buffered in memory until ``stop_batch`` anyway, so
+    there is deliberately no per-call flush here: it would add cost without
+    changing the batch's all-or-nothing-at-stop durability.  If *h5_file* is
+    ``None`` (individual records), open *h5_path* for append and close it.
+    """
+    with _h5_lock:
+        if h5_file is not None:
+            yield h5_file
+        else:
+            with h5py.File(str(h5_path), "a") as f:
+                yield f
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +138,22 @@ def _array_and_unit(value: Any) -> tuple[np.ndarray, str | None] | None:
     return None
 
 
-def extract_arrays(result: Any, h5_path: Path, group: str) -> Any:
+def has_arrays(value: Any) -> bool:
+    """Return ``True`` if :func:`extract_arrays` would write an HDF5 dataset for
+    *value* (a bare array/array-quantity, or a dict with such a top-level value).
+
+    Lets a caller skip opening an HDF5 file for array-free (scalar-only) results.
+    """
+    if _array_and_unit(value) is not None:
+        return True
+    if isinstance(value, dict):
+        return any(_array_and_unit(v) is not None for v in value.values())
+    return False
+
+
+def extract_arrays(
+    result: Any, h5_path: Path, group: str, h5_file: Any = None
+) -> Any:
     """Extract numpy arrays from *result* into *h5_path* under *group*.
 
     Returns a modified copy of *result* with arrays replaced by reference
@@ -118,6 +162,11 @@ def extract_arrays(result: Any, h5_path: Path, group: str) -> Any:
     A unit (from an array-valued quantity) is written as the HDF5 dataset's
     ``units`` attribute (NeXus convention) and carried onto the reference dict.
     Scalar quantities and deeper nesting are left untouched.
+
+    *h5_file* is an optional caller-managed open HDF5 handle (used by batch
+    logging to keep one file open across many calls); when given, arrays are
+    written into it instead of reopening *h5_path* each call.  The reference
+    dicts always name the file by ``h5_path.name`` regardless.
     """
     h5_filename = h5_path.name
 
@@ -126,7 +175,7 @@ def extract_arrays(result: Any, h5_path: Path, group: str) -> Any:
     if bare is not None:
         arr, unit = bare
         dataset = f"{group}/data"
-        with h5py.File(str(h5_path), "a") as f:
+        with _h5_target(h5_path, h5_file) as f:
             dset = f.create_dataset(dataset.lstrip("/"), data=arr)
             if unit:
                 dset.attrs["units"] = unit
@@ -140,7 +189,7 @@ def extract_arrays(result: Any, h5_path: Path, group: str) -> Any:
                 to_extract[key] = arr_unit
         if not to_extract:
             return result
-        with h5py.File(str(h5_path), "a") as f:
+        with _h5_target(h5_path, h5_file) as f:
             for key, (arr, unit) in to_extract.items():
                 dset = f.create_dataset(f"{group}/{key}".lstrip("/"), data=arr)
                 if unit:

@@ -44,13 +44,17 @@ import inspect
 import json
 import logging
 import os
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+import h5py
+
 from safe_lab_agents.mcp.predefined.records import (
     extract_arrays,
+    has_arrays,
     json_safe,
 )
 
@@ -68,6 +72,13 @@ _kadi_client: Any = (
     None  # KadiClient; set by make_autolog_wrapper when KADI4MAT_PROJECT is set
 )
 
+# Guards the mutable batch state above.  Tools can run on parallel threads
+# (FastMCP worker pool + the ``/invoke`` HTTP endpoint), so the check-then-set
+# in ``start_batch``/``stop_batch`` and the ``batch.experiments.append`` in
+# ``_record_call`` would otherwise race.  Held only around the in-memory
+# pointer/list ops — never across HDF5 writes or the Kadi push.
+_state_lock = threading.Lock()
+
 
 def no_autolog(func: Callable) -> Callable:
     """Decorator to opt a specific tool out of auto-log recording."""
@@ -83,6 +94,10 @@ class _Batch:
     started_at: str
     h5_path: Path
     experiments: list[dict] = field(default_factory=list)
+    # Open HDF5 handle, lazily opened on the first array write and kept open for
+    # the batch's lifetime so a sweep of thousands of calls doesn't reopen the
+    # same file every time; closed in ``stop_batch``.
+    h5_file: Any = None
 
 
 # ---------------------------------------------------------------------------
@@ -111,21 +126,22 @@ def start_batch(label: str, description: str = "") -> str:
         description: Optional longer description.
     """
     global _current_batch
-    if _current_batch is not None:
-        return (
-            f"A batch is already active: '{_current_batch.label}'. "
-            "Call stop_batch() first."
-        )
     if _output_dir is None:
         return "Auto-log is not initialised (AUTO_LOG_DIR not set)."
-    batch_id = f"batch_{datetime.now(timezone.utc):%Y%m%d_%H%M%S_%f}"
-    _current_batch = _Batch(
-        id=batch_id,
-        label=label,
-        description=description,
-        started_at=datetime.now(timezone.utc).isoformat(),
-        h5_path=_output_dir / f"{batch_id}.h5",
-    )
+    with _state_lock:
+        if _current_batch is not None:
+            return (
+                f"A batch is already active: '{_current_batch.label}'. "
+                "Call stop_batch() first."
+            )
+        batch_id = f"batch_{datetime.now(timezone.utc):%Y%m%d_%H%M%S_%f}"
+        _current_batch = _Batch(
+            id=batch_id,
+            label=label,
+            description=description,
+            started_at=datetime.now(timezone.utc).isoformat(),
+            h5_path=_output_dir / f"{batch_id}.h5",
+        )
     return (
         f"Batch '{label}' started. All subsequent tool calls will be "
         "collected into a single ELN record until stop_batch() is called."
@@ -138,11 +154,25 @@ def stop_batch() -> str:
     Returns a summary with the output file path and experiment count.
     """
     global _current_batch
-    if _current_batch is None:
-        return "No batch is active. Call start_batch() first."
+    with _state_lock:
+        if _current_batch is None:
+            return "No batch is active. Call start_batch() first."
+        batch = _current_batch
+        _current_batch = None
 
-    batch = _current_batch
-    _current_batch = None
+    # Close the shared HDF5 handle kept open across the batch; this flushes the
+    # arrays to disk so the ``h5_path.exists()`` check below (and any downstream
+    # reader) sees a complete file.
+    if batch.h5_file is not None:
+        try:
+            batch.h5_file.close()
+        except Exception:
+            logger.warning(
+                "auto-log: failed to close batch HDF5 file %s",
+                batch.h5_path,
+                exc_info=True,
+            )
+        batch.h5_file = None
 
     completed_at = datetime.now(timezone.utc).isoformat()
     record = {
@@ -406,6 +436,11 @@ def make_autolog_wrapper() -> Callable[[Callable], Callable]:
             if out_dir is None:
                 return result
 
+            # Snapshot the active batch under the lock so it can't be swapped
+            # out from under us mid-record; the write itself happens unlocked.
+            with _state_lock:
+                batch = _current_batch
+
             try:
                 _record_call(
                     exp_id=exp_id,
@@ -414,7 +449,7 @@ def make_autolog_wrapper() -> Callable[[Callable], Callable]:
                     duration_ms=duration_ms,
                     call_args=call_args,
                     result=result,
-                    batch=_current_batch,
+                    batch=batch,
                     output_dir=out_dir,
                 )
             except Exception:
@@ -572,18 +607,32 @@ def _record_call(
     if batch is not None:
         h5_path = batch.h5_path
         group = f"/{exp_id}"
+        # Open the shared batch file once and reuse the handle across the whole
+        # sweep, so thousands of fast calls don't each pay an open/close.  Only
+        # open it when this call actually has arrays to write — a scalar-only
+        # sweep never touches HDF5.
+        if has_arrays(result) or any(has_arrays(v) for v in call_args.values()):
+            with _state_lock:
+                if batch.h5_file is None:
+                    batch.h5_file = h5py.File(str(h5_path), "a")
+                h5_file = batch.h5_file
+        else:
+            h5_file = None
     else:
         file_stem = f"{exp_id}-{tool_name}"
         h5_path = output_dir / f"{file_stem}.h5"
         group = ""
+        h5_file = None
 
-    modified_result = _extract_arrays(result, h5_path, group)
+    modified_result = _extract_arrays(result, h5_path, group, h5_file=h5_file)
 
     # Extract arrays from call_args (numpy params saved to HDF5)
     params_base = f"{group}/params" if group else "/params"
     modified_call_args: dict[str, Any] = {}
     for k, v in call_args.items():
-        modified_call_args[k] = _extract_arrays(v, h5_path, f"{params_base}/{k}")
+        modified_call_args[k] = _extract_arrays(
+            v, h5_path, f"{params_base}/{k}", h5_file=h5_file
+        )
 
     entry: dict[str, Any] = {
         "id": exp_id,
@@ -600,7 +649,8 @@ def _record_call(
         entry["h5_file"] = h5_path.name
 
     if batch is not None:
-        batch.experiments.append(entry)
+        with _state_lock:
+            batch.experiments.append(entry)
     else:
         file_stem = f"{exp_id}-{tool_name}"
         json_path = output_dir / f"{file_stem}.json"
