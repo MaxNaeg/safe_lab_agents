@@ -169,6 +169,48 @@ def test_concurrent_batch_calls_record_every_experiment(tools, tmp_path):
             assert np.array_equal(f[f"exp_{i:04d}/trace"][()], np.arange(i, i + 4))
 
 
+def test_flush_active_batch_persists_unclosed_batch(tools, tmp_path: Path):
+    """If the agent forgets stop_batch, the shutdown flush must still write the
+    batch JSON (and close the .h5) so experiments/arrays are not lost."""
+    import safe_lab_agents.mcp.predefined.autolog as autolog
+
+    tools["start_batch"]("Forgotten sweep")
+    batch = autolog._current_batch
+    autolog._record_call(
+        exp_id="exp_0001", tool_name="m", timestamp="t", duration_ms=1,
+        call_args={}, result={"trace": np.arange(4)},
+        batch=batch, output_dir=tmp_path,
+    )
+    # Agent never calls stop_batch — simulate shutdown flush.
+    assert list(tmp_path.glob("batch_*.json")) == []  # nothing on disk yet
+    msg = autolog.flush_active_batch()
+
+    assert msg is not None and "Forgotten sweep" in msg
+    assert autolog._current_batch is None  # batch closed
+    assert batch.h5_file is None  # handle closed
+
+    record = json.loads(next(tmp_path.glob("batch_*.json")).read_text())
+    assert record["experiment_count"] == 1
+    with h5py.File(str(batch.h5_path), "r") as f:
+        np.testing.assert_array_equal(f["exp_0001/trace"][()], np.arange(4))
+
+
+def test_flush_active_batch_noop_when_none_active(tools):
+    import safe_lab_agents.mcp.predefined.autolog as autolog
+
+    assert autolog._current_batch is None
+    assert autolog.flush_active_batch() is None
+
+
+def test_flush_active_batch_noop_after_stop(tools):
+    """A batch the agent already stopped must not be double-written by the flush."""
+    import safe_lab_agents.mcp.predefined.autolog as autolog
+
+    tools["start_batch"]("Sweep")
+    tools["stop_batch"]()
+    assert autolog.flush_active_batch() is None
+
+
 def test_stop_batch_without_start_returns_error(tools):
     msg = tools["stop_batch"]()
     assert "No batch is active" in msg

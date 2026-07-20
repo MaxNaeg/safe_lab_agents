@@ -355,6 +355,22 @@ def _run_server(
     try:
         mcp.run(**run_kwargs)
     finally:
+        # Flush any batch the agent left open. The batch lives in THIS
+        # subprocess's memory, so it must be persisted here before we exit —
+        # write_session_summary runs later in the host process and only reads
+        # files already on disk. Runs on both --update-tools reload and final
+        # shutdown (see the run_kwargs comment above).
+        if os.environ.get("AUTO_LOG_DIR"):
+            try:
+                from safe_lab_agents.mcp.predefined.autolog import flush_active_batch
+
+                flushed = flush_active_batch()
+                if flushed:
+                    logger.info("auto-log: flushed unclosed batch at shutdown: %s", flushed)
+            except Exception:
+                logger.warning(
+                    "auto-log: failed to flush active batch at shutdown", exc_info=True
+                )
         if shutdown_hook is not None:
             logger.info("Calling GRACEFUL_EXPERIMENT_SHUTDOWN")
             try:

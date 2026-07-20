@@ -212,6 +212,22 @@ def stop_batch() -> str:
     return msg
 
 
+def flush_active_batch() -> str | None:
+    """Persist a batch the agent left open, if any (used at server shutdown/reload).
+
+    A batch's experiments live only in memory until ``stop_batch`` writes them,
+    and that state lives in the MCP server subprocess — so if the agent forgets
+    to stop the batch, it must be flushed here (in the subprocess) before exit,
+    or the experiments are dropped and the arrays already in the batch ``.h5``
+    are orphaned.  Returns the ``stop_batch`` summary if a batch was flushed, or
+    ``None`` if none was active.
+    """
+    if _current_batch is None:
+        return None
+    logger.info("auto-log: flushing active batch '%s' at shutdown", _current_batch.label)
+    return stop_batch()
+
+
 def log_analysis(
     title: str,
     text: str = "",
