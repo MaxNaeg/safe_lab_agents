@@ -87,6 +87,22 @@ def no_autolog(func: Callable) -> Callable:
     return func
 
 
+def _int_env(name: str, default: int) -> int:
+    """Read an integer env var, falling back to *default* (with a warning) on a
+    missing/empty/unparseable value — a bad value must not crash server startup."""
+    raw = os.environ.get(name, "")
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning(
+            "Invalid %s=%r (expected an integer); using default %d",
+            name, raw, default,
+        )
+        return default
+
+
 @dataclass
 class _Batch:
     id: str
@@ -423,10 +439,10 @@ def make_autolog_wrapper() -> Callable[[Callable], Callable]:
     if os.environ.get("KADI4MAT_PROJECT"):
         from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
 
-        max_per_session_raw = int(os.environ.get("KADI4MAT_MAX_PER_SESSION", "500"))
+        max_per_session_raw = _int_env("KADI4MAT_MAX_PER_SESSION", 500)
         _kadi_client = KadiClient(
             project=os.environ["KADI4MAT_PROJECT"],
-            max_per_minute=int(os.environ.get("KADI4MAT_MAX_PER_MINUTE", "10")),
+            max_per_minute=_int_env("KADI4MAT_MAX_PER_MINUTE", 10),
             max_per_session=max_per_session_raw
             if max_per_session_raw > 0
             else float("inf"),

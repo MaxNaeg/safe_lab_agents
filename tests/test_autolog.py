@@ -63,6 +63,20 @@ def wrapper_and_tools(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
+def test_int_env_falls_back_on_bad_value(monkeypatch):
+    """A non-integer KADI4MAT_MAX_* must fall back to the default, not crash."""
+    from safe_lab_agents.mcp.predefined.autolog import _int_env
+
+    monkeypatch.setenv("K_TEST_INT", "not-a-number")
+    assert _int_env("K_TEST_INT", 42) == 42
+    monkeypatch.setenv("K_TEST_INT", "")
+    assert _int_env("K_TEST_INT", 42) == 42
+    monkeypatch.delenv("K_TEST_INT", raising=False)
+    assert _int_env("K_TEST_INT", 42) == 42
+    monkeypatch.setenv("K_TEST_INT", "7")
+    assert _int_env("K_TEST_INT", 42) == 7
+
+
 def test_batch_functions_importable():
     from safe_lab_agents.mcp.predefined.autolog import (
         start_batch,
