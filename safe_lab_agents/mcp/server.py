@@ -181,9 +181,11 @@ def _run_server(
     Creates a FastMCP instance, registers all tools, and starts serving.
     This function blocks until the process is terminated.
     """
-    # Suppress FastMCP's startup banner (it prints to stdout).
-    sys.stdout = open(os.devnull, "w")
-
+    # FastMCP's startup banner is suppressed via show_banner=False (below) and
+    # the transport is HTTP, so stdout is free — we deliberately do NOT redirect
+    # it to devnull: that leaked the file handle and silently swallowed any
+    # print() from the user's tools running here on the host.
+    #
     # Ignore SIGINT in the child — the parent handles graceful shutdown.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
