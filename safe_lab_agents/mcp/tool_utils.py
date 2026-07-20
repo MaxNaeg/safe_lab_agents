@@ -203,7 +203,12 @@ def results_to_shared(results_to_save: list[bool] | None = None):
     def decorator(func):
         return_names = get_return_names(func)
         save_mask = results_to_save if results_to_save is not None else [True] * len(return_names)
-        assert len(save_mask) == len(return_names), f"Length of results_to_save ({len(save_mask)}) must match number of return values ({len(return_names)})."
+        # Explicit raise (not assert) so validation survives `python -O`.
+        if len(save_mask) != len(return_names):
+            raise ValueError(
+                f"Length of results_to_save ({len(save_mask)}) must match the "
+                f"number of return values ({len(return_names)}: {return_names})."
+            )
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -215,8 +220,13 @@ def results_to_shared(results_to_save: list[bool] | None = None):
             to_return = []
             result = func(*args, **kwargs)
             if len(return_names) != 1:
-                assert isinstance(result, tuple) and len(result) == len(return_names), \
-                    f"Expected {len(return_names)} return values (one for each name in {return_names}), got {len(result)}"
+                # Explicit raise (not assert) so this survives `python -O`.
+                if not isinstance(result, tuple) or len(result) != len(return_names):
+                    got = len(result) if isinstance(result, tuple) else type(result).__name__
+                    raise ValueError(
+                        f"Expected {len(return_names)} return values (one per name "
+                        f"in {return_names}), got {got}."
+                    )
             if len(return_names) == 1:
                 result = (result,)  # make it a tuple for consistent processing
             for name, value, save_res in zip(return_names, result, save_mask):

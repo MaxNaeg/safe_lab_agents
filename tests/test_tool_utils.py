@@ -160,6 +160,15 @@ class TestResultsToShared:
         with pytest.raises(RuntimeError, match="requires a shared directory"):
             f(1)
 
+    def test_mask_length_mismatch_raises_at_decoration(self) -> None:
+        """A results_to_save mask of the wrong length raises (explicit, so it
+        still fires under `python -O` where asserts are stripped)."""
+        with pytest.raises(ValueError, match="must match"):
+            @results_to_shared(results_to_save=[True])  # 1 flag, 2 returns
+            def measure(a: int, b: int):
+                """Return two things."""
+                return a, b
+
     def test_return_names_from_ast(self) -> None:
         """Names come from the AST tuple elements, so commas inside a call don't
         over-split and a trailing-comma single tuple stays one element."""
