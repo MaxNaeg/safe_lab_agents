@@ -12,7 +12,6 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +21,7 @@ from safe_lab_agents.agents.base import (
     AgentArg,
     BaseAgent,
     ConversationEntry,
+    parse_iso_timestamp,
     register_agent,
 )
 from safe_lab_agents.config import SessionConfig
@@ -201,15 +201,7 @@ class OpenClawAgent(BaseAgent):
                 msg = data.get("message", {})
                 role = msg.get("role", "")
 
-                timestamp_str = data.get("timestamp", "")
-                try:
-                    ts = (
-                        datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                        if timestamp_str
-                        else datetime.now(tz=timezone.utc)
-                    )
-                except (ValueError, TypeError):
-                    ts = datetime.now(tz=timezone.utc)
+                ts = parse_iso_timestamp(data.get("timestamp", ""))
 
                 if role == "user":
                     content = _clean_user_message(_extract_text(msg.get("content", [])))

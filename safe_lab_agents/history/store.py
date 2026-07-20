@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 
-from safe_lab_agents.agents.base import BaseAgent, ConversationEntry
+from safe_lab_agents.agents.base import (
+    BaseAgent,
+    ConversationEntry,
+    parse_iso_timestamp,
+)
 from safe_lab_agents.config import get_sessions_dir
 
 logger = logging.getLogger(__name__)
@@ -123,14 +126,8 @@ def _entry_to_dict(entry: ConversationEntry) -> dict:
 
 def _dict_to_entry(data: dict) -> ConversationEntry:
     """Deserialize a dict back to a :class:`ConversationEntry`."""
-    ts = data.get("timestamp", "")
-    try:
-        timestamp = datetime.fromisoformat(ts) if ts else datetime.now(tz=timezone.utc)
-    except (ValueError, TypeError):
-        timestamp = datetime.now(tz=timezone.utc)
-
     return ConversationEntry(
-        timestamp=timestamp,
+        timestamp=parse_iso_timestamp(data.get("timestamp", "")),
         role=data.get("role", "system"),
         content=data.get("content", ""),
         tool_name=data.get("tool_name"),

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -19,6 +18,7 @@ from safe_lab_agents.agents.base import (
     AgentArg,
     BaseAgent,
     ConversationEntry,
+    parse_iso_timestamp,
     register_agent,
 )
 from safe_lab_agents.config import SessionConfig
@@ -168,15 +168,7 @@ class ClaudeCodeAgent(BaseAgent):
         carry the tool name.
         """
         msg_type = data.get("type", "")
-        timestamp_str = data.get("timestamp", "")
-        try:
-            timestamp = (
-                datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                if timestamp_str
-                else datetime.now(tz=timezone.utc)
-            )
-        except (ValueError, TypeError):
-            timestamp = datetime.now(tz=timezone.utc)
+        timestamp = parse_iso_timestamp(data.get("timestamp", ""))
 
         if msg_type in ("human", "user"):
             message = data.get("message", {})

@@ -2,16 +2,43 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 
 import pytest
 from rich.console import Console
 
-from safe_lab_agents.agents.base import ConversationEntry
+from safe_lab_agents.agents.base import ConversationEntry, parse_iso_timestamp
 from safe_lab_agents.history.display import display_history
 from safe_lab_agents.history.store import HistoryStore
+
+
+class TestParseIsoTimestamp:
+    def test_zoned_is_aware(self) -> None:
+        dt = parse_iso_timestamp("2026-04-13T10:00:00Z")
+        assert dt.tzinfo is not None
+        assert dt == datetime(2026, 4, 13, 10, 0, 0, tzinfo=timezone.utc)
+
+    def test_naive_is_stamped_utc(self) -> None:
+        dt = parse_iso_timestamp("2026-04-13T10:00:00")  # no zone
+        assert dt.tzinfo is timezone.utc
+        assert dt == datetime(2026, 4, 13, 10, 0, 0, tzinfo=timezone.utc)
+
+    def test_empty_falls_back_to_aware_now(self) -> None:
+        assert parse_iso_timestamp("").tzinfo is not None
+
+    def test_garbage_falls_back_to_aware_now(self) -> None:
+        assert parse_iso_timestamp("not-a-timestamp").tzinfo is not None
+
+    def test_mixed_inputs_are_all_comparable(self) -> None:
+        """The whole point: naive, zoned, and fallback values must sort together."""
+        dts = [
+            parse_iso_timestamp("2026-04-13T10:00:05"),   # naive
+            parse_iso_timestamp("2026-04-13T10:00:00Z"),  # zoned
+            parse_iso_timestamp(""),                       # fallback now()
+        ]
+        assert sorted(dts)  # no TypeError comparing naive vs aware
 
 
 @pytest.fixture()

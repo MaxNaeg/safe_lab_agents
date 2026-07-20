@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -89,6 +89,30 @@ class ConversationEntry:
     tool_input: Optional[dict] = None
     tool_output: Optional[str] = None
     metadata: dict = field(default_factory=dict)
+
+
+def parse_iso_timestamp(timestamp_str: str) -> datetime:
+    """Parse an ISO-8601 timestamp into a **timezone-aware** UTC datetime.
+
+    Log lines may carry a zoned timestamp (``...Z`` / ``+00:00``), a *naive*
+    one (no offset), or none at all.  Every parsed timestamp is normalized to
+    aware-UTC — naive values are assumed to be UTC and stamped accordingly — so
+    that mixing sources never yields a naive/aware mix.  Such a mix makes
+    ``sorted(entries, key=lambda e: e.timestamp)`` raise ``TypeError: can't
+    compare offset-naive and offset-aware datetimes`` and abort the whole
+    history import.  Empty or unparseable input falls back to ``now`` in UTC.
+    """
+    try:
+        dt = (
+            datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            if timestamp_str
+            else datetime.now(tz=timezone.utc)
+        )
+    except (ValueError, TypeError, AttributeError):
+        dt = datetime.now(tz=timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 # ---------------------------------------------------------------------------

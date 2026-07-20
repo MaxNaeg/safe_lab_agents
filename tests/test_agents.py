@@ -141,6 +141,34 @@ class TestClaudeCodeAgent:
         assert tool_uses[0].tool_input == {}  # non-dict coerced (no .items() crash)
         assert tool_uses[0].timestamp.tzinfo is not None  # timezone-aware
 
+    def test_parse_history_mixed_naive_and_aware_timestamps(self, tmp_path: Path) -> None:
+        """A log mixing a naive ISO timestamp with the aware now()-fallback (missing
+        timestamp) must still sort — the parse used to raise TypeError on the mix."""
+        import json
+
+        jsonl_dir = tmp_path / "projects" / "abc123"
+        jsonl_dir.mkdir(parents=True)
+        records = [
+            # naive ISO timestamp (no zone) — used to parse to a naive datetime
+            {"type": "user", "timestamp": "2026-04-13T10:00:05",
+             "message": {"content": "second"}},
+            # missing timestamp — falls back to now(), which is tz-aware
+            {"type": "user", "message": {"content": "no-timestamp"}},
+            # zoned timestamp — aware
+            {"type": "user", "timestamp": "2026-04-13T10:00:00Z",
+             "message": {"content": "first"}},
+        ]
+        (jsonl_dir / "session.jsonl").write_text(
+            "\n".join(json.dumps(r) for r in records), encoding="utf-8"
+        )
+
+        agent = get_agent("claude-code")
+        entries = agent.parse_conversation_history(tmp_path)  # must not raise
+
+        # Every timestamp is normalized to tz-aware, so the sort succeeded.
+        assert entries  # parse produced entries rather than aborting
+        assert all(e.timestamp.tzinfo is not None for e in entries)
+
     def test_parse_history_missing_projects_dir(self, tmp_path: Path) -> None:
         """With no projects/ subdirectory, parsing returns an empty list."""
         agent = get_agent("claude-code")
