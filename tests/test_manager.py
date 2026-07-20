@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import types
 from pathlib import Path
 
 import docker
+import pytest
 import requests
 
 from safe_lab_agents.config import SessionConfig
@@ -417,3 +419,20 @@ def test_engine_is_podman_false_for_real_docker() -> None:
         {"Platform": {"Name": "Docker Engine - Community"}, "Components": [{"Name": "Engine"}]}
     )
     assert DockerManager(docker_client=client).engine_is_podman() is False
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
+def test_start_interactive_exec_failure_raises_not_unwinds(monkeypatch) -> None:
+    """A missing container CLI makes execvp fail in the forked child. The child
+    must os._exit (surfaced to the parent as a RuntimeError) instead of unwinding
+    into the caller's `finally: _cleanup()`, which would run teardown in the child
+    and race the parent (double commit/remove/MCP-shutdown)."""
+    monkeypatch.setattr(
+        manager_mod, "container_cli", lambda: "safe-lab-no-such-binary-xyz"
+    )
+    mgr = DockerManager(docker_client=types.SimpleNamespace())
+    container = types.SimpleNamespace(id="fakeid", name="test")
+
+    with pytest.raises(RuntimeError) as exc:
+        mgr.start_interactive(container)
+    assert "safe-lab-no-such-binary-xyz" in str(exc.value)

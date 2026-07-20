@@ -595,11 +595,39 @@ class DockerManager:
         if cid is None:
             raise RuntimeError("Container has no id; cannot start it.")
         if hasattr(os, "fork"):
+            # Self-pipe idiom: the write end is close-on-exec (Python's default),
+            # so a SUCCESSFUL execvp closes it and the parent reads EOF. On exec
+            # failure the child writes the error and terminates with os._exit —
+            # NOT a raised exception — so it never unwinds into the caller's
+            # `finally: _cleanup()`, which in the forked child would race the
+            # parent on commit/remove/MCP-shutdown (the _cleaned_up re-entrancy
+            # guard is per-process and not shared across the fork).
+            err_r, err_w = os.pipe()
             pid = os.fork()
-            if pid == 0:
-                os.execvp(cli, [cli, "start", "-ai", cid])
-            else:
+            if pid == 0:  # child
+                os.close(err_r)
+                try:
+                    os.execvp(cli, [cli, "start", "-ai", cid])
+                except BaseException as exc:  # noqa: BLE001 - must never propagate
+                    try:
+                        os.write(err_w, str(exc).encode("utf-8", "replace")[:500])
+                    except BaseException:
+                        pass
+                    os._exit(127)
+            else:  # parent
+                os.close(err_w)
+                err = b""
+                while True:
+                    chunk = os.read(err_r, 4096)
+                    if not chunk:
+                        break
+                    err += chunk
+                os.close(err_r)
                 os.waitpid(pid, 0)
+                if err:
+                    raise RuntimeError(
+                        f"Failed to launch '{cli}': {err.decode('utf-8', 'replace')}"
+                    )
         else:
             subprocess.run([cli, "start", "-ai", cid])
 
