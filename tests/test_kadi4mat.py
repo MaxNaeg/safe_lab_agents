@@ -348,6 +348,33 @@ class TestKadiClientRateLimiting:
         assert "NEXT tool call will NOT be recorded" in msg
         assert "seconds" in msg
 
+    def test_per_minute_blocks_next_call(self):
+        import time as time_mod
+        from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
+
+        client = KadiClient(project="test", max_per_session=1000, max_per_minute=2)
+        # Simulate 2 recent records within the window — limit reached.
+        now = time_mod.monotonic()
+        client._recent_timestamps = [now - 10, now - 5]
+
+        # The NEXT call must be blocked entirely, not merely warned about.
+        msg = client._check_rate_limit_before()
+        assert msg is not None
+        assert "NOT saved" in msg
+        assert "per minute" in msg
+
+    def test_per_minute_block_clears_when_window_ages_out(self):
+        import time as time_mod
+        from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
+
+        client = KadiClient(project="test", max_per_session=1000, max_per_minute=2)
+        # Both timestamps are older than 60s — the window should be empty.
+        now = time_mod.monotonic()
+        client._recent_timestamps = [now - 120, now - 90]
+
+        assert client._check_rate_limit_before() is None
+        assert len(client._recent_timestamps) == 0
+
     def test_within_limits_no_warning(self):
         from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
 
