@@ -225,14 +225,16 @@ def _entry_dataset(
                     graph, dataset_id, "batch", {scalar: entry[scalar]}
                 )
         # Flatten each run's params + results as PropertyValues (full per-run
-        # detail also lives in the attached batch JSON file).
+        # detail also lives in the attached batch JSON file).  Params and results
+        # use distinct prefixes so a run with a param and a result of the same
+        # name don't collide on a single PropertyValue @id (invalid JSON-LD).
         for i, exp in enumerate(entry.get("experiments", []), 1):
             var_refs += _measurements(
-                graph, dataset_id, f"run{i}", exp.get("parameters")
+                graph, dataset_id, f"run{i}-param", exp.get("parameters")
             )
             result = exp.get("result")
             if isinstance(result, dict):
-                var_refs += _measurements(graph, dataset_id, f"run{i}", result)
+                var_refs += _measurements(graph, dataset_id, f"run{i}-result", result)
     else:
         var_refs += _measurements(graph, dataset_id, "param", entry.get("parameters"))
         result = entry.get("result")
