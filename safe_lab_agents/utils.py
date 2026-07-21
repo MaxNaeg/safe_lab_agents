@@ -2,12 +2,40 @@
 
 from __future__ import annotations
 
+import logging
 import socket
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
+
+
+def configure_logging(level: str | int | None) -> None:
+    """Install a stderr log handler at *level* (a name like ``"DEBUG"`` or a number).
+
+    A no-op when *level* is ``None``/empty or an unrecognised name, so callers can
+    forward an unset ``--log-level``/``LOG_LEVEL`` verbatim. The package logs
+    through module loggers but never configured a sink, so without this only
+    ``WARNING``+ surfaced (via logging's last-resort handler) and every
+    ``debug``/``info`` line was dropped. Logs go to stderr to stay clear of the
+    agent's stdout. Called once on the host (CLI callback) and once in the MCP
+    server subprocess, which starts fresh under ``spawn``.
+    """
+    if level is None or level == "":
+        return
+    if isinstance(level, str):
+        resolved = logging.getLevelName(level.strip().upper())
+        if not isinstance(resolved, int):  # unknown name → "Level FOO" string
+            return
+        level = resolved
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
+    logging.getLogger().setLevel(level)  # in case a handler already existed
 
 
 def utc_now() -> datetime:

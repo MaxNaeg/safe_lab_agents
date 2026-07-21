@@ -175,6 +175,13 @@ def _run_server(
     Creates a FastMCP instance, registers all tools, and starts serving.
     This function blocks until the process is terminated.
     """
+    # This is a spawned subprocess (fresh interpreter under `spawn`), so it starts
+    # with no logging config — configure it from the inherited LOG_LEVEL so this
+    # process's tool-call / auto-log debug output surfaces alongside the host's.
+    from safe_lab_agents.utils import configure_logging
+
+    configure_logging(os.environ.get("LOG_LEVEL"))
+
     # FastMCP's startup banner is suppressed via show_banner=False (below) and
     # the transport is HTTP, so stdout is free — we deliberately do NOT redirect
     # it to devnull: that leaked the file handle and silently swallowed any

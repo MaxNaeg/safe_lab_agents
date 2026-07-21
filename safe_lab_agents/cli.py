@@ -58,6 +58,7 @@ from safe_lab_agents.start_config import (
     resolve_param,
 )
 from safe_lab_agents.utils import (
+    configure_logging,
     find_free_port,
     generate_session_name,
     utc_now,
@@ -241,6 +242,28 @@ app = typer.Typer(
     help="Safely run AI agents in Docker to control scientific experiments via MCP.",
     add_completion=False,
 )
+
+
+@app.callback()
+def _main(
+    log_level: Optional[str] = typer.Option(
+        None,
+        "--log-level",
+        help=(
+            "Logging verbosity: DEBUG, INFO, WARNING (default), or ERROR. Also "
+            "read from the LOG_LEVEL env var. Applies to the MCP server "
+            "subprocess too, so tool-call / auto-log debug output is visible."
+        ),
+        envvar="LOG_LEVEL",
+    ),
+) -> None:
+    """Common options applied before any subcommand."""
+    configure_logging(log_level)
+    # Export so the spawned MCP server subprocess (fresh logging under `spawn`)
+    # configures itself to the same level from its inherited environment.
+    if log_level:
+        os.environ["LOG_LEVEL"] = log_level
+
 
 BANNER = r"""
   ╭──────────────────────────────────╮

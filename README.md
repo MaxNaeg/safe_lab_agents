@@ -382,6 +382,14 @@ Install the extra (`pip install -e ".[kadi4mat]"`), configure once with `kadi-ap
 
 ## CLI Reference
 
+### Global options
+
+These apply to every subcommand and must come **before** the subcommand (e.g. `agent --log-level DEBUG start …`).
+
+| Option | Description |
+|--------|-------------|
+| `--log-level` | Logging verbosity: `DEBUG`, `INFO`, `WARNING` (default), or `ERROR`. Also read from the `LOG_LEVEL` environment variable. Applies to the MCP server subprocess too, so tool-call / auto-log debug output is included. Logs go to stderr. |
+
 ### `agent start`
 
 Start a new agent session. All options are optional — missing ones are prompted interactively.
