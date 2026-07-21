@@ -111,32 +111,39 @@ def _maybe_print_podman_windows_firewall_notice(config: SessionConfig) -> None:
         return
 
     if status == "stale":
-        body = (
+        intro = (
             "The [bold]safe-lab-agents-mcp[/bold] firewall rule exists but no longer "
             "matches the live WSL adapter — a reboot or WSL/Hyper-V update recreated the "
             "adapter and left the rule pinned to an interface that no longer exists, so "
             "tool calls from the agent will time out.\n\n"
-            "Run this in an [bold]Administrator PowerShell[/bold] to re-bind it:\n\n"
-            f"  [cyan]{command}[/cyan]"
+            "Run this in an [bold]Administrator PowerShell[/bold] to re-bind it:"
         )
+        outro = ""
     else:
-        body = (
+        intro = (
             "Podman on Windows needs a [bold]one-time[/bold] firewall rule so the agent's "
             "container can reach the tool server on this host.\n\n"
-            "Run this once in an [bold]Administrator PowerShell[/bold]:\n\n"
-            f"  [cyan]{command}[/cyan]\n\n"
+            "Run this once in an [bold]Administrator PowerShell[/bold]:"
+        )
+        outro = (
             "It is scoped to the WSL adapter only, so the tool server is [bold]not[/bold] "
             "exposed to the network. Until it is added, tool calls from the agent will "
             "time out."
         )
 
-    console.print(
-        Panel(
-            body,
-            title="[yellow]Action required: Windows firewall[/yellow]",
-            border_style="yellow",
-        )
-    )
+    # Plain lines (no Panel): a boxed panel both pads lines to the terminal
+    # width and, for a long command, hard-wraps it with a real newline — both
+    # get swept into a copy. A rule + a soft-wrapped command line keep the
+    # command as one unbroken, copy-friendly line.
+    console.print()
+    console.rule("[yellow]Action required: Windows firewall[/yellow]")
+    console.print(intro)
+    console.print(f"  [cyan]{command}[/cyan]", soft_wrap=True)
+    if outro:
+        console.print()
+        console.print(outro)
+    console.rule(style="yellow")
+    console.print()
 
 
 def _prompt_container_runtime() -> str:
@@ -283,13 +290,18 @@ def _print_session_exit_summary(config: SessionConfig, resumable: bool) -> None:
     title = f"Session '{config.name}' " + (
         "committed — you can resume later" if resumable else "stopped"
     )
-    console.print(
-        Panel(
-            "\n".join(lines),
-            title=f"[bold green]{title}[/bold green]",
-            border_style="green",
-        )
-    )
+    # Plain lines (no Panel): a boxed panel pads every line to the terminal
+    # width, and the vertical walls + trailing padding get swept into a
+    # selection, so the commands can't be copied cleanly. A rule + plain prints
+    # leave each command as an unpadded, copy-friendly line.
+    console.print()
+    console.rule(f"[bold green]{title}[/bold green]")
+    for line in lines:
+        # soft_wrap: don't let Rich hard-wrap long paths with a real newline —
+        # that break gets copied verbatim and splits the command.
+        console.print(line, soft_wrap=True)
+    console.rule(style="green")
+    console.print()
 
 
 # ======================================================================
