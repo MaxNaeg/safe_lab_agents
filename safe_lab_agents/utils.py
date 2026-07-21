@@ -4,10 +4,23 @@ from __future__ import annotations
 
 import socket
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
+
+
+def utc_now() -> datetime:
+    """Return the current time as a timezone-aware UTC datetime.
+
+    Preferred over the naive ``datetime.now()`` everywhere a timestamp is
+    stored or compared: naive local datetimes are ambiguous (they silently
+    shift with the host timezone and DST) and cannot be compared against the
+    timezone-aware timestamps parsed from agent logs, which raises
+    ``TypeError`` on a mixed sort. Using UTC everywhere keeps every stored
+    timestamp unambiguous and mutually comparable.
+    """
+    return datetime.now(timezone.utc)
 
 
 def find_free_port() -> int:

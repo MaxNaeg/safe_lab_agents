@@ -234,7 +234,7 @@ def results_to_shared(results_to_save: list[bool] | None = None):
                     save_type = 'pkl'
                     if isinstance(value, np.ndarray):
                         save_type = 'npy'
-                    basepath = Path(f"{SHARED_DATA_DIR}/{name}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.{save_type}") 
+                    basepath = Path(f"{SHARED_DATA_DIR}/{name}_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S')}.{save_type}")
                     # add dateime and underscore if already exists:
                     while basepath.exists():
                         basepath = basepath.with_name(basepath.stem + "_").with_suffix(f".{save_type}")

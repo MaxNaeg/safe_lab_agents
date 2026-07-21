@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from safe_lab_agents.cli import _RELOAD_INFO, _sync_reload_info
+from safe_lab_agents.cli import _load_template, _sync_reload_info
 from safe_lab_agents.config import SessionConfig
 
 
@@ -21,9 +21,10 @@ def _config(tmp_path: Path) -> SessionConfig:
 
 def test_reload_info_text_is_user_driven() -> None:
     """The guidance frames the user as the editor and forbids self-initiated reloads."""
-    assert "reload_tools" in _RELOAD_INFO
-    assert "edited by the user" in _RELOAD_INFO
-    assert "never on your own" in _RELOAD_INFO
+    reload_info = _load_template("reload_info.txt")
+    assert "reload_tools" in reload_info
+    assert "edited by the user" in reload_info
+    assert "never on your own" in reload_info
 
 
 def test_reload_info_written_when_available(tmp_path: Path) -> None:

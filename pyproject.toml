@@ -64,8 +64,13 @@ include = ["safe_lab_agents*"]
 
 [tool.setuptools.package-data]
 "safe_lab_agents.docker.dockerfiles" = ["*"]
+"safe_lab_agents.templates" = ["*"]
 
 [tool.mypy]
+# safe_lab_agents/templates/ holds workspace templates shipped as package data
+# (e.g. auto_log_client.py, generated verbatim into the container). They are not
+# imported as modules here, so exclude them from type-checking.
+exclude = ['^safe_lab_agents/templates/']
 # h5py ships no type stubs (and has no types-* package); treat its imports as
 # untyped rather than erroring. Stubs for yaml/requests/docker/markdown are
 # installed via the ``dev`` extra's ``types-*`` packages.

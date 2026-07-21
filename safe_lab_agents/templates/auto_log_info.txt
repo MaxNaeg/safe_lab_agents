@@ -1,0 +1,179 @@
+
+## Experiment auto-logging
+
+All MCP tool calls and Python tool calls are automatically recorded to
+__CONTAINER_LOG_DIR__/ as structured ELN records. Each record captures the
+tool name, call parameters, return values, and timestamps. Numpy arrays are
+stored as HDF5 datasets. You do not need to save experiment results manually.
+
+### Grouping calls into a batch
+
+For sweeps, optimisation loops, or any multi-step protocol, use the batch
+helpers from /agent/workspace/auto_log_client.py to group all related calls
+into a single merged ELN record:
+
+    import sys; sys.path.insert(0, "/agent/workspace")
+    from auto_log_client import start_batch, stop_batch
+
+    start_batch("Voltage sweep 0–5 V")
+    for v in voltages:
+        measure(v)          # logged automatically
+    stop_batch()            # writes one merged record for the whole sweep
+
+Use batches when:
+- Running a parameter sweep (voltage, temperature, frequency, concentration)
+- Running an optimisation loop (Bayesian optimisation, grid search, …)
+- Executing a multi-step protocol (calibrate → acquire → verify)
+- Repeating a measurement N times for statistics
+
+Without a batch, each tool call creates its own individual record — fine for
+one-off measurements.
+
+### Writing and running Python scripts
+
+ALWAYS save every Python script to a file in /agent/shared/scripts before executing
+it. Never run analysis code as a one-liner or inline snippet. Saving first means:
+- The script can be passed verbatim to log_analysis(script=...) for full
+  reproducibility — open(__file__).read() only works in a saved file.
+- Scripts are preserved in the session workspace even if the analysis is re-run.
+
+Naming convention: use descriptive names, e.g. fit_voltage_sweep.py,
+plot_spectrum.py. Save to /agent/shared/scripts/ so they persist across sessions.
+
+### Recording analysis results
+
+After running an analysis script, call log_analysis() to add a structured
+analysis entry to the ELN. log_analysis() must always be called from inside
+a saved script file — never from an interactive one-liner — so that
+open(__file__).read() captures the full analysis code correctly.
+
+### Log everything, not just successes
+
+A failed attempt is data, not noise. Record it — do NOT silently retry and
+throw the failure away. Every analysis you run, every debugging detour, every
+hypothesis you form, and every non-obvious decision you make should leave a
+log_analysis() entry behind. A reviewer reading the log afterwards should be
+able to reconstruct not just what worked, but what you tried, what broke, and
+why you made the choices you did.
+
+Tag each entry with the `kind` parameter so the record is self-describing:
+
+- kind="analysis"    — a successful result or conclusion (the default)
+- kind="hypothesis"  — what you expect before a measurement/sweep and why you
+                       chose these parameters or ranges
+- kind="decision"    — the rationale for an approach, a plan change, or a
+                       decision to stop or continue
+- kind="debug"       — a debugging step, or a failed-then-fixed iteration
+                       (what broke, what you changed, whether it helped)
+- kind="failed"      — an attempt that did not succeed: a script that errored,
+                       a fit that didn't converge, an instrument that returned
+                       garbage. Paste the traceback / error into `text` and the
+                       failing code into `script`.
+- kind="observation" — an anomaly, an unexpected or negative result worth
+                       keeping, or a "what to measure next" note
+
+When a script errors, capture the traceback and log it before moving on, e.g.:
+
+    import sys, traceback
+    sys.path.insert(0, "/agent/workspace")
+    from auto_log_client import log_analysis
+    try:
+        ...                       # the analysis that might fail
+    except Exception:
+        log_analysis(
+            title="Gaussian fit of peak did not converge",
+            kind="failed",
+            text="curve_fit raised RuntimeError — initial guess for the width "
+                 "was too small. Next: widen p0 and bound sigma > 0.\n\n"
+                 + traceback.format_exc(),
+            script=open(__file__).read(),
+            references=["exp_20260522_111149_616781"],
+        )
+        raise
+
+Workflow:
+  1. Write the analysis script and save it to /agent/shared/scripts/my_analysis.py
+  2. Run the script: python /agent/shared/scripts/my_analysis.py
+  3. The script calls log_analysis() as its last step (or in an except block on failure)
+
+    import sys; sys.path.insert(0, "/agent/workspace")
+    from auto_log_client import log_analysis, AUTO_LOG_DIR
+
+Signature:
+    log_analysis(title, text="", data={}, references=[], script="", figures=[], kind="analysis")
+
+Parameters:
+- title (str): Short label for this analysis, e.g. "Linear fit — voltage sweep"
+- text (str): Your written interpretation — conclusions, observations, confidence
+  in the result, what should be measured next. Write this as you would in a lab
+  notebook: what does the result mean physically?
+- data (dict): Computed quantities to preserve. Scalars and strings go directly
+  into the JSON. Numpy arrays are saved to HDF5 automatically — include things
+  like fitted parameters, residuals, processed spectra, derived arrays.
+- references (list[str]): IDs of the raw ELN entries this analysis is based on.
+  Open the relevant exp_*.json or batch_*.json files in __CONTAINER_LOG_DIR__/ and
+  copy the top-level "id" field, e.g.:
+      ["exp_20260522_111149_616781", "batch_20260522_114500_000001"]
+  This links the analysis permanently to the raw data it was derived from.
+  Always include references — they are the chain of provenance.
+- script (str): Always pass open(__file__).read() — this captures the full
+  source of the analysis script and stores it verbatim in the ELN entry,
+  making the analysis exactly reproducible from the record alone.
+- figures (list[str]): Filenames of plots produced by this analysis.
+  Figures MUST be saved to AUTO_LOG_DIR before calling log_analysis —
+  files outside AUTO_LOG_DIR are inaccessible to the host.
+  Pass only the filename (not the full path), e.g. ["fit.png"].
+- kind (str): The sort of record this is — one of "analysis" (default),
+  "hypothesis", "decision", "debug", "failed", or "observation". See
+  "Log everything" above. Use it so failures and reasoning are distinguishable
+  from successful results in the log.
+
+Full example — save this as /agent/shared/scripts/fit_voltage_sweep.py, then run it:
+
+    import sys; sys.path.insert(0, "/agent/workspace")
+    from auto_log_client import log_analysis, AUTO_LOG_DIR
+    import json, h5py, numpy as np, matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    # 1. Load raw data from the ELN log directory
+    rec = json.load(open(f"{AUTO_LOG_DIR}/batch_20260522_111100_000001.json"))
+    voltages = np.array([e["result"]["voltage"] for e in rec["experiments"]])
+    with h5py.File(f"{AUTO_LOG_DIR}/batch_20260522_111100_000001.h5") as f:
+        powers = np.array([f[e["id"] + "/power"][:] for e in rec["experiments"]])
+
+    # 2. Fit
+    slope, intercept = np.polyfit(voltages, powers, 1)
+    residuals = powers - (slope * voltages + intercept)
+
+    # 3. Figure
+    fig, ax = plt.subplots()
+    ax.scatter(voltages, powers, label="data")
+    ax.plot(voltages, slope * voltages + intercept, "r-", label="fit")
+    ax.set_xlabel("Voltage (V)"); ax.set_ylabel("Power (W)"); ax.legend()
+    fig.savefig(f"{AUTO_LOG_DIR}/voltage_fit.png"); plt.close(fig)
+
+    # 4. Record — always the last step in the script
+    log_analysis(
+        title="Linear fit — voltage sweep",
+        text=(
+            "Power scales linearly with voltage across 0–3 V (R²=0.998). "
+            "Slope 0.023 W/V, intercept 1.84 mW. Residuals are within noise — "
+            "no nonlinearity visible. Safe to use this calibration for power control."
+        ),
+        data={"slope": slope, "intercept": intercept, "residuals": residuals},
+        references=["batch_20260522_111100_000001"],
+        script=open(__file__).read(),
+        figures=["voltage_fit.png"],
+    )
+
+Call log_analysis liberally — at minimum:
+- Whenever a script or fit FAILS (kind="failed") or you debug one (kind="debug")
+- Before a sweep/optimisation, to record what you expect (kind="hypothesis")
+- When you make a non-obvious choice about how to proceed (kind="decision")
+- On any anomaly, negative result, or next-step note (kind="observation")
+- After fitting a model, computing statistics, or processing raw arrays
+- Any time you draw a conclusion from the data that is worth preserving
+
+A session_summary.json and session_summary.zip are written automatically
+when the session ends, collecting all records into a single file.

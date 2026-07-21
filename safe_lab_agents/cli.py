@@ -21,6 +21,7 @@ import sys
 import threading
 import time
 from datetime import datetime
+from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import Any, Literal, Optional, cast
 
@@ -59,6 +60,7 @@ from safe_lab_agents.start_config import (
 from safe_lab_agents.utils import (
     find_free_port,
     generate_session_name,
+    utc_now,
     wait_for_server,
 )
 
@@ -302,6 +304,86 @@ def _print_session_exit_summary(config: SessionConfig, resumable: bool) -> None:
         console.print(line, soft_wrap=True)
     console.rule(style="green")
     console.print()
+
+
+def _raise_on_signal(signum, frame) -> None:
+    """Signal handler: raise ``KeyboardInterrupt`` and do nothing else.
+
+    Session teardown does Docker commits, subprocess I/O, and file writes —
+    none of which is async-signal-safe, so running it directly inside a signal
+    handler risks deadlocking (e.g. re-entering a lock the interrupted code
+    already holds). Instead the handler only raises, which unwinds the blocked
+    main thread into the run block's ``finally``; the real teardown then runs
+    there, in normal (not signal) context.
+    """
+    raise KeyboardInterrupt
+
+
+def _teardown_session(
+    *,
+    docker_mgr: DockerManager,
+    container: Any,
+    config: SessionConfig,
+    agent_backend: BaseAgent,
+    session_dir: Path,
+    mcp_server: ExperimentMCPServer,
+    watcher_stop: threading.Event,
+    metadata: Any,
+) -> None:
+    """Tear down a running session (shared by ``start`` and ``resume``).
+
+    Copies the agent's native logs out of the container, imports them into
+    history, commits then removes the container, stops the MCP server and any
+    reload monitor, writes the auto-log session summary, and marks the metadata
+    committed. Every step is best-effort and *logged* (never silently
+    swallowed) on failure so one failure can't skip the rest — previously the
+    two hand-rolled copies of this had drifted (``resume`` swallowed a commit
+    failure while ``start`` warned). Idempotency is the caller's responsibility
+    (a ``_cleaned_up`` guard) because interpreter exit also triggers it via
+    ``atexit``.
+    """
+    console.print("\n[bold]Shutting down …[/bold]")
+
+    # Copy native logs out of the container before it is committed/removed.
+    if container is not None:
+        try:
+            docker_mgr.copy_agent_logs(container.id, session_dir, config.agent_type)
+        except Exception as exc:
+            logger.warning("Could not copy agent logs: %s", exc)
+
+    # Import the freshly-copied logs into history.json.
+    try:
+        HistoryStore(config.name).import_from_agent(
+            agent_backend, session_dir / "logs"
+        )
+    except Exception as exc:
+        logger.warning("Could not import history: %s", exc)
+
+    committed = False
+    if container is not None:
+        try:
+            docker_mgr.commit_container(container.id, config.name)
+            committed = True
+        except Exception as exc:
+            logger.warning("Could not commit container: %s", exc)
+        try:
+            docker_mgr.remove_container(container.id, force=True)
+        except Exception as exc:
+            logger.warning("Could not remove container: %s", exc)
+    watcher_stop.set()
+    mcp_server.shutdown()
+    if config.auto_log_dir:
+        try:
+            from safe_lab_agents.mcp.predefined.autolog import write_session_summary
+
+            write_session_summary(config.auto_log_dir)
+        except Exception as exc:
+            logger.warning("Could not write auto-log session summary: %s", exc)
+    if metadata is not None:
+        metadata.status = "committed"
+        metadata.stopped_at = utc_now()
+        metadata.save()
+    _print_session_exit_summary(config, resumable=committed)
 
 
 # ======================================================================
@@ -775,60 +857,23 @@ def start(
     container_obj: Any = None
     metadata: Any = None
 
-    def _cleanup(signum=None, frame=None):
+    def _cleanup() -> None:
         if _cleaned_up[0]:
             return
         _cleaned_up[0] = True
-        console.print("\n[bold]Shutting down …[/bold]")
+        _teardown_session(
+            docker_mgr=docker_mgr,
+            container=container_obj,
+            config=config,
+            agent_backend=agent_backend,
+            session_dir=session_dir,
+            mcp_server=_mcp[0],
+            watcher_stop=_watcher_stop,
+            metadata=metadata,
+        )
 
-        # Copy native logs out of the container before it is committed/removed.
-        if container_obj is not None:
-            try:
-                docker_mgr.copy_agent_logs(
-                    container_obj.id, session_dir, config.agent_type
-                )
-            except Exception as exc:
-                logger.warning("Could not copy agent logs: %s", exc)
-
-        # Import the freshly-copied logs into history.json.
-        try:
-            store = HistoryStore(config.name)
-            store.import_from_agent(agent_backend, session_dir / "logs")
-        except Exception as exc:
-            logger.warning("Could not import history: %s", exc)
-
-        committed = False
-        if container_obj is not None:
-            try:
-                docker_mgr.commit_container(container_obj.id, config.name)
-                committed = True
-            except Exception as exc:
-                logger.warning("Could not commit container: %s", exc)
-            try:
-                docker_mgr.remove_container(container_obj.id, force=True)
-            except Exception:
-                pass
-        _watcher_stop.set()
-        _mcp[0].shutdown()
-        if config.auto_log_dir:
-            try:
-                from safe_lab_agents.mcp.predefined.autolog import (
-                    write_session_summary,
-                )
-
-                write_session_summary(config.auto_log_dir)
-            except Exception as exc:
-                logger.warning("Could not write auto-log session summary: %s", exc)
-        if metadata is not None:
-            metadata.status = "committed"
-            metadata.stopped_at = datetime.now()
-            metadata.save()
-        _print_session_exit_summary(config, resumable=committed)
-        if signum is not None:
-            sys.exit(0)
-
-    signal.signal(signal.SIGINT, _cleanup)
-    signal.signal(signal.SIGTERM, _cleanup)
+    signal.signal(signal.SIGINT, _raise_on_signal)
+    signal.signal(signal.SIGTERM, _raise_on_signal)
     atexit.register(_cleanup)
 
     # ---- Create the container (cleanup handlers are already live) ----
@@ -847,7 +892,7 @@ def start(
         container_id=container_obj.id,
         image_tag=image_tag,
         status="running",
-        started_at=datetime.now(),
+        started_at=utc_now(),
     )
     metadata.save()
 
@@ -862,6 +907,10 @@ def start(
             )
         else:
             docker_mgr.start_interactive(container_obj)
+    except KeyboardInterrupt:
+        # A SIGINT/SIGTERM was delivered (see _raise_on_signal): unwind here so
+        # the finally below runs teardown in the main thread.
+        pass
     except Exception as exc:
         console.print(f"[bold red]Error: {exc}[/bold red]")
     finally:
@@ -1007,57 +1056,23 @@ def resume(
     _cleaned_up = [False]
     container: Any = None
 
-    def _cleanup(signum=None, frame=None):
+    def _cleanup() -> None:
         if _cleaned_up[0]:
             return
         _cleaned_up[0] = True
-        console.print("\n[bold]Shutting down …[/bold]")
+        _teardown_session(
+            docker_mgr=docker_mgr,
+            container=container,
+            config=config,
+            agent_backend=agent_backend,
+            session_dir=session_dir,
+            mcp_server=_mcp[0],
+            watcher_stop=_watcher_stop,
+            metadata=metadata,
+        )
 
-        # Copy native logs out of the container before it is committed/removed.
-        if container is not None:
-            try:
-                docker_mgr.copy_agent_logs(container.id, session_dir, config.agent_type)
-            except Exception as exc:
-                logger.warning("Could not copy agent logs: %s", exc)
-
-        # Import the freshly-copied logs into history.json.
-        try:
-            store = HistoryStore(config.name)
-            store.import_from_agent(agent_backend, session_dir / "logs")
-        except Exception as exc:
-            logger.warning("Could not import history: %s", exc)
-
-        committed = False
-        if container is not None:
-            try:
-                docker_mgr.commit_container(container.id, config.name)
-                committed = True
-            except Exception:
-                pass
-            try:
-                docker_mgr.remove_container(container.id, force=True)
-            except Exception:
-                pass
-        _watcher_stop.set()
-        _mcp[0].shutdown()
-        if config.auto_log_dir:
-            try:
-                from safe_lab_agents.mcp.predefined.autolog import (
-                    write_session_summary,
-                )
-
-                write_session_summary(config.auto_log_dir)
-            except Exception as exc:
-                logger.warning("Could not write auto-log session summary: %s", exc)
-        metadata.status = "committed"
-        metadata.stopped_at = datetime.now()
-        metadata.save()
-        _print_session_exit_summary(config, resumable=committed)
-        if signum is not None:
-            sys.exit(0)
-
-    signal.signal(signal.SIGINT, _cleanup)
-    signal.signal(signal.SIGTERM, _cleanup)
+    signal.signal(signal.SIGINT, _raise_on_signal)
+    signal.signal(signal.SIGTERM, _raise_on_signal)
     atexit.register(_cleanup)
 
     # ---- Create the container (cleanup handlers are already live) ----
@@ -1073,7 +1088,7 @@ def resume(
 
     metadata.container_id = container.id
     metadata.status = "running"
-    metadata.started_at = datetime.now()
+    metadata.started_at = utc_now()
     metadata.save()
 
     _print_session_start_banner(
@@ -1082,6 +1097,10 @@ def resume(
 
     try:
         docker_mgr.start_interactive(container)
+    except KeyboardInterrupt:
+        # A SIGINT/SIGTERM was delivered (see _raise_on_signal): unwind here so
+        # the finally below runs teardown in the main thread.
+        pass
     except Exception as exc:
         console.print(f"[bold red]Error: {exc}[/bold red]")
     finally:
@@ -1694,17 +1713,19 @@ def _write_system_prompt(config: SessionConfig, agent: BaseAgent) -> None:
     )
 
 
-_RELOAD_INFO = """\
+def _load_template(name: str) -> str:
+    """Read a workspace template bundled as ``safe_lab_agents/templates/`` data.
 
-## Reloading tools
-
-The tools file lives on the host and is edited by the user, not by you. When the
-user tells you they have updated it, call the MCP tool
-`mcp__experiment-tools__reload_tools` (no arguments) to pick up the changes.
-Only call it when the user asks you to reload — never on your own. After the MCP
-connection reconnects, refresh your MCP tool list; if Python tools changed,
-re-import /agent/workspace/tools_client.py.
-"""
+    The agent-facing prompt fragments and the generated auto-log client are
+    large text blocks kept as package data files rather than inline string
+    literals, so ``cli.py`` stays readable. Mirrors ``docker/build.py``'s
+    handling of the bundled Dockerfiles. Templates that need the container's
+    auto-log path use the literal token ``__CONTAINER_LOG_DIR__``, substituted
+    by the caller.
+    """
+    return pkg_files("safe_lab_agents.templates").joinpath(name).read_text(
+        encoding="utf-8"
+    )
 
 
 def _sync_reload_info(config: SessionConfig, reload_available: bool) -> None:
@@ -1720,7 +1741,7 @@ def _sync_reload_info(config: SessionConfig, reload_available: bool) -> None:
     path = config.workspace_dir / "reload_info.txt"
     if reload_available:
         config.workspace_dir.mkdir(parents=True, exist_ok=True)
-        path.write_text(_RELOAD_INFO, encoding="utf-8")
+        path.write_text(_load_template("reload_info.txt"), encoding="utf-8")
     elif path.exists():
         path.unlink()
 
@@ -1797,345 +1818,20 @@ def _start_reload_monitor(mcp_holder, config, mcp_port, auth_token, stop_event):
 
 
 def _write_auto_log_info(workspace_dir: Path, container_log_dir: str) -> None:
-    """Write auto_log_info.txt into the workspace so entrypoints can inject it into the system prompt."""
-    content = f"""\
-
-## Experiment auto-logging
-
-All MCP tool calls and Python tool calls are automatically recorded to
-{container_log_dir}/ as structured ELN records. Each record captures the
-tool name, call parameters, return values, and timestamps. Numpy arrays are
-stored as HDF5 datasets. You do not need to save experiment results manually.
-
-### Grouping calls into a batch
-
-For sweeps, optimisation loops, or any multi-step protocol, use the batch
-helpers from /agent/workspace/auto_log_client.py to group all related calls
-into a single merged ELN record:
-
-    import sys; sys.path.insert(0, "/agent/workspace")
-    from auto_log_client import start_batch, stop_batch
-
-    start_batch("Voltage sweep 0–5 V")
-    for v in voltages:
-        measure(v)          # logged automatically
-    stop_batch()            # writes one merged record for the whole sweep
-
-Use batches when:
-- Running a parameter sweep (voltage, temperature, frequency, concentration)
-- Running an optimisation loop (Bayesian optimisation, grid search, …)
-- Executing a multi-step protocol (calibrate → acquire → verify)
-- Repeating a measurement N times for statistics
-
-Without a batch, each tool call creates its own individual record — fine for
-one-off measurements.
-
-### Writing and running Python scripts
-
-ALWAYS save every Python script to a file in /agent/shared/scripts before executing
-it. Never run analysis code as a one-liner or inline snippet. Saving first means:
-- The script can be passed verbatim to log_analysis(script=...) for full
-  reproducibility — open(__file__).read() only works in a saved file.
-- Scripts are preserved in the session workspace even if the analysis is re-run.
-
-Naming convention: use descriptive names, e.g. fit_voltage_sweep.py,
-plot_spectrum.py. Save to /agent/shared/scripts/ so they persist across sessions.
-
-### Recording analysis results
-
-After running an analysis script, call log_analysis() to add a structured
-analysis entry to the ELN. log_analysis() must always be called from inside
-a saved script file — never from an interactive one-liner — so that
-open(__file__).read() captures the full analysis code correctly.
-
-### Log everything, not just successes
-
-A failed attempt is data, not noise. Record it — do NOT silently retry and
-throw the failure away. Every analysis you run, every debugging detour, every
-hypothesis you form, and every non-obvious decision you make should leave a
-log_analysis() entry behind. A reviewer reading the log afterwards should be
-able to reconstruct not just what worked, but what you tried, what broke, and
-why you made the choices you did.
-
-Tag each entry with the `kind` parameter so the record is self-describing:
-
-- kind="analysis"    — a successful result or conclusion (the default)
-- kind="hypothesis"  — what you expect before a measurement/sweep and why you
-                       chose these parameters or ranges
-- kind="decision"    — the rationale for an approach, a plan change, or a
-                       decision to stop or continue
-- kind="debug"       — a debugging step, or a failed-then-fixed iteration
-                       (what broke, what you changed, whether it helped)
-- kind="failed"      — an attempt that did not succeed: a script that errored,
-                       a fit that didn't converge, an instrument that returned
-                       garbage. Paste the traceback / error into `text` and the
-                       failing code into `script`.
-- kind="observation" — an anomaly, an unexpected or negative result worth
-                       keeping, or a "what to measure next" note
-
-When a script errors, capture the traceback and log it before moving on, e.g.:
-
-    import sys, traceback
-    sys.path.insert(0, "/agent/workspace")
-    from auto_log_client import log_analysis
-    try:
-        ...                       # the analysis that might fail
-    except Exception:
-        log_analysis(
-            title="Gaussian fit of peak did not converge",
-            kind="failed",
-            text="curve_fit raised RuntimeError — initial guess for the width "
-                 "was too small. Next: widen p0 and bound sigma > 0.\\n\\n"
-                 + traceback.format_exc(),
-            script=open(__file__).read(),
-            references=["exp_20260522_111149_616781"],
-        )
-        raise
-
-Workflow:
-  1. Write the analysis script and save it to /agent/shared/scripts/my_analysis.py
-  2. Run the script: python /agent/shared/scripts/my_analysis.py
-  3. The script calls log_analysis() as its last step (or in an except block on failure)
-
-    import sys; sys.path.insert(0, "/agent/workspace")
-    from auto_log_client import log_analysis, AUTO_LOG_DIR
-
-Signature:
-    log_analysis(title, text="", data={{}}, references=[], script="", figures=[], kind="analysis")
-
-Parameters:
-- title (str): Short label for this analysis, e.g. "Linear fit — voltage sweep"
-- text (str): Your written interpretation — conclusions, observations, confidence
-  in the result, what should be measured next. Write this as you would in a lab
-  notebook: what does the result mean physically?
-- data (dict): Computed quantities to preserve. Scalars and strings go directly
-  into the JSON. Numpy arrays are saved to HDF5 automatically — include things
-  like fitted parameters, residuals, processed spectra, derived arrays.
-- references (list[str]): IDs of the raw ELN entries this analysis is based on.
-  Open the relevant exp_*.json or batch_*.json files in {container_log_dir}/ and
-  copy the top-level "id" field, e.g.:
-      ["exp_20260522_111149_616781", "batch_20260522_114500_000001"]
-  This links the analysis permanently to the raw data it was derived from.
-  Always include references — they are the chain of provenance.
-- script (str): Always pass open(__file__).read() — this captures the full
-  source of the analysis script and stores it verbatim in the ELN entry,
-  making the analysis exactly reproducible from the record alone.
-- figures (list[str]): Filenames of plots produced by this analysis.
-  Figures MUST be saved to AUTO_LOG_DIR before calling log_analysis —
-  files outside AUTO_LOG_DIR are inaccessible to the host.
-  Pass only the filename (not the full path), e.g. ["fit.png"].
-- kind (str): The sort of record this is — one of "analysis" (default),
-  "hypothesis", "decision", "debug", "failed", or "observation". See
-  "Log everything" above. Use it so failures and reasoning are distinguishable
-  from successful results in the log.
-
-Full example — save this as /agent/shared/scripts/fit_voltage_sweep.py, then run it:
-
-    import sys; sys.path.insert(0, "/agent/workspace")
-    from auto_log_client import log_analysis, AUTO_LOG_DIR
-    import json, h5py, numpy as np, matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    # 1. Load raw data from the ELN log directory
-    rec = json.load(open(f"{{AUTO_LOG_DIR}}/batch_20260522_111100_000001.json"))
-    voltages = np.array([e["result"]["voltage"] for e in rec["experiments"]])
-    with h5py.File(f"{{AUTO_LOG_DIR}}/batch_20260522_111100_000001.h5") as f:
-        powers = np.array([f[e["id"] + "/power"][:] for e in rec["experiments"]])
-
-    # 2. Fit
-    slope, intercept = np.polyfit(voltages, powers, 1)
-    residuals = powers - (slope * voltages + intercept)
-
-    # 3. Figure
-    fig, ax = plt.subplots()
-    ax.scatter(voltages, powers, label="data")
-    ax.plot(voltages, slope * voltages + intercept, "r-", label="fit")
-    ax.set_xlabel("Voltage (V)"); ax.set_ylabel("Power (W)"); ax.legend()
-    fig.savefig(f"{{AUTO_LOG_DIR}}/voltage_fit.png"); plt.close(fig)
-
-    # 4. Record — always the last step in the script
-    log_analysis(
-        title="Linear fit — voltage sweep",
-        text=(
-            "Power scales linearly with voltage across 0–3 V (R²=0.998). "
-            "Slope 0.023 W/V, intercept 1.84 mW. Residuals are within noise — "
-            "no nonlinearity visible. Safe to use this calibration for power control."
-        ),
-        data={{"slope": slope, "intercept": intercept, "residuals": residuals}},
-        references=["batch_20260522_111100_000001"],
-        script=open(__file__).read(),
-        figures=["voltage_fit.png"],
+    """Write auto_log_info.txt into the workspace so entrypoints can inject it
+    into the system prompt (loaded from the bundled ``auto_log_info.txt`` template)."""
+    content = _load_template("auto_log_info.txt").replace(
+        "__CONTAINER_LOG_DIR__", container_log_dir
     )
-
-Call log_analysis liberally — at minimum:
-- Whenever a script or fit FAILS (kind="failed") or you debug one (kind="debug")
-- Before a sweep/optimisation, to record what you expect (kind="hypothesis")
-- When you make a non-obvious choice about how to proceed (kind="decision")
-- On any anomaly, negative result, or next-step note (kind="observation")
-- After fitting a model, computing statistics, or processing raw arrays
-- Any time you draw a conclusion from the data that is worth preserving
-
-A session_summary.json and session_summary.zip are written automatically
-when the session ends, collecting all records into a single file.
-"""
     (workspace_dir / "auto_log_info.txt").write_text(content, encoding="utf-8")
 
 
 def _write_auto_log_client(workspace_dir: Path, container_log_dir: str) -> None:
-    """Write auto_log_client.py into the workspace for use inside Docker."""
-    content = f'''\
-"""Auto-generated client for experiment auto-log tools.
-
-Import inside Docker to group tool calls into batches or record analysis results.
-
-Example::
-
-    import sys; sys.path.insert(0, "/agent/workspace")
-    from auto_log_client import start_batch, stop_batch, log_analysis, AUTO_LOG_DIR
-"""
-import base64 as _base64
-import io as _io
-import json as _json
-import os as _os
-import pickle as _pickle
-import shutil as _shutil
-import urllib.request as _urllib_request
-from datetime import datetime as _datetime, timezone as _timezone
-from pathlib import Path as _Path
-
-try:
-    import h5py as _h5py
-    _H5PY = True
-except ImportError:
-    _H5PY = False
-
-try:
-    import numpy as _np
-    _NUMPY = True
-except ImportError:
-    _NUMPY = False
-
-AUTO_LOG_DIR = {container_log_dir!r}
-
-_HOST = _os.environ.get("MCP_HOST", "host.docker.internal")
-_PORT = _os.environ["MCP_PORT"]
-_URL = f"http://{{_HOST}}:{{_PORT}}/invoke"
-_HEADERS = {{"Content-Type": "application/json"}}
-_TOKEN = _os.environ.get("MCP_AUTH_TOKEN", "")
-if _TOKEN:
-    _HEADERS["Authorization"] = f"Bearer {{_TOKEN}}"
-
-
-def _encode_arg(obj):
-    if _NUMPY and isinstance(obj, _np.ndarray):
-        buf = _io.BytesIO()
-        _np.save(buf, obj)
-        return {{"__type__": "ndarray", "data": _base64.b64encode(buf.getvalue()).decode()}}
-    if _NUMPY and isinstance(obj, _np.generic):
-        return obj.item()
-    if isinstance(obj, dict):
-        return {{k: _encode_arg(v) for k, v in obj.items()}}
-    if isinstance(obj, (list, tuple)):
-        return [_encode_arg(x) for x in obj]
-    return obj
-
-
-def _invoke(tool_name: str, **kwargs) -> str:
-    body = _json.dumps({{"tool": tool_name, "args": {{k: _encode_arg(v) for k, v in kwargs.items()}}}}).encode()
-    req = _urllib_request.Request(_URL, data=body, headers=_HEADERS)
-    with _urllib_request.urlopen(req) as r:
-        return _pickle.loads(r.read())
-
-
-def start_batch(label: str, description: str = "") -> str:
-    """Start collecting experiment results into a single ELN batch record.
-
-    All tool calls until stop_batch() are grouped into one merged record
-    instead of creating individual records per call.
-
-    Use this when running parameter sweeps, optimisation loops, multi-step
-    protocols, or repeated measurements — any set of calls that logically
-    form one experiment.
-
-    Args:
-        label: Short label, e.g. "Voltage sweep 0-5 V".
-        description: Optional longer description of the batch.
-    """
-    return _invoke("start_batch", label=label, description=description)
-
-
-def stop_batch() -> str:
-    """Finalise the active batch and write a merged ELN record to disk.
-
-    Returns a summary string with the output file path and experiment count.
-    """
-    return _invoke("stop_batch")
-
-
-def log_analysis(
-    title: str,
-    text: str = "",
-    data: dict = None,
-    references: list = None,
-    script: str = "",
-    figures: list = None,
-    kind: str = "analysis",
-) -> str:
-    """Record analysis results as an ELN entry and push to Kadi4Mat if configured.
-
-    Args:
-        title: Short title, e.g. "Linear fit of voltage sweep".
-        text: Free-text narrative, observations, or conclusions (markdown OK).
-        data: Dict of analysis results. numpy arrays are saved to HDF5
-              automatically. Scalars and strings are stored as JSON metadata.
-              **Note:** values must be JSON-serializable or numpy arrays —
-              other types (DataFrames, arbitrary objects) are not supported.
-        references: List of exp_*/batch_*/analysis_* IDs this analysis is
-                    based on.
-        script: Python source code used to produce this analysis.
-        figures: Filenames of figures already saved to AUTO_LOG_DIR.
-                 **Note:** figures must be saved to AUTO_LOG_DIR before calling
-                 log_analysis — files outside AUTO_LOG_DIR are not accessible.
-                 Pass only the filename, not the full path, e.g. ``["fit.png"]``.
-        kind: What sort of record this is. One of "analysis" (default, a
-              successful result), "hypothesis", "decision", "debug" (a
-              debugging step or failed-then-fixed iteration), "failed" (an
-              attempt that did not succeed), or "observation". Record failures
-              and debug steps too — a failed attempt is data, not noise.
-
-    Returns:
-        Confirmation string with the output file name.
-
-    Example::
-
-        from auto_log_client import log_analysis, AUTO_LOG_DIR
-        import numpy as np, matplotlib.pyplot as plt
-
-        slope, intercept = np.polyfit(voltages, powers, 1)
-        residuals = powers - (slope * voltages + intercept)
-
-        fig, ax = plt.subplots()
-        ax.scatter(voltages, powers)
-        ax.plot(voltages, slope * voltages + intercept, "r-")
-        fig.savefig(f"{{AUTO_LOG_DIR}}/fit.png")
-        plt.close(fig)
-
-        log_analysis(
-            title="Linear fit",
-            text="Power is linear with voltage (R²=0.998).",
-            data={{"slope": slope, "residuals": residuals}},
-            references=["exp_20260522_111149_616781"],
-            script=open(__file__).read(),
-            figures=["fit.png"],
-        )
-    """
-    return _invoke("log_analysis",
-        title=title, text=text, data=data or {{}},
-        references=references or [], script=script,
-        figures=figures or [], kind=kind,
+    """Write auto_log_client.py into the workspace for use inside Docker (loaded
+    from the bundled ``auto_log_client.py`` template)."""
+    content = _load_template("auto_log_client.py").replace(
+        "__CONTAINER_LOG_DIR__", container_log_dir
     )
-'''
     (workspace_dir / "auto_log_client.py").write_text(content, encoding="utf-8")
 
 

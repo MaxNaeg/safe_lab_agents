@@ -8,7 +8,7 @@ the shared directory.  Entries are timestamped and appended to a
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -30,7 +30,7 @@ def add_entry(title: str, content: str) -> str:
         Confirmation message with the timestamp.
     """
     notebook = _NOTEBOOK_DIR / "lab_notebook.md"
-    timestamp = datetime.now().isoformat(timespec="seconds")
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     entry = f"\n## {title}\n\n**Date:** {timestamp}\n\n{content}\n\n---\n"
 
     if not notebook.exists():

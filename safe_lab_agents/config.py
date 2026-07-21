@@ -10,6 +10,8 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from safe_lab_agents.utils import utc_now
+
 
 def get_base_dir() -> Path:
     """Return the base directory for safe_lab_agents data.
@@ -151,7 +153,7 @@ class SessionConfig(BaseModel):
         default_factory=dict,
         description="Agent-specific arguments passed via --agent-args.",
     )
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
     @field_validator("mem_limit")
     @classmethod
