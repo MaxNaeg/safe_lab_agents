@@ -589,7 +589,7 @@ On the first `--container podman` run, if the required firewall rule is missing,
 New-NetFirewallRule -DisplayName 'safe-lab-agents-mcp' -Direction Inbound -Action Allow -Protocol TCP -InterfaceAlias 'vEthernet (WSL)'
 ```
 
-The rule is scoped to the WSL adapter only, so the (unauthenticated) tool server is **not** exposed to the rest of your network. Until the rule is added, tool calls from the agent will time out.
+The rule is scoped to the WSL adapter only, so the tool server is **not** exposed to the rest of your network — and even reachable clients must present the session's mandatory MCP bearer token. Until the rule is added, tool calls from the agent will time out.
 
 ### Podman on Linux
 
