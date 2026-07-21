@@ -22,6 +22,9 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
+import markdown
+import nh3
+
 from safe_lab_agents.agents.base import ConversationEntry
 from safe_lab_agents.config import SessionMetadata
 from safe_lab_agents.history.render_utils import guess_language, is_image_content
@@ -73,16 +76,11 @@ def _render_markdown(text: str) -> str:
     live ``<script>``/``onerror`` payloads into the report.  The rendered HTML
     is therefore passed through an allowlist sanitizer (``nh3``) that keeps
     formatting tags but strips scripts, event handlers, and other active
-    content.  If either dependency is unavailable we fall back to fully escaped
-    text rather than emit unsanitized HTML.
+    content.  Both ``markdown`` and ``nh3`` are required dependencies, so they
+    are imported at module load time.
     """
     if not text:
         return ""
-    try:
-        import markdown  # local imports: keep the module importable without them
-        import nh3
-    except Exception:  # pragma: no cover - exercised only when a dep is missing
-        return f"<div class='text'>{_render_text(text)}</div>"
     rendered = markdown.markdown(text, extensions=["fenced_code", "tables"])
     # Preserve the language ``class`` on code/table tags so styling survives.
     attributes = {tag: set(attrs) for tag, attrs in nh3.ALLOWED_ATTRIBUTES.items()}
