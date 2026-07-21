@@ -120,5 +120,3 @@ elif [ -e /proc/net/if_inet6 ]; then
     echo "firewall: IPv6 is enabled but ip6tables is not functional" >&2
     exit 1
 fi
-
-echo "firewall: egress locked down (host reachable only on tcp:${MCP_PORT})"
