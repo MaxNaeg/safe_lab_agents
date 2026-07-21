@@ -24,6 +24,7 @@ from typing import Any, Optional
 
 from safe_lab_agents.agents.base import ConversationEntry
 from safe_lab_agents.config import SessionMetadata
+from safe_lab_agents.history.render_utils import guess_language, is_image_content
 
 logger = logging.getLogger(__name__)
 
@@ -91,17 +92,6 @@ def _render_markdown(text: str) -> str:
     return f"<div class='text md'>{safe}</div>"
 
 
-def _guess_language(key: str, value: str) -> str:
-    if key == "command":
-        return "bash"
-    if key in ("code", "script", "source"):
-        return "python"
-    stripped = value.strip()
-    if stripped.startswith(("import ", "from ", "def ", "class ", "#!/usr/bin/env python")):
-        return "python"
-    return "text"
-
-
 def _render_tool_input(tool_input: Optional[dict]) -> str:
     """Render tool arguments as a key/value table (ported from display.py)."""
     if not tool_input:
@@ -109,7 +99,7 @@ def _render_tool_input(tool_input: Optional[dict]) -> str:
     rows = []
     for key, value in tool_input.items():
         if isinstance(value, str) and "\n" in value:
-            cls = _guess_language(key, value)
+            cls = guess_language(key, value)
             cell = f"<pre class='lang-{cls}'>{_esc(value.strip())}</pre>"
         elif isinstance(value, (dict, list)):
             cell = f"<pre>{_esc(json.dumps(value, indent=2, default=str))}</pre>"
@@ -117,10 +107,6 @@ def _render_tool_input(tool_input: Optional[dict]) -> str:
             cell = _esc(value)
         rows.append(f"<tr><td class='k'>{_esc(key)}</td><td>{cell}</td></tr>")
     return f"<table class='kv'>{''.join(rows)}</table>"
-
-
-def _is_image_content(content: str) -> bool:
-    return bool(re.search(r"['\"]type['\"]\s*:\s*['\"]image['\"]", content[:200]))
 
 
 _IMG_DATA_RE = re.compile(r"['\"]data['\"]\s*:\s*['\"]([A-Za-z0-9+/]{20,}={0,2})['\"]")
@@ -150,7 +136,7 @@ def _render_tool_output(content: str) -> str:
     (ported from display.py)."""
     if not content:
         return "<div class='dim'>(no output)</div>"
-    if _is_image_content(content):
+    if is_image_content(content):
         imgs = _render_images(content)
         if imgs:
             return f"<div class='figures'>{imgs}</div>"

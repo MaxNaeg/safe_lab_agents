@@ -15,6 +15,7 @@ from rich.text import Text
 
 from safe_lab_agents.agents.base import ConversationEntry
 from safe_lab_agents.config import SessionMetadata
+from safe_lab_agents.history.render_utils import guess_language, is_image_content
 
 _ROLE_STYLES = {
     "user": ("bold blue", "blue"),
@@ -142,7 +143,7 @@ def _render_tool_input(tool_input: Optional[dict]) -> RenderableType:
 
     for key, value in tool_input.items():
         if isinstance(value, str) and "\n" in value:
-            lang = _guess_language(key, value)
+            lang = guess_language(key, value)
             table.add_row(key, Syntax(value.strip(), lang, theme="ansi_dark", line_numbers=False, word_wrap=False))
         elif isinstance(value, (dict, list)):
             table.add_row(key, Text(json.dumps(value, indent=2)))
@@ -154,7 +155,7 @@ def _render_tool_input(tool_input: Optional[dict]) -> RenderableType:
 
 def _render_tool_output(content: str) -> RenderableType:
     """Render tool output, with special handling for image data."""
-    if _is_image_content(content):
+    if is_image_content(content):
         m = re.search(r"['\"]data['\"]\s*:\s*['\"]([A-Za-z0-9+/]{20,})", content)
         kb = len(m.group(1)) * 3 // 4 // 1024 if m else 0
         size_str = f"~{kb} KB" if kb else "binary"
@@ -163,18 +164,3 @@ def _render_tool_output(content: str) -> RenderableType:
     if len(content) > 2000:
         content = content[:2000] + "\n… (truncated)"
     return Text(content)
-
-
-def _is_image_content(content: str) -> bool:
-    return bool(re.search(r"['\"]type['\"]\s*:\s*['\"]image['\"]", content[:200]))
-
-
-def _guess_language(key: str, value: str) -> str:
-    if key == "command":
-        return "bash"
-    if key in ("code", "script", "source"):
-        return "python"
-    stripped = value.strip()
-    if stripped.startswith(("import ", "from ", "def ", "class ", "#!/usr/bin/env python")):
-        return "python"
-    return "text"
