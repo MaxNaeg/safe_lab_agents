@@ -81,6 +81,45 @@ def test_assistant_markdown_becomes_html(tmp_path: Path) -> None:
     assert "<div class='text md'>" in html
 
 
+def test_assistant_markdown_strips_xss() -> None:
+    """Assistant content is model output steerable by untrusted instrument data
+    (prompt injection), so the markdown renderer must strip active content —
+    otherwise a scientist opening conversation.html runs the payload."""
+    from safe_lab_agents.history.html import _render_markdown
+
+    payload = (
+        "Result looks good.\n\n"
+        "<script>alert('pwned')</script>\n\n"
+        "<img src=x onerror=\"alert('xss')\">\n\n"
+        "[click me](javascript:alert('xss'))\n\n"
+        "<a href=\"javascript:alert(1)\">link</a>\n"
+    )
+    out = _render_markdown(payload)
+
+    # No executable/active content survives sanitization.
+    assert "<script" not in out.lower()
+    assert "onerror" not in out.lower()
+    assert "javascript:" not in out.lower()
+    # Benign text is preserved (proves we sanitized rather than dropped output).
+    assert "Result looks good." in out
+
+
+def test_assistant_xss_does_not_reach_rendered_report(tmp_path: Path) -> None:
+    """End-to-end: a script payload in an assistant turn must not appear
+    unescaped in the written conversation.html."""
+    entries = [
+        ConversationEntry(
+            timestamp=_ts(0),
+            role="assistant",
+            content="ok\n\n<script>alert('pwned')</script>",
+        )
+    ]
+    out = tmp_path / "c.html"
+    build_conversation_html(entries, None, out)
+    html = out.read_text(encoding="utf-8")
+    assert "<script>alert('pwned')</script>" not in html
+
+
 def test_error_tool_result_gets_accent(tmp_path: Path) -> None:
     out = tmp_path / "c.html"
     build_conversation_html(_sample_entries(), None, out)

@@ -141,6 +141,55 @@ def test_entry_files_requires_separator_after_id(tmp_path: Path):
     assert "exp_10-measure.json" not in names
 
 
+def test_entry_files_rejects_absolute_and_traversal_figures(tmp_path: Path):
+    """Figure names come from agent-written records; an absolute or ``../`` name
+    must not smuggle a host file into the .eln archive."""
+    from safe_lab_agents.export.eln import _entry_files
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    (log_dir / "legit.png").write_bytes(b"img")
+
+    secret = tmp_path / "secret.txt"
+    secret.write_text("top secret", encoding="utf-8")
+
+    entry = {
+        "id": "exp_1",
+        "figures": [
+            str(secret),  # absolute path outside log_dir
+            "../secret.txt",  # traversal escape
+            "legit.png",  # the only legitimate figure
+        ],
+    }
+    names = {p.name for p in _entry_files(log_dir, entry)}
+    assert "legit.png" in names
+    assert "secret.txt" not in names
+
+
+def test_entry_files_rejects_symlink_escaping_log_dir(tmp_path: Path):
+    """A symlink planted in the (bind-mounted) log dir pointing at a host file
+    must be rejected — ``safe_under`` resolves symlinks before the containment
+    check."""
+    from safe_lab_agents.export.eln import _entry_files
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    secret = tmp_path / "secret.txt"
+    secret.write_text("top secret", encoding="utf-8")
+
+    link = log_dir / "evil.png"
+    try:
+        link.symlink_to(secret)
+    except (OSError, NotImplementedError):  # pragma: no cover - platform w/o symlinks
+        import pytest
+
+        pytest.skip("symlinks not supported on this platform")
+
+    entry = {"id": "exp_1", "figures": ["evil.png"]}
+    names = {p.name for p in _entry_files(log_dir, entry)}
+    assert "evil.png" not in names
+
+
 def test_build_eln_batch_run_param_and_result_same_name_have_distinct_ids(tmp_path: Path):
     """A batch run with a param and a result of the same name must produce two
     PropertyValues with distinct @ids (duplicate @ids are invalid JSON-LD)."""

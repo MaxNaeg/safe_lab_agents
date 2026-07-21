@@ -6,10 +6,11 @@ All tests run without a real Kadi4Mat instance.
 from __future__ import annotations
 
 import re
+import time
 
 import numpy as np
 
-
+from safe_lab_agents import quantity
 from safe_lab_agents.mcp.predefined.kadi4mat_utils import (
     make_collection_identifier,
     make_record_identifier,
@@ -485,3 +486,140 @@ class TestAddMetadatumUnits:
         assert meta["type"] == "float"
         assert meta["value"] == 2.5
         assert meta["unit"] == "W"
+
+
+# ======================================================================
+# create_record — real serialization contract (client NOT mocked)
+# ======================================================================
+
+
+class _FakeRecord:
+    """Records what ``create_record`` builds so the real KadiClient
+    serialization path (metadata typing, unit retention, file upload)
+    can be asserted without a live Kadi instance."""
+
+    def __init__(self):
+        self.metadata: list[dict] = []
+        self.collection_links: list[int] = []
+        self.uploaded: list[str] = []
+
+    def add_collection_link(self, collection_id):
+        self.collection_links.append(collection_id)
+
+    def add_metadatum(self, metadatum):
+        self.metadata.append(metadatum)
+
+    def upload_file(self, filepath):
+        self.uploaded.append(filepath)
+
+
+class _FakeManager:
+    def __init__(self, record):
+        self._record = record
+        self.record_calls: list[dict] = []
+
+    def record(self, **kwargs):
+        self.record_calls.append(kwargs)
+        return self._record
+
+
+class TestCreateRecordSerialization:
+    """Drive the real ``create_record`` (only the network manager is faked) so
+    the numpy/quantity serialization contract and rate-limit enforcement are
+    exercised end-to-end, not through a fully-mocked client."""
+
+    def _connected_client(self, record):
+        from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
+
+        client = KadiClient(project="proj", max_per_session=1000, max_per_minute=1000)
+        # Bypass the real network connect: pretend we are already connected.
+        client._manager = _FakeManager(record)
+        client._user_slug = "user"
+        client._collection_id = 42
+        return client
+
+    def test_real_serialization_of_numpy_and_quantities(self):
+        record = _FakeRecord()
+        client = self._connected_client(record)
+
+        rid = client.create_record(
+            title="measure",
+            call_args={"channel": np.int64(3)},
+            result={
+                "power": quantity(np.float32(2.5), "W"),
+                "count": np.int64(5),
+                "ok": np.bool_(True),
+                "note": "done",
+            },
+            files=[],
+        )
+
+        # Returned id is exactly the one the manager was asked to create
+        # (the identifier embeds a timestamp, so it can't be recomputed).
+        assert rid == client._manager.record_calls[0]["identifier"]
+        assert rid.startswith("user-proj-")
+        by_key = {m["key"]: m for m in record.metadata}
+
+        # numpy int arg stays numeric (not stringified into a str extra).
+        assert by_key["param_channel"]["type"] == "int"
+        assert by_key["param_channel"]["value"] == 3
+
+        # numpy-valued quantity keeps its unit and numeric type.
+        assert by_key["result_power"]["type"] == "float"
+        assert by_key["result_power"]["value"] == 2.5
+        assert by_key["result_power"]["unit"] == "W"
+
+        assert by_key["result_count"]["type"] == "int"
+        assert by_key["result_count"]["value"] == 5
+        assert by_key["result_ok"]["type"] == "bool"
+        assert by_key["result_ok"]["value"] is True
+
+        # A plain string carries no unit field.
+        assert by_key["result_note"]["type"] == "str"
+        assert "unit" not in by_key["result_note"]
+
+        # Session bookkeeping advanced through the real code path.
+        assert client._session_count == 1
+        assert len(client._recent_timestamps) == 1
+
+    def test_files_uploaded_through_real_path(self, tmp_path):
+        record = _FakeRecord()
+        client = self._connected_client(record)
+        f = tmp_path / "trace.h5"
+        f.write_text("x", encoding="utf-8")
+
+        client.create_record(title="m", call_args={}, result={"x": 1}, files=[f])
+
+        assert record.uploaded == [str(f)]
+
+    def test_create_record_blocked_by_per_minute_limit_never_connects(self):
+        """A per-minute-limited call must return the block string from
+        ``create_record`` itself and never attempt to connect."""
+        from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
+
+        client = KadiClient(project="proj", max_per_session=1000, max_per_minute=2)
+        now = time.monotonic()
+        client._recent_timestamps = [now - 10, now - 5]  # window full
+
+        msg = client.create_record(
+            title="m", call_args={}, result={"x": 1}, files=[]
+        )
+
+        assert msg is not None and "NOT saved" in msg and "per minute" in msg
+        # The block short-circuits before _ensure_connected: no manager, no count.
+        assert client._manager is None
+        assert client._session_count == 0
+
+    def test_create_record_blocked_by_session_limit_never_connects(self):
+        from safe_lab_agents.mcp.predefined.kadi4mat import KadiClient
+
+        client = KadiClient(project="proj", max_per_session=3, max_per_minute=1000)
+        client._session_count = 3  # limit already reached
+
+        msg = client.create_record(
+            title="m", call_args={}, result={"x": 1}, files=[]
+        )
+
+        assert msg is not None and "NOT saved" in msg
+        assert client._manager is None
+        assert client._session_count == 3  # unchanged — nothing recorded

@@ -61,6 +61,47 @@ def test_resolve_reference_requires_separator() -> None:
     assert _resolve_reference("exp_99", ids) is None
 
 
+def test_embed_figure_rejects_absolute_and_traversal(tmp_path: Path) -> None:
+    """Figure names come from agent-written records; an absolute or ``../`` name
+    must not base64-embed an arbitrary host file into the shared report."""
+    from safe_lab_agents.report.builder import _embed_figure
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    (log_dir / "legit.png").write_bytes(b"\x89PNG\r\n")
+
+    secret = tmp_path / "secret.png"  # image suffix so only containment blocks it
+    secret.write_bytes(b"top secret host bytes")
+
+    # A legitimate in-tree figure is embedded.
+    assert "data:" in _embed_figure(log_dir, "legit.png")
+
+    # Absolute and traversal names are refused with the not-found note, never embedded.
+    for bad in (str(secret), "../secret.png", "/etc/hosts"):
+        out = _embed_figure(log_dir, bad)
+        assert "figure not found" in out
+        assert "data:" not in out
+
+
+def test_embed_figure_rejects_symlink_escaping_log_dir(tmp_path: Path) -> None:
+    from safe_lab_agents.report.builder import _embed_figure
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    secret = tmp_path / "secret.png"
+    secret.write_bytes(b"top secret host bytes")
+
+    link = log_dir / "evil.png"
+    try:
+        link.symlink_to(secret)
+    except (OSError, NotImplementedError):  # pragma: no cover - platform w/o symlinks
+        pytest.skip("symlinks not supported on this platform")
+
+    out = _embed_figure(log_dir, "evil.png")
+    assert "figure not found" in out
+    assert "data:" not in out
+
+
 def test_quantity_result_renders_value_and_unit(tmp_path: Path):
     log_dir = tmp_path / "auto_log"
     log_dir.mkdir()
