@@ -17,6 +17,19 @@ import subprocess
 import time
 from pathlib import Path
 
+from rich.console import Console
+
+
+# All user-facing status/warning output in this module goes through this one
+# stderr Console (never bare print()), matching cli.py. markup/highlight are
+# off so an interpolated path or exception string can't be misparsed.
+console = Console(stderr=True)
+
+
+def _status(message: str) -> None:
+    """Print a plain status/warning line to stderr via the shared Console."""
+    console.print(message, markup=False, highlight=False)
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -130,13 +143,12 @@ def configure_docker_desktop_memory() -> None:
     settings["memoryMiB"] = target_mb
     try:
         settings_path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-        print(
+        _status(
             f"Docker Desktop memory updated: {current_mb} MB → {target_mb} MB "
             f"(half of host RAM). Restart Docker Desktop to apply.",
-            flush=True,
         )
     except OSError as exc:
-        print(f"Warning: could not update Docker Desktop settings: {exc}", flush=True)
+        _status(f"Warning: could not update Docker Desktop settings: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -160,17 +172,10 @@ def _get_half_host_ram_mb() -> int:
             else:
                 return 4096
         elif system == "Windows":
-            out = subprocess.check_output(
-                ["wmic", "computersystem", "get", "TotalPhysicalMemory", "/value"],
-                stderr=subprocess.DEVNULL,
-                text=True,
-            )
-            for line in out.splitlines():
-                if line.startswith("TotalPhysicalMemory="):
-                    total_mb = int(line.split("=")[1].strip()) // (1024 * 1024)
-                    break
-            else:
+            win_mb = _windows_total_ram_mb()
+            if win_mb is None:
                 return 4096
+            total_mb = win_mb
         else:
             return 4096
     except Exception:
@@ -178,6 +183,44 @@ def _get_half_host_ram_mb() -> int:
 
     half = total_mb // 2
     return max((half // 512) * 512, 1024)  # round to 512 MB boundary, minimum 1 GB
+
+
+def _windows_total_ram_mb() -> int | None:
+    """Total physical RAM in MB on Windows, or ``None`` if undeterminable.
+
+    Prefers PowerShell's CIM query: ``wmic`` was removed in Windows 11 24H2, so
+    the old ``wmic computersystem get TotalPhysicalMemory`` raises
+    ``FileNotFoundError`` there and silently fell back to a 4 GB guess (which
+    then halves the container to a needlessly tiny 2 GB). ``wmic`` is kept only
+    as a fallback for older Windows that lack the CIM cmdlets.
+    """
+    try:
+        out = subprocess.check_output(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory",
+            ],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        if out:
+            return int(out) // (1024 * 1024)
+    except Exception:
+        pass
+    try:
+        out = subprocess.check_output(
+            ["wmic", "computersystem", "get", "TotalPhysicalMemory", "/value"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        for line in out.splitlines():
+            if line.startswith("TotalPhysicalMemory="):
+                return int(line.split("=")[1].strip()) // (1024 * 1024)
+    except Exception:
+        pass
+    return None
 
 
 def _get_podman_machine_memory_mb() -> int:
@@ -199,7 +242,7 @@ def _apply_podman_machine_memory(target_mb: int) -> None:
             ["podman", "machine", "set", "--memory", str(target_mb)], check=True
         )
     except subprocess.CalledProcessError as exc:
-        print(f"Warning: could not update Podman machine memory: {exc}", flush=True)
+        _status(f"Warning: could not update Podman machine memory: {exc}")
 
 
 _WINDOWS_PODMAN_SEARCH_ROOTS = [
@@ -271,7 +314,7 @@ def _require_podman() -> None:
     if platform.system() == "Windows":
         podman_exe = _find_podman_windows()
         if podman_exe is None:
-            print(
+            _status(
                 "\nPodman was not found on PATH and could not be located automatically.\n"
                 "Please enter the full path to podman.exe.\n"
                 "Tip: open File Explorer and search for 'podman.exe', or look inside\n"
@@ -303,17 +346,15 @@ def _configure_podman_machine_memory(target_mb: int, running: bool) -> None:
         return
 
     if running:
-        print(
+        _status(
             f"Warning: Podman machine has only {current_mb} MB RAM "
             f"(recommended: {target_mb} MB — half of host RAM). "
             "Stop the machine and re-run to apply the update.",
-            flush=True,
         )
     else:
-        print(
+        _status(
             f"Podman machine has {current_mb} MB RAM — "
             f"adjusting to {target_mb} MB (half of host RAM) …",
-            flush=True,
         )
         _apply_podman_machine_memory(target_mb)
 
@@ -365,7 +406,7 @@ def _start_podman_machine() -> None:
         output = pattern.sub("", output)
     cleaned = output.strip()
     if cleaned:
-        print(cleaned, flush=True)
+        _status(cleaned)
     if result.returncode != 0:
         raise subprocess.CalledProcessError(
             result.returncode, ["podman", "machine", "start"]
@@ -388,23 +429,22 @@ def _setup_podman_macos() -> str:
         machines = []
 
     if not machines:
-        print(
+        _status(
             f"No Podman machine found — initializing with {target_mb} MB RAM "
             f"(half of host RAM) …",
-            flush=True,
         )
         subprocess.run(
             ["podman", "machine", "init", "--rootful", "--memory", str(target_mb)],
             check=True,
         )
-        print("Starting Podman machine …", flush=True)
+        _status("Starting Podman machine …")
         _start_podman_machine()
     else:
         machine = machines[0]
         running = machine.get("Running", False)
         if not running:
             _configure_podman_machine_memory(target_mb, running=False)
-            print("Starting Podman machine …", flush=True)
+            _status("Starting Podman machine …")
             _start_podman_machine()
         else:
             _configure_podman_machine_memory(target_mb, running=True)
@@ -455,23 +495,22 @@ def _setup_podman_windows() -> str:
         machines = []
 
     if not machines:
-        print(
+        _status(
             f"No Podman machine found — initializing with {target_mb} MB RAM "
             f"(half of host RAM) …",
-            flush=True,
         )
         subprocess.run(
             ["podman", "machine", "init", "--rootful", "--memory", str(target_mb)],
             check=True,
         )
-        print("Starting Podman machine …", flush=True)
+        _status("Starting Podman machine …")
         _start_podman_machine()
     else:
         machine = machines[0]
         running = machine.get("Running", False)
         if not running:
             _configure_podman_machine_memory(target_mb, running=False)
-            print("Starting Podman machine …", flush=True)
+            _status("Starting Podman machine …")
             _start_podman_machine()
         else:
             _configure_podman_machine_memory(target_mb, running=True)
@@ -696,7 +735,9 @@ def _setup_podman_linux() -> str:
         return host_url
 
     # Try activating via systemd (rootless first, then rootful).
-    print("Podman socket not found or not responsive — attempting to activate via systemd …", flush=True)
+    _status(
+        "Podman socket not found or not responsive — attempting to activate via systemd …"
+    )
     _try_systemd_start(rootful=False)
     socket_path = _find_podman_linux_socket()
 

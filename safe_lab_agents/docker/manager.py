@@ -31,6 +31,11 @@ from safe_lab_agents.docker.runtime import (
 
 logger = logging.getLogger(__name__)
 
+# Single Console for all user-facing status output in this module (stderr, so it
+# never mixes with an agent's stdout). Matches the convention in cli.py and the
+# rest of the package — no bare print() calls.
+console = Console(stderr=True)
+
 # Docker image prefix for committed session images.
 _SESSION_IMAGE_PREFIX = "safe-lab-agents-session-"
 
@@ -149,7 +154,9 @@ def _connect_or_start_docker() -> docker.DockerClient:
 
     system = platform.system()
     logger.info("Docker is not running — attempting to start it (%s) …", system)
-    print("Docker is not running — starting it automatically …", flush=True)
+    console.print(
+        "Docker is not running — starting it automatically …", highlight=False
+    )
 
     try:
         if system == "Darwin":
@@ -178,11 +185,15 @@ def _connect_or_start_docker() -> docker.DockerClient:
         try:
             client = docker.from_env()
             client.ping()
-            print("Docker is ready.", flush=True)
+            console.print("Docker is ready.", highlight=False)
             return client
         except (docker.errors.DockerException, requests.exceptions.RequestException):
             remaining = int(deadline - time.monotonic())
-            print(f"  Waiting for Docker … ({remaining}s remaining)", end="\r", flush=True)
+            console.print(
+                f"  Waiting for Docker … ({remaining}s remaining)",
+                end="\r",
+                highlight=False,
+            )
             time.sleep(2)
 
     raise RuntimeError(
@@ -661,7 +672,9 @@ class DockerManager:
         """
         container.start()
         logger.info("Streaming output from container %s …", container.name)
-        console = Console()
+        # The agent's live output is primary content, so it goes to stdout (can be
+        # redirected/captured), unlike the module-level status console on stderr.
+        out_console = Console()
         log_fh = stream_log_file.open("a", encoding="utf-8") if stream_log_file else None
         try:
             # Buffer across chunks so we only process complete newline-delimited
@@ -676,13 +689,13 @@ class DockerManager:
                         log_fh.write(line.strip() + "\n")
                     formatted = agent.format_autonomous_line(line)
                     if formatted is not None:
-                        console.print(formatted, markup=True, highlight=False)
+                        out_console.print(formatted, markup=True, highlight=False)
             if buf.strip():
                 if log_fh and buf.strip().startswith("{"):
                     log_fh.write(buf.strip() + "\n")
                 formatted = agent.format_autonomous_line(buf)
                 if formatted is not None:
-                    console.print(formatted, markup=True, highlight=False)
+                    out_console.print(formatted, markup=True, highlight=False)
         finally:
             if log_fh:
                 log_fh.close()
