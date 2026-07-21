@@ -191,3 +191,83 @@ def test_tools_info_shows_true_defaults() -> None:
     assert "Path('.')" in info
     assert "float('inf')" in info
     assert "_Mode.FAST" in info
+
+
+# --- Quantity reconstruction on the client side ---
+
+
+def test_invoke_rebuilds_scalar_quantity(monkeypatch) -> None:
+    """A bare {value, unit} result comes back as a Quantity, not a plain dict."""
+    ns = _exec_header(monkeypatch, port="5000", host=None)
+    import pickle
+
+    monkeypatch.setattr(
+        ns["urllib"].request,
+        "urlopen",
+        lambda req: io.BytesIO(pickle.dumps({"value": 2.5, "unit": "W"})),
+    )
+    result = ns["_invoke"]("read_power")
+    assert isinstance(result, ns["Quantity"])
+    assert result.value == 2.5
+    assert result.unit == "W"
+    assert result.term is None
+    assert float(result) == 2.5
+
+
+def test_invoke_rebuilds_nested_quantities(monkeypatch) -> None:
+    """Quantities nested inside dicts/lists are rebuilt; plain values are untouched."""
+    ns = _exec_header(monkeypatch, port="5000", host=None)
+    import pickle
+
+    payload = {
+        "power": {"value": 2.5, "unit": "W", "term": "http://qudt.org/vocab/unit/W"},
+        "readings": [{"value": 1, "unit": "V"}, {"value": 2, "unit": "V"}],
+        "label": "run-1",
+    }
+    monkeypatch.setattr(
+        ns["urllib"].request,
+        "urlopen",
+        lambda req: io.BytesIO(pickle.dumps(payload)),
+    )
+    result = ns["_invoke"]("read_all")
+    assert isinstance(result["power"], ns["Quantity"])
+    assert result["power"].term == "http://qudt.org/vocab/unit/W"
+    assert all(isinstance(r, ns["Quantity"]) for r in result["readings"])
+    assert result["label"] == "run-1"  # plain values pass through unchanged
+
+
+def test_invoke_does_not_rebuild_ndarray_ref_dict(monkeypatch) -> None:
+    """An ndarray reference dict (has a 'unit' key) must not be mistaken for a
+    quantity."""
+    ns = _exec_header(monkeypatch, port="5000", host=None)
+    import pickle
+
+    ref = {"_type": "ndarray", "value": "scan.x", "unit": "V"}
+    monkeypatch.setattr(
+        ns["urllib"].request,
+        "urlopen",
+        lambda req: io.BytesIO(pickle.dumps(ref)),
+    )
+    result = ns["_invoke"]("read_trace")
+    assert result == ref  # left as-is, not wrapped in Quantity
+
+
+def test_quantity_type_annotation_surfaces_in_signature(monkeypatch) -> None:
+    """A '-> Quantity' return annotation is preserved in the generated stub, and
+    the stub is importable because Quantity is defined in the header."""
+
+    def read_power() -> Quantity:  # noqa: F821 - annotation is a string (PEP 563)
+        """Read power."""
+        return {}
+
+    ns, src = _exec_generated(monkeypatch, [read_power])
+    assert "-> Quantity" in src
+    assert "read_power" in ns
+
+
+def test_tools_info_explains_quantity() -> None:
+    """The agent-facing info explains the Quantity object it will receive."""
+    info = _format_tools_info([_a_tool])
+    assert "Quantity" in info
+    assert ".value" in info
+    assert ".unit" in info

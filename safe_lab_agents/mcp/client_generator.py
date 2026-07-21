@@ -70,6 +70,74 @@ class _MissingType:
 _MISSING = _MissingType()
 
 
+class Quantity:
+    """A measurement value carrying a unit, as returned by a tool.
+
+    ``value`` is the underlying number or numpy array, ``unit`` is a string
+    (e.g. "W"), and ``term`` is an optional ontology IRI.  A tool annotated
+    ``-> Quantity`` (or e.g. ``-> dict[str, Quantity]``) returns these; use it
+    like its value in arithmetic (``float(q)``, ``np.asarray(q)``) — the unit is
+    carried on the object, not through numeric operations.
+    """
+    __slots__ = ("value", "unit", "term")
+
+    def __init__(self, value, unit, term=None):
+        self.value = value
+        self.unit = unit
+        self.term = term
+
+    def __repr__(self):
+        if self.term:
+            return f"Quantity({self.value!r}, {self.unit!r}, term={self.term!r})"
+        return f"Quantity({self.value!r}, {self.unit!r})"
+
+    def __str__(self):
+        return f"{self.value} {self.unit}"
+
+    def __float__(self):
+        return float(self.value)
+
+    def __int__(self):
+        return int(self.value)
+
+    def __array__(self, dtype=None):
+        if not _NUMPY:
+            raise TypeError("numpy is not available to convert this Quantity")
+        arr = np.asarray(self.value)
+        return arr.astype(dtype) if dtype is not None else arr
+
+    def __eq__(self, other):
+        if isinstance(other, Quantity):
+            return self.value == other.value and self.unit == other.unit
+        return NotImplemented
+
+    __hash__ = None
+
+
+def _is_quantity_dict(obj):
+    """Mirror of ``records.is_quantity``: a {value, unit} dict that is not an
+    ndarray reference dict."""
+    return (
+        isinstance(obj, dict)
+        and "value" in obj
+        and "unit" in obj
+        and obj.get("_type") != "ndarray"
+    )
+
+
+def _rebuild(obj):
+    """Recursively turn quantity dicts in a tool result into Quantity objects."""
+    if _is_quantity_dict(obj):
+        return Quantity(_rebuild(obj["value"]), obj["unit"], obj.get("term"))
+    if isinstance(obj, dict):
+        return {k: _rebuild(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_rebuild(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_rebuild(v) for v in obj)
+    return obj
+
+
 def _encode_arg(obj):
     """Encode one argument for JSON transport. Numpy arrays use the .npy byte stream."""
     if _NUMPY and isinstance(obj, np.ndarray):
@@ -90,7 +158,7 @@ def _invoke(tool_name: str, **kwargs):
     req = urllib.request.Request(_URL, data=body, headers=_HEADERS)
     try:
         with urllib.request.urlopen(req) as r:
-            return pickle.loads(r.read())
+            return _rebuild(pickle.loads(r.read()))
     except urllib.error.HTTPError as e:
         if e.code == 422:
             msg = json.loads(e.read().decode()).get("error", "type validation failed")
@@ -288,6 +356,13 @@ def _format_tools_info(tools: list[Callable]) -> str:
         "Import with:",
         '    import sys; sys.path.insert(0, "/agent/workspace")',
         f"    from tools_client import {names}",
+        "",
+        "Measurement values carry units as Quantity objects. A tool that returns a",
+        "measurement (annotated '-> Quantity', or a dict/list containing quantities)",
+        "gives back Quantity objects with .value (the number or numpy array), .unit",
+        "(a string like 'W'), and .term (an optional ontology IRI, may be None). Read",
+        "the number via q.value or float(q); np.asarray(q) gives the array. Import the",
+        "type from tools_client if you need it: 'from tools_client import Quantity'.",
         "",
         "Available Python tools:",
     ]

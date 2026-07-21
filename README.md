@@ -155,14 +155,14 @@ Create a folder for your experiment and, inside it, a Python file with functions
 
 ```python
 from safe_lab_agents import experiment  # lazy wrapper — avoids opening hardware on import
-from safe_lab_agents import quantity    # attach units to measurements for richer logging
+from safe_lab_agents import quantity, Quantity   # attach units to measurements for richer logging
 
 from setup import ExampleOpticalSetup    # your class that talks to the hardware
 
 # Constructed lazily on first use — see "Stateful experiments" below.
 exp = experiment(ExampleOpticalSetup)
 
-def get_current_lab_temperature(position: str) -> dict:
+def get_current_lab_temperature(position: str) -> dict[str, Quantity|str]:
     """Return the current lab temperature at a given position.
 
     Args:
@@ -343,9 +343,9 @@ For best results, tools should return a `dict` when `--auto-log` is on — keys 
 We also recommend attaching a unit to any measurement value by wrapping it with `quantity(value, unit, term=None)`. Units are opt-in per value — anything you don't wrap stays a plain value.
 
 ```python
-from safe_lab_agents import quantity
+from safe_lab_agents import quantity, Quantity # for type hints for the agent
 
-def measure_power(channel: int) -> dict:
+def measure_power(channel: int) -> dict[str, Quantity|str]:
     return {
         "power": quantity(2.5, "W"),      # scalar with a unit
         "trace": quantity(samples, "V"),  # numpy array with a unit

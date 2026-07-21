@@ -139,6 +139,40 @@ def quantity(value: Any, unit: str, term: str | None = None) -> dict[str, Any]:
     return q
 
 
+class Quantity:
+    """Annotation type for a value produced by :func:`quantity`.
+
+    Use it as the return annotation of a ``PYTHON_TOOL`` that returns a quantity
+    so the generated ``tools_client.py`` advertises an honest type instead of the
+    plain physical type::
+
+        def read_power() -> Quantity:
+            return quantity(2.5, "W")
+
+    The two runtime representations differ by design and share this annotation:
+    on the host a quantity is a JSON/pickle-safe ``{"value", "unit"}`` dict (what
+    :func:`quantity` returns and every downstream consumer recognises via
+    :func:`is_quantity`); the in-container Python client rebuilds it into a
+    ``Quantity`` object exposing ``.value`` / ``.unit`` / ``.term``.  Nesting is
+    supported too (``-> dict[str, Quantity]``).
+    """
+
+    __slots__ = ("value", "unit", "term")
+
+    def __init__(self, value: Any, unit: str, term: str | None = None) -> None:
+        self.value = value
+        self.unit = unit
+        self.term = term
+
+    def __repr__(self) -> str:
+        if self.term:
+            return f"Quantity({self.value!r}, {self.unit!r}, term={self.term!r})"
+        return f"Quantity({self.value!r}, {self.unit!r})"
+
+    def __str__(self) -> str:
+        return f"{self.value} {self.unit}"
+
+
 def is_quantity(value: Any) -> bool:
     """Return ``True`` if *value* is a quantity dict (``value`` + ``unit``).
 
