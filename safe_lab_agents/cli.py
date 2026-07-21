@@ -581,7 +581,7 @@ def start(
             "/agent/shared/auto_log" if shared else "/agent/workspace/auto_log"
         )
         # AUTO_LOG_DIR (and the KADI4MAT_* vars set below) are read inside the MCP
-        # server subprocess — by autolog.make_autolog_wrapper() — not here. They
+        # server subprocess — by autolog.AutoLogger.from_env() — not here. They
         # travel via os.environ because the subprocess inherits the environment at
         # spawn time; keep this assignment before ExperimentMCPServer.start().
         os.environ["AUTO_LOG_DIR"] = str(auto_log_host_dir)

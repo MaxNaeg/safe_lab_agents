@@ -131,7 +131,7 @@ class TestMakeRecordIdentifier:
 class TestAutoLogKadiIntegration:
     """Tests for the auto-log → Kadi4Mat push integration.
 
-    Uses a mock KadiClient injected directly into autolog module state.
+    Uses a mock KadiClient injected directly into an AutoLogger instance.
     No real Kadi4Mat instance required.
     """
 
@@ -143,28 +143,19 @@ class TestAutoLogKadiIntegration:
         return client
 
     def _setup(self, tmp_path, mock_client=None):
-        import os
+        from safe_lab_agents.mcp.predefined.autolog import AutoLogger
 
-        os.environ["AUTO_LOG_DIR"] = str(tmp_path)
-        from safe_lab_agents.mcp.predefined.autolog import make_autolog_wrapper
+        auto_logger = AutoLogger(output_dir=tmp_path, kadi_client=mock_client)
+        return auto_logger.wrapper, auto_logger
 
-        wrapper = make_autolog_wrapper()
-        import safe_lab_agents.mcp.predefined.autolog as autolog_mod
-
-        autolog_mod._kadi_client = mock_client
-        return wrapper, autolog_mod
-
-    def _teardown(self, autolog_mod):
-        import os
-
-        os.environ.pop("AUTO_LOG_DIR", None)
-        autolog_mod._current_batch = None
-        autolog_mod._output_dir = None
-        autolog_mod._kadi_client = None
+    def _teardown(self, auto_logger):
+        # Nothing to clean up: all state lives on the instance, which is dropped
+        # when the test returns.  Kept for symmetry with the try/finally callers.
+        pass
 
     def test_individual_record_calls_create_record(self, tmp_path):
         mock_client = self._make_mock_client()
-        wrapper, autolog_mod = self._setup(tmp_path, mock_client)
+        wrapper, auto_logger = self._setup(tmp_path, mock_client)
         try:
 
             def measure(voltage: float) -> dict:
@@ -180,7 +171,7 @@ class TestAutoLogKadiIntegration:
             assert kwargs["result"]["voltage"] == 3.0
             assert kwargs["result"]["reading"] == 0.5
         finally:
-            self._teardown(autolog_mod)
+            self._teardown(auto_logger)
 
     def test_nested_array_flattened_into_dotted_extra(self, tmp_path):
         """An array nested in a dict result reaches Kadi as its own dotted extra
@@ -188,7 +179,7 @@ class TestAutoLogKadiIntegration:
         import numpy as np
 
         mock_client = self._make_mock_client()
-        wrapper, autolog_mod = self._setup(tmp_path, mock_client)
+        wrapper, auto_logger = self._setup(tmp_path, mock_client)
         try:
 
             def measure() -> dict:
@@ -203,12 +194,12 @@ class TestAutoLogKadiIntegration:
             # No value is a raw reference dict / nested container.
             assert not any(isinstance(v, (dict, list)) for v in result.values())
         finally:
-            self._teardown(autolog_mod)
+            self._teardown(auto_logger)
 
     def test_kadi_failure_does_not_break_tool(self, tmp_path):
         mock_client = self._make_mock_client()
         mock_client.create_record.side_effect = RuntimeError("Kadi is down")
-        wrapper, autolog_mod = self._setup(tmp_path, mock_client)
+        wrapper, auto_logger = self._setup(tmp_path, mock_client)
         try:
 
             def measure(voltage: float) -> float:
@@ -218,10 +209,10 @@ class TestAutoLogKadiIntegration:
             result = wrapper(measure)(voltage=1.5)
             assert result == 3.0
         finally:
-            self._teardown(autolog_mod)
+            self._teardown(auto_logger)
 
     def test_no_kadi_client_skips_push(self, tmp_path):
-        wrapper, autolog_mod = self._setup(tmp_path, mock_client=None)
+        wrapper, auto_logger = self._setup(tmp_path, mock_client=None)
         try:
             call_count = {"n": 0}
 
@@ -233,11 +224,11 @@ class TestAutoLogKadiIntegration:
             # No exception means push was silently skipped
             assert call_count["n"] == 0
         finally:
-            self._teardown(autolog_mod)
+            self._teardown(auto_logger)
 
     def test_hdf5_file_passed_to_kadi_when_arrays_present(self, tmp_path):
         mock_client = self._make_mock_client()
-        wrapper, autolog_mod = self._setup(tmp_path, mock_client)
+        wrapper, auto_logger = self._setup(tmp_path, mock_client)
         try:
 
             def scan() -> dict:
@@ -255,13 +246,13 @@ class TestAutoLogKadiIntegration:
             assert ".h5" in suffixes
             assert ".json" in suffixes
         finally:
-            self._teardown(autolog_mod)
+            self._teardown(auto_logger)
 
     def test_no_autolog_decorator_skips_kadi(self, tmp_path):
         from safe_lab_agents.mcp.predefined.autolog import no_autolog
 
         mock_client = self._make_mock_client()
-        wrapper, autolog_mod = self._setup(tmp_path, mock_client)
+        wrapper, auto_logger = self._setup(tmp_path, mock_client)
         try:
 
             @no_autolog
@@ -272,15 +263,13 @@ class TestAutoLogKadiIntegration:
             assert result == 6
             mock_client.create_record.assert_not_called()
         finally:
-            self._teardown(autolog_mod)
+            self._teardown(auto_logger)
 
     def test_batch_pushes_to_kadi_on_stop(self, tmp_path):
         mock_client = self._make_mock_client()
-        wrapper, autolog_mod = self._setup(tmp_path, mock_client)
+        wrapper, auto_logger = self._setup(tmp_path, mock_client)
         try:
-            from safe_lab_agents.mcp.predefined.autolog import start_batch, stop_batch
-
-            start_batch("Voltage sweep")
+            auto_logger.start_batch("Voltage sweep")
 
             def measure(v: float) -> dict:
                 return {"v": v}
@@ -290,21 +279,19 @@ class TestAutoLogKadiIntegration:
             # No kadi push during batch
             mock_client.create_record.assert_not_called()
 
-            stop_batch()
+            auto_logger.stop_batch()
             # One kadi push for the whole batch
             mock_client.create_record.assert_called_once()
             kwargs = mock_client.create_record.call_args[1]
             assert kwargs["title"] == "Voltage sweep"
         finally:
-            self._teardown(autolog_mod)
+            self._teardown(auto_logger)
 
     def test_log_analysis_pushes_to_kadi(self, tmp_path):
         mock_client = self._make_mock_client()
-        wrapper, autolog_mod = self._setup(tmp_path, mock_client)
+        wrapper, auto_logger = self._setup(tmp_path, mock_client)
         try:
-            from safe_lab_agents.mcp.predefined.autolog import log_analysis
-
-            result = log_analysis(
+            result = auto_logger.log_analysis(
                 title="Linear fit",
                 text="Power scales linearly.",
                 data={"slope": 0.023, "residuals": np.array([0.1, -0.1, 0.05])},
@@ -325,7 +312,7 @@ class TestAutoLogKadiIntegration:
             # text forwarded to kadi
             assert kwargs["result"].get("text") == "Power scales linearly."
         finally:
-            self._teardown(autolog_mod)
+            self._teardown(auto_logger)
 
 
 # ======================================================================

@@ -204,15 +204,17 @@ def _run_server(
     # ---- Build wrapper chain from active env-var-activated features ----
     # auto-log innermost (captures instrument time only); kadi outermost.
     active_wrappers: list = []
+    auto_logger = None
     if os.environ.get("AUTO_LOG_DIR"):
-        from safe_lab_agents.mcp.predefined.autolog import (
-            make_autolog_wrapper,
-            start_batch,
-            stop_batch,
-            log_analysis,
+        from safe_lab_agents.mcp.predefined.autolog import AutoLogger
+
+        # All auto-log state lives on this instance; its bound methods are the
+        # wrapper and the batch/analysis control tools.
+        auto_logger = AutoLogger.from_env()
+        active_wrappers.append(auto_logger.wrapper)
+        predefined_python_tools.extend(
+            [auto_logger.start_batch, auto_logger.stop_batch, auto_logger.log_analysis]
         )
-        active_wrappers.append(make_autolog_wrapper())
-        predefined_python_tools.extend([start_batch, stop_batch, log_analysis])
     def _apply_wrappers(func: Callable) -> Callable:
         for w in active_wrappers:
             func = w(func)
@@ -356,11 +358,9 @@ def _run_server(
         # write_session_summary runs later in the host process and only reads
         # files already on disk. Runs on both --update-tools reload and final
         # shutdown (see the run_kwargs comment above).
-        if os.environ.get("AUTO_LOG_DIR"):
+        if auto_logger is not None:
             try:
-                from safe_lab_agents.mcp.predefined.autolog import flush_active_batch
-
-                flushed = flush_active_batch()
+                flushed = auto_logger.flush_active_batch()
                 if flushed:
                     logger.info("auto-log: flushed unclosed batch at shutdown: %s", flushed)
             except Exception:
