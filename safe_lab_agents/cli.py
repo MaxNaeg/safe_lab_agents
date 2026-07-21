@@ -511,6 +511,11 @@ def start(
     update_tools = _from_config("update_tools", update_tools)
     auto_log = _from_config("auto_log", auto_log)
 
+    # Reject a clashing name up front, before any wizard prompts, so
+    # `agent start --name <taken>` fails fast instead of after data entry.
+    if name:
+        _reject_existing_session(name)
+
     # ---- Interactive wizard: fill in missing values ----
     container = container or _prompt_container_runtime()
     if container not in ("docker", "podman"):
@@ -1506,11 +1511,41 @@ def _prompt_optional_path(label: str) -> Optional[Path]:
     return p
 
 
+def _session_exists(name: str) -> bool:
+    """True if a session directory already exists for *name*.
+
+    Uses the on-disk session directory (not just valid metadata) so leftover
+    logs/workspace from an earlier run of the same name are also caught —
+    reusing such a name silently mixes the two sessions' histories.
+    """
+    return (get_sessions_dir() / name).exists()
+
+
+def _reject_existing_session(name: str) -> None:
+    """Exit if *name* is already used by a session (``start`` must be unique)."""
+    if _session_exists(name):
+        console.print(
+            f"[bold red]A session named '{name}' already exists.[/bold red]\n"
+            f"Use [cyan]agent resume --name {name}[/cyan] to continue it, "
+            f"or pass a different [cyan]--name[/cyan]."
+        )
+        raise typer.Exit(1)
+
+
 def _prompt_session_name() -> str:
-    """Prompt for a session name or auto-generate one."""
+    """Prompt for a session name, re-asking if it clashes with an existing one."""
     default = generate_session_name()
-    raw = Prompt.ask("Session name", default=default)
-    return raw
+    while True:
+        raw = Prompt.ask("Session name", default=default)
+        if _session_exists(raw):
+            console.print(
+                f"[yellow]A session named '{raw}' already exists — "
+                f"resume it with [bold]agent resume --name {raw}[/bold] "
+                f"or choose a different name.[/yellow]"
+            )
+            default = generate_session_name()
+            continue
+        return raw
 
 
 def _pick_session(prompt: str) -> Optional[str]:
