@@ -8,6 +8,7 @@ operations are performed.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import platform
 import re
@@ -18,6 +19,8 @@ import time
 from pathlib import Path
 
 from rich.console import Console
+
+logger = logging.getLogger(__name__)
 
 
 # All user-facing status/warning output in this module goes through this one
@@ -179,7 +182,13 @@ def _get_half_host_ram_mb() -> int:
         else:
             return 4096
     except Exception:
-        return 4096  # conservative fallback
+        # Detection failing shouldn't abort the session — fall back to a
+        # conservative 4 GB — but log so a broken probe is diagnosable rather
+        # than silently capping every container.
+        logger.debug(
+            "Could not determine host RAM; using 4096 MB fallback", exc_info=True
+        )
+        return 4096
 
     half = total_mb // 2
     return max((half // 512) * 512, 1024)  # round to 512 MB boundary, minimum 1 GB
@@ -208,7 +217,7 @@ def _windows_total_ram_mb() -> int | None:
         if out:
             return int(out) // (1024 * 1024)
     except Exception:
-        pass
+        logger.debug("PowerShell CIM RAM query failed; trying wmic", exc_info=True)
     try:
         out = subprocess.check_output(
             ["wmic", "computersystem", "get", "TotalPhysicalMemory", "/value"],
@@ -219,7 +228,7 @@ def _windows_total_ram_mb() -> int | None:
             if line.startswith("TotalPhysicalMemory="):
                 return int(line.split("=")[1].strip()) // (1024 * 1024)
     except Exception:
-        pass
+        logger.debug("wmic RAM query failed; RAM undeterminable", exc_info=True)
     return None
 
 
@@ -232,6 +241,9 @@ def _get_podman_machine_memory_mb() -> int:
         data = json.loads(out)
         return data[0].get("Resources", {}).get("Memory", 0)
     except Exception:
+        # 0 signals "unknown" to callers, which then skip memory tuning; log so
+        # an inspect/parse failure is visible rather than silently skipped.
+        logger.debug("Could not read Podman machine memory", exc_info=True)
         return 0
 
 

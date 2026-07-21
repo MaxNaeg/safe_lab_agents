@@ -401,6 +401,14 @@ class AutoLogger:
                 bound.apply_defaults()
                 call_args = dict(bound.arguments)
             except Exception:
+                # Binding can fail for unusual callables; keep the record with a
+                # raw-repr fallback rather than dropping it, but log so a real
+                # binding bug stays traceable.
+                logger.debug(
+                    "auto-log: could not bind signature for '%s'; recording raw args",
+                    func.__name__,
+                    exc_info=True,
+                )
                 call_args = {"args": str(args), "kwargs": str(kwargs)}
 
             exp_id = f"exp_{start_time:%Y%m%d_%H%M%S_%f}"

@@ -150,7 +150,12 @@ def _array_stats(log_dir: Path, ref: dict) -> str:
         if arr.size and np.issubdtype(arr.dtype, np.number):
             return f"{base} · min {arr.min():.4g}, max {arr.max():.4g}, mean {arr.mean():.4g}"
     except Exception:
-        pass
+        # Best-effort enrichment: a missing h5py or an unreadable/odd dataset
+        # just means no min/max/mean suffix, not a report failure. Log at debug
+        # so the cause is recoverable without noising up a normal run.
+        logger.debug(
+            "report: could not summarise array stats for %s", fname, exc_info=True
+        )
     return base
 
 
@@ -280,7 +285,8 @@ def _embed_figure(log_dir: Path, fname: str) -> str:
         return f"<div class='missing'>figure: {_esc(fname)} (not an inline image)</div>"
     try:
         raw = path.read_bytes()
-    except Exception:
+    except OSError as exc:
+        logger.debug("report: could not read figure %s: %s", fname, exc)
         return f"<div class='missing'>could not read figure: {_esc(fname)}</div>"
     mime = mimetypes.guess_type(fname)[0] or "image/png"
     b64 = base64.b64encode(raw).decode("ascii")
