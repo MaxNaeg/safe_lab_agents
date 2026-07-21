@@ -207,8 +207,30 @@ def _inline_kv(log_dir: Path, mapping: dict) -> str:
     )
 
 
+def _tool_counts(experiments: list) -> str:
+    """Render a 'tool ×N' chip row summarising how often each tool ran.
+
+    Counts by each run's ``title`` (the tool name), preserving first-seen order
+    so the summary reads in call order rather than alphabetically.
+    """
+    counts: dict[str, int] = {}
+    for exp in experiments:
+        name = exp.get("title") or "—"
+        counts[name] = counts.get(name, 0) + 1
+    chips = "".join(
+        f"<span class='chip tool-count'>{_esc(name)} <span class='dim'>×{n}</span></span>"
+        for name, n in counts.items()
+    )
+    return f"<div class='tool-counts'>{chips}</div>"
+
+
 def _render_experiments(log_dir: Path, experiments: list) -> str:
-    """Render a batch's individual runs as a compact, scannable table."""
+    """Render a batch's individual runs as a compact, scannable table.
+
+    Collapsed by default (and kept collapsed by the toolbar's *show all*) — the
+    per-run table is the longest part of a batch card, and the tool-count
+    summary at the top of the card already conveys the shape of the sweep.
+    """
     head = (
         "<tr><th>#</th><th>tool</th><th>dur</th>"
         "<th>parameters</th><th>result</th></tr>"
@@ -227,7 +249,12 @@ def _render_experiments(log_dir: Path, experiments: list) -> str:
             f"<td>{_inline_kv(log_dir, result)}</td></tr>"
         )
     table = f"<table class='kv exp-table'>{head}{''.join(rows)}</table>"
-    return _collapsible(f"Experiments ({len(experiments)})", table)
+    return _collapsible(
+        f"Experiments ({len(experiments)})",
+        table,
+        open=False,
+        extra_class="experiments",
+    )
 
 
 def _render_kv_table(log_dir: Path, title: str, mapping: dict) -> str:
@@ -311,6 +338,9 @@ def _render_card(entry: dict, log_dir: Path, ids: set[str]) -> str:
     # Batch metadata + the individual runs it grouped
     if entry.get("type") == "batch":
         experiments = entry.get("experiments", [])
+        # Tool-run summary right at the top of the card.
+        if experiments:
+            parts.append(_tool_counts(experiments))
         meta: dict = {}
         if entry.get("description"):
             meta["description"] = entry["description"]
@@ -420,6 +450,8 @@ table.kv th { text-align: left; padding: 3px 6px; font-size: 11px; font-weight: 
 .unit { color: #57606a; font-size: 11px; }
 .chip { background: #eaeef2; border-radius: 6px; padding: 1px 6px; font-size: 12px;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tool-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.tool-count { padding: 2px 8px; }
 img.figure { max-width: 100%; border: 1px solid #d0d7de; border-radius: 8px; }
 .ref { display: inline-block; margin: 2px 6px 2px 0; padding: 1px 8px; border-radius: 6px;
        background: #ddf4ff; color: #0969da; text-decoration: none; font-size: 12px;
@@ -453,7 +485,8 @@ search.addEventListener('input', applyFilters);
 kindBoxes.forEach(b => b.addEventListener('change', applyFilters));
 
 document.getElementById('expand-all').addEventListener('click', () => {
-  document.querySelectorAll('details.block').forEach(d => d.open = true);
+  // Leave batch experiment tables collapsed even when expanding everything else.
+  document.querySelectorAll('details.block:not(.experiments)').forEach(d => d.open = true);
 });
 document.getElementById('collapse-all').addEventListener('click', () => {
   document.querySelectorAll('details.block').forEach(d => d.open = false);

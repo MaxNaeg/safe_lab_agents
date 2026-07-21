@@ -273,6 +273,13 @@ def test_batch_renders_individual_experiments(tmp_path: Path):
     assert "voltage" in html  # param_ prefix stripped, value shown
     assert "2.2" in html  # a per-run result is rendered
     assert "<table class='kv exp-table'>" in html
+    # Tool-run summary at the top: "measure ×2" (both runs share a title).
+    assert "measure" in html
+    assert "×2" in html
+    # Experiments table is collapsed by default and stays collapsed on "show all".
+    assert "extra_class" not in html  # sanity: no literal kwarg leaked
+    assert "class='block experiments'>" in html  # not open
+    assert "details.block:not(.experiments)" in html  # expand-all skips it
 
 
 def test_empty_folder_writes_placeholder(tmp_path: Path):
