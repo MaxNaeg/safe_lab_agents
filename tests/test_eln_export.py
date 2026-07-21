@@ -76,6 +76,36 @@ def test_build_eln_produces_valid_crate(tmp_path: Path):
     assert power["unitCode"] == "http://qudt.org/vocab/unit/W"
 
 
+def test_build_eln_resolves_ascii_celsius_unitcode(tmp_path: Path):
+    """The ASCII spelling ``degrees_C`` resolves to the DEG_C QUDT unitCode
+    (not just the non-ASCII ``°C``), so example tools emitting it aren't
+    silently dropped to unitText-only."""
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    _write(
+        log_dir,
+        "exp_20260101_000000_000001-temp.json",
+        {
+            "type": "individual",
+            "id": "exp_20260101_000000_000001",
+            "title": "temp",
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "parameters": {},
+            "result": {"temperature": {"value": 22.5, "unit": "degrees_C"}},
+        },
+    )
+
+    out = tmp_path / "session.eln"
+    build_eln(log_dir, out)
+
+    crate = _crate(out)
+    pvs = _graph_by_type(crate, "PropertyValue")
+    temp = next(p for p in pvs if p["name"] == "temperature")
+    assert temp["value"] == 22.5
+    assert temp["unitText"] == "degrees_C"
+    assert temp["unitCode"] == "http://qudt.org/vocab/unit/DEG_C"
+
+
 def test_build_eln_includes_files_with_checksums(tmp_path: Path):
     import h5py
     import numpy as np

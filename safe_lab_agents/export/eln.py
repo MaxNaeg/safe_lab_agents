@@ -76,6 +76,10 @@ _QUDT_UNITS: dict[str, str] = {
     "ohm": "http://qudt.org/vocab/unit/OHM",
     "Ω": "http://qudt.org/vocab/unit/OHM",
     "°C": "http://qudt.org/vocab/unit/DEG_C",
+    # ASCII spellings of degrees Celsius so tools that avoid non-ASCII unit
+    # strings (e.g. ``quantity(..., "degrees_C")``) still resolve a unitCode.
+    "degrees_C": "http://qudt.org/vocab/unit/DEG_C",
+    "degC": "http://qudt.org/vocab/unit/DEG_C",
 }
 
 # Exclude previously-generated artifacts from the file inventory.
