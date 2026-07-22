@@ -484,3 +484,74 @@ def test_connect_ping_failure_with_docker_host_raises(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="Could not connect to container runtime"):
         manager_mod._connect_or_start_docker()
+
+
+class _FakeAutonomousContainer:
+    """Container stand-in whose output stream is delivered as raw byte chunks.
+
+    ``chunks`` is the exact byte sequence a robust demux would yield; the test
+    controls where chunk boundaries fall (mid-line, mid-UTF-8) to prove the
+    reader reassembles complete lines regardless.
+    """
+
+    name = "safe-lab-agents-s"
+
+    def __init__(self, chunks: list[bytes]) -> None:
+        self._chunks = chunks
+        self.started = False
+        self.attach_kwargs: dict | None = None
+
+    def start(self) -> None:
+        self.started = True
+
+    def attach(self, **kwargs):
+        self.attach_kwargs = kwargs
+        return iter(self._chunks)
+
+    # start_autonomous must not fall back to the buggy logs() demux path.
+    def logs(self, **kwargs):  # pragma: no cover - guards against regression
+        raise AssertionError("start_autonomous must use attach(), not logs()")
+
+
+def _claude_code_agent():
+    from safe_lab_agents.agents import get_agent
+
+    return get_agent("claude-code")
+
+
+def test_start_autonomous_uses_attach_not_logs() -> None:
+    """The fix routes streaming through attach() (robust framing), never logs()."""
+    container = _FakeAutonomousContainer([b""])
+    mgr = DockerManager(docker_client=object())
+
+    mgr.start_autonomous(container, _claude_code_agent())
+
+    assert container.started
+    assert container.attach_kwargs == {
+        "stream": True,
+        "logs": True,
+        "stdout": True,
+        "stderr": True,
+    }
+
+
+def test_start_autonomous_reassembles_split_lines(capsys) -> None:
+    """A JSON line split across chunk boundaries (incl. mid-UTF-8) renders intact."""
+    # A stream-json assistant line carrying a multi-byte char (°), deliberately
+    # sliced so one chunk boundary lands in the middle of the UTF-8 sequence.
+    line = (
+        '{"type":"assistant","message":{"role":"assistant","content":'
+        '[{"type":"text","text":"lab is 22.5 °C"}]}}'
+    )
+    raw = (line + "\n").encode("utf-8")
+    deg_pos = raw.index(b"\xc2\xb0")  # split inside the 2-byte ° sequence
+    chunks = [raw[: deg_pos + 1], raw[deg_pos + 1 : -3], raw[-3:]]
+
+    container = _FakeAutonomousContainer(chunks)
+    mgr = DockerManager(docker_client=object())
+
+    mgr.start_autonomous(container, _claude_code_agent())
+
+    # The reassembled JSON parses, so the assistant text is rendered to stdout
+    # for the live display with its multi-byte char intact.
+    assert "lab is 22.5 °C" in capsys.readouterr().out

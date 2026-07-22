@@ -195,7 +195,29 @@ if [ "${1:-}" = "--resume" ]; then
         # Hard block on resume too (same as the interactive non-resume path).
         NO_WEB_FLAG=(--disallowedTools "WebSearch,WebFetch")
     fi
-    claude --continue \
+
+    # Resume by explicit session id, not `claude --continue`. `--continue` uses
+    # Claude Code's session picker, which intentionally EXCLUDES headless
+    # (`claude -p`) sessions — i.e. every autonomous run. So `--continue` reports
+    # "No conversation found to continue" for those even though the transcript
+    # exists on disk. Resuming by id works for both headless and interactive
+    # sessions. The transcript filename is the session id; pick the most recently
+    # modified transcript for this working directory's project, falling back to
+    # the newest transcript across all projects if the cwd→slug mapping differs.
+    PROJECTS_DIR="/home/agent/.claude/projects"
+    CWD_SLUG="$(pwd | sed 's#/#-#g')"
+    LATEST_TRANSCRIPT="$(ls -1t "$PROJECTS_DIR/$CWD_SLUG"/*.jsonl 2>/dev/null | head -n1 || true)"
+    if [ -z "$LATEST_TRANSCRIPT" ]; then
+        LATEST_TRANSCRIPT="$(ls -1t "$PROJECTS_DIR"/*/*.jsonl 2>/dev/null | head -n1 || true)"
+    fi
+    RESUME_FLAG=(--continue)
+    if [ -n "$LATEST_TRANSCRIPT" ]; then
+        SESSION_ID="$(basename "$LATEST_TRANSCRIPT" .jsonl)"
+        echo "Resuming Claude Code session ${SESSION_ID} …"
+        RESUME_FLAG=(--resume "$SESSION_ID")
+    fi
+
+    claude "${RESUME_FLAG[@]}" \
         --append-system-prompt "$SYSTEM_PROMPT" \
         "${NO_WEB_FLAG[@]}" \
         "${SKIP_PERMS_FLAG[@]}" \

@@ -7,6 +7,7 @@ to the host filesystem.
 
 from __future__ import annotations
 
+import codecs
 import logging
 import os
 import platform
@@ -652,21 +653,16 @@ class DockerManager:
         else:
             subprocess.run([cli, "start", "-ai", cid])
 
-    def start_autonomous(
-        self,
-        container: Container,
-        agent: BaseAgent,
-        stream_log_file: Optional[Path] = None,
-    ) -> None:
+    def start_autonomous(self, container: Container, agent: BaseAgent) -> None:
         """Start the container and stream its formatted output to the terminal.
 
         Each line of container output is passed through the agent's
         :meth:`~BaseAgent.format_autonomous_line` method before printing, so
         agents can render their native log format (e.g. ``stream-json``) in a
-        human-friendly way.
-
-        If *stream_log_file* is given, every raw JSON line is also written
-        there so it can be re-parsed as conversation history later.
+        human-friendly way. The stream is used for the live display only —
+        conversation history is reconstructed at shutdown from the agent's own
+        on-disk transcript (see :meth:`copy_agent_logs`), so nothing is
+        persisted here.
 
         Blocks until the container exits.
         """
@@ -675,30 +671,35 @@ class DockerManager:
         # The agent's live output is primary content, so it goes to stdout (can be
         # redirected/captured), unlike the module-level status console on stderr.
         out_console = Console()
-        log_fh = stream_log_file.open("a", encoding="utf-8") if stream_log_file else None
-        try:
-            # Buffer across chunks so we only process complete newline-delimited
-            # lines. Docker delivers logs in small chunks; splitting each chunk
-            # individually would break multi-byte sequences and JSON records.
-            buf = ""
-            for chunk in container.logs(stream=True, follow=True):
-                buf += chunk.decode(errors="replace")
-                while "\n" in buf:
-                    line, buf = buf.split("\n", 1)
-                    if log_fh and line.strip().startswith("{"):
-                        log_fh.write(line.strip() + "\n")
-                    formatted = agent.format_autonomous_line(line)
-                    if formatted is not None:
-                        out_console.print(formatted, markup=True, highlight=False)
-            if buf.strip():
-                if log_fh and buf.strip().startswith("{"):
-                    log_fh.write(buf.strip() + "\n")
-                formatted = agent.format_autonomous_line(buf)
+        # Buffer across chunks so we only process complete newline-delimited
+        # lines. Docker delivers logs in small chunks; splitting each chunk
+        # individually would break multi-byte sequences and JSON records.
+        #
+        # We attach rather than call ``container.logs(stream=True)``: for a
+        # non-TTY container docker-py's ``logs`` demux
+        # (``_multiplexed_response_stream_helper``) reads each frame payload
+        # with a single ``read(length)``, which short-reads on large frames
+        # (Claude Code's stream-json emits multi-kB lines — big tool_results
+        # and thinking blocks). A short read makes it mistake payload bytes
+        # for the next 8-byte frame header, desyncing the stream and
+        # corrupting the JSON (which then surfaces as raw/garbled lines).
+        # ``attach`` routes through ``frames_iter`` → ``read_exactly``, which
+        # reassembles frames correctly. Decode incrementally so a UTF-8
+        # sequence split across chunks is never mangled.
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        buf = ""
+        for chunk in container.attach(stream=True, logs=True, stdout=True, stderr=True):
+            buf += decoder.decode(chunk)
+            while "\n" in buf:
+                line, buf = buf.split("\n", 1)
+                formatted = agent.format_autonomous_line(line)
                 if formatted is not None:
                     out_console.print(formatted, markup=True, highlight=False)
-        finally:
-            if log_fh:
-                log_fh.close()
+        buf += decoder.decode(b"", final=True)
+        if buf.strip():
+            formatted = agent.format_autonomous_line(buf)
+            if formatted is not None:
+                out_console.print(formatted, markup=True, highlight=False)
 
     # ------------------------------------------------------------------
     # Lifecycle operations

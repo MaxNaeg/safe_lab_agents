@@ -20,7 +20,6 @@ import signal
 import sys
 import threading
 import time
-from datetime import datetime
 from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import Any, Literal, Optional, cast
@@ -924,10 +923,7 @@ def start(
 
     try:
         if mode == "autonomous":
-            stream_log = _prepare_stream_log(config, session_dir)
-            docker_mgr.start_autonomous(
-                container_obj, agent_backend, stream_log_file=stream_log
-            )
+            docker_mgr.start_autonomous(container_obj, agent_backend)
         else:
             docker_mgr.start_interactive(container_obj)
     except KeyboardInterrupt:
@@ -1325,39 +1321,6 @@ def export_eln(
         raise typer.Exit(1)
 
     console.print(f"[green].eln written →[/green] {out_path}")
-
-
-# ======================================================================
-# Stream-log helper
-# ======================================================================
-
-
-def _prepare_stream_log(config: "SessionConfig", session_dir: Path) -> Optional[Path]:
-    """Create the stream log path for an autonomous claude-code session.
-
-    Writes a synthetic user record with the task prompt so history includes it,
-    then returns the path for ``start_autonomous`` to append raw JSON lines.
-    Only used for agent types whose autonomous output is stream-json
-    (currently claude-code).
-    """
-    if config.agent_type != "claude-code":
-        return None
-    log_path = (
-        session_dir / "logs" / "projects" / "-autonomous-run" / f"{config.name}.jsonl"
-    )
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    if config.task:
-        from datetime import timezone
-
-        task_record = {
-            "type": "user",
-            "message": {"role": "user", "content": config.task},
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        log_path.write_text(json.dumps(task_record) + "\n", encoding="utf-8")
-    else:
-        log_path.write_text("", encoding="utf-8")
-    return log_path
 
 
 # ======================================================================
