@@ -228,8 +228,9 @@ agent resume --name session-20260413-153042
 > credentials supplied to the agent: the OpenClaw `LLM_API_KEY` (and provider keys such as `ANTHROPIC_API_KEY`)
 > and, for Claude Code, the OAuth token / credentials file.
 > Treat committed session images and the sessions directory as secrets.
-> The CLI keeps `~/.safe_lab_agents` at `0700` (owner-only), so other local users cannot read session
-> data or metadata — committed images are the remaining copy to guard.
+> The CLI keeps `~/.safe_lab_agents` owner-only (`0700` on macOS/Linux; an equivalent owner-only ACL
+> applied via `icacls` on Windows), so other local users cannot read session data or metadata —
+> committed images are the remaining copy to guard.
 
 ### See a real run
 

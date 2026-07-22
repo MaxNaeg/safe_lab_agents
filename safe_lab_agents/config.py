@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import platform
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -17,25 +20,88 @@ def get_base_dir() -> Path:
     """Return the base directory for safe_lab_agents data.
 
     Defaults to ``~/.safe_lab_agents``.  The directory is created if it does
-    not already exist and is kept owner-only (``0700``): reaching any file
-    requires traverse permission on every directory along the path, so gating
-    the tree at the top makes everything beneath unreachable to other local
-    users — even though session workspaces below are deliberately
-    world-writable (bind-mount UID mismatch, see ``_make_agent_writable``) and
-    ``metadata.json`` can hold secrets.  Containers are unaffected: bind
-    mounts are set up by the runtime/owner, not by path traversal.  Applied on
-    every call so pre-existing installs are tightened too; best-effort because
-    exotic filesystems (e.g. some network mounts) may not support chmod.
+    not already exist and is kept owner-only so that other local users cannot
+    read session data/metadata — even though session workspaces below are
+    deliberately world-writable (bind-mount UID mismatch, see
+    ``_make_agent_writable``) and ``metadata.json`` can hold secrets.
+    Containers are unaffected: bind mounts are set up by the runtime/owner.
+    Applied on every call so pre-existing installs are tightened too;
+    best-effort throughout — a failure is logged, never fatal.
     """
     base = Path.home() / ".safe_lab_agents"
     base.mkdir(parents=True, exist_ok=True)
+    _restrict_to_owner(base)
+    return base
+
+
+def _restrict_to_owner(base: Path) -> None:
+    """Best-effort: restrict *base* (and everything beneath) to the current user.
+
+    On POSIX a ``0700`` on the top directory suffices: reaching any file
+    requires traverse permission on every directory along the path, so gating
+    the tree at the top makes everything beneath unreachable to other users.
+
+    On Windows ``Path.chmod`` only toggles the read-only bit — it does **not**
+    touch NTFS ACLs, so ``0700`` there is a silent no-op and other local users
+    keep the ``Users``/``Authenticated Users`` read access inherited from the
+    profile.  Worse, the "Bypass traverse checking" privilege is granted to
+    everyone by default, so gating only the top directory would not protect the
+    files beneath.  We therefore use ``icacls`` (ships with Windows) to remove
+    the inherited ACEs and grant an **inheritable** full-control ACE to only the
+    current user, so files/dirs created beneath stay owner-only too.  This is
+    the parallel of POSIX ``0700``: local Administrators / SYSTEM still retain
+    access (via ownership / privilege), just as ``root`` does on POSIX.
+    """
+    logger = logging.getLogger(__name__)
+    if platform.system() == "Windows":
+        # ``USERDOMAIN\USERNAME`` resolves both local (domain == machine name)
+        # and domain accounts; fall back to the bare login name.
+        user = os.environ.get("USERNAME")
+        domain = os.environ.get("USERDOMAIN")
+        principal = f"{domain}\\{user}" if domain and user else user
+        if not principal:
+            logger.warning(
+                "Could not determine the current Windows user; leaving %s "
+                "permissions unchanged (other local users may be able to read it).",
+                base,
+            )
+            return
+        # icacls builds the final DACL from all options and writes it in one
+        # atomic call, so there is no window in which the grant is missing and
+        # no risk of locking the current user out: if the principal cannot be
+        # resolved the command fails and the ACL is left untouched.
+        try:
+            subprocess.run(
+                [
+                    "icacls",
+                    str(base),
+                    "/inheritance:r",  # drop inherited (profile) ACEs
+                    "/grant:r",
+                    f"{principal}:(OI)(CI)F",  # owner: full control, inheritable
+                    "/Q",  # suppress per-file success output
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            detail = getattr(exc, "stderr", None) or exc
+            logger.warning(
+                "Could not restrict %s to the current user via icacls: %s "
+                "(other local users may be able to read it).",
+                base,
+                detail,
+            )
+        return
+
+    # POSIX: gate the tree at the top. Best-effort — exotic filesystems (e.g.
+    # some network mounts) may not support chmod.
     try:
         base.chmod(0o700)
     except OSError as exc:
-        logging.getLogger(__name__).warning(
+        logger.warning(
             "Could not restrict %s to owner-only permissions: %s", base, exc
         )
-    return base
 
 
 def get_sessions_dir() -> Path:

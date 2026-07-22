@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import platform
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -92,6 +94,10 @@ class TestSessionConfig:
 class TestGetBaseDir:
     """Tests for :func:`get_base_dir` permissions."""
 
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="POSIX mode bits; Windows uses ACLs (see test_base_dir_owner_only_windows)",
+    )
     def test_base_dir_is_owner_only(self, tmp_path: Path, monkeypatch) -> None:
         """The base dir is gated at 0700 so other local users cannot traverse
         into the (deliberately world-writable) session trees or read secrets
@@ -108,6 +114,56 @@ class TestGetBaseDir:
         base.chmod(0o755)
         config_mod.get_base_dir()
         assert (base.stat().st_mode & 0o777) == 0o700
+
+    def test_base_dir_owner_only_windows(self, tmp_path: Path, monkeypatch) -> None:
+        """On Windows, chmod is a no-op on NTFS, so the base dir is restricted
+        via ``icacls``: inheritance stripped and an inheritable full-control
+        grant to the current user only."""
+        import safe_lab_agents.config as config_mod
+
+        monkeypatch.setattr(config_mod.Path, "home", lambda: tmp_path)
+        monkeypatch.setattr(config_mod.platform, "system", lambda: "Windows")
+        monkeypatch.setenv("USERNAME", "alice")
+        monkeypatch.setenv("USERDOMAIN", "LABPC")
+
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr(config_mod.subprocess, "run", fake_run)
+
+        base = config_mod.get_base_dir()
+
+        assert base.is_dir()
+        assert len(calls) == 1
+        cmd = calls[0]
+        assert cmd[0] == "icacls"
+        assert str(base) in cmd
+        assert "/inheritance:r" in cmd
+        # Inheritable (OI)(CI) full-control grant to DOMAIN\user only.
+        assert "/grant:r" in cmd
+        assert "LABPC\\alice:(OI)(CI)F" in cmd
+
+    def test_base_dir_owner_only_windows_best_effort(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """An icacls failure is logged, not fatal — the dir still exists."""
+        import safe_lab_agents.config as config_mod
+
+        monkeypatch.setattr(config_mod.Path, "home", lambda: tmp_path)
+        monkeypatch.setattr(config_mod.platform, "system", lambda: "Windows")
+        monkeypatch.setenv("USERNAME", "alice")
+        monkeypatch.delenv("USERDOMAIN", raising=False)
+
+        def boom(cmd, **kwargs):
+            raise subprocess.CalledProcessError(1, cmd, stderr="No mapping")
+
+        monkeypatch.setattr(config_mod.subprocess, "run", boom)
+
+        base = config_mod.get_base_dir()  # must not raise
+        assert base.is_dir()
 
 
 class TestSessionMetadata:
