@@ -16,12 +16,19 @@ import ast
 import inspect
 import logging
 import textwrap
+import typing
 from pathlib import Path
 from typing import Callable
 
 from safe_lab_agents.mcp.loader import load_tools_from_file
 
 logger = logging.getLogger(__name__)
+
+# ``types.UnionType`` (the ``X | Y`` form) exists only on Python 3.10+.
+try:
+    from types import UnionType as _UnionType
+except ImportError:  # pragma: no cover - Python < 3.10
+    _UnionType = None
 
 _CLIENT_HEADER = '''\
 """Auto-generated Python client for experiment tools.
@@ -340,10 +347,38 @@ def _render_return(sig: inspect.Signature, source_anns: dict[str, str] | None = 
 
 
 def _annotation_str(ann) -> str:
+    """Render an annotation object to source-like text, preserving type parameters.
+
+    Used as the fallback when the annotation cannot be read from source (e.g. for
+    experiment methods registered via ``experiment()``, whose runtime wrapper has
+    no matching source of its own). A bare ``ann.__name__`` is wrong for a
+    parameterised generic — ``dict[str, Quantity].__name__`` is just ``"dict"`` —
+    so recurse through unions and generic arguments to keep them intact.
+    """
     if isinstance(ann, str):
         return ann
-    if hasattr(ann, "__name__"):
-        return ann.__name__
+    if ann is type(None):
+        return "None"
+    origin = typing.get_origin(ann)
+    args = typing.get_args(ann)
+    # Unions: both ``X | Y`` (types.UnionType) and typing.Union[...] / Optional.
+    if origin is typing.Union or (
+        _UnionType is not None and origin is _UnionType
+    ):
+        return " | ".join(_annotation_str(a) for a in args)
+    if args:
+        origin_str = _annotation_str(origin) if origin is not None else _bare_name(ann)
+        return f"{origin_str}[{', '.join(_annotation_str(a) for a in args)}]"
+    return _bare_name(ann)
+
+
+def _bare_name(ann) -> str:
+    """Name a non-parameterised annotation (a plain type, ``...``, or fallback)."""
+    if ann is Ellipsis:
+        return "..."
+    name = getattr(ann, "__name__", None)
+    if name:
+        return name
     return str(ann).replace("typing.", "")
 
 

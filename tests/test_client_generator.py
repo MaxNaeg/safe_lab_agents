@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import io
 import json
+import typing
 import urllib.error
 from enum import Enum
 from pathlib import Path
@@ -271,3 +272,59 @@ def test_tools_info_explains_quantity() -> None:
     assert "Quantity" in info
     assert ".value" in info
     assert ".unit" in info
+
+
+# --- annotation rendering when source is unavailable (experiment() methods) ---
+
+
+def test_annotation_str_preserves_generic_parameters() -> None:
+    """A parameterised generic must keep its args — ``dict[str, Quantity].__name__``
+    is just ``dict``, which used to truncate the annotation the agent sees."""
+    from safe_lab_agents import Quantity
+    from safe_lab_agents.mcp.client_generator import _annotation_str
+
+    assert _annotation_str(dict[str, Quantity]) == "dict[str, Quantity]"
+    assert _annotation_str(dict[str, Quantity | str]) == "dict[str, Quantity | str]"
+    assert _annotation_str(list[float]) == "list[float]"
+    assert _annotation_str(typing.Optional[int]) == "int | None"
+    assert _annotation_str(float) == "float"
+
+
+def test_experiment_method_return_hint_survives_in_stub_and_info(monkeypatch) -> None:
+    """A method registered via ``experiment()`` has no source of its own (its
+    runtime wrapper's source is the ``call`` closure), so the source path fails
+    and the fallback must still render the full ``-> dict[str, Quantity]`` — in
+    both the generated stub and the system-prompt tools info.
+
+    Regression: the agent inside Docker saw ``-> dict`` instead. The class is
+    defined via ``exec`` in a namespace *without* ``from __future__ import
+    annotations`` so its return hint is a live ``dict[str, Quantity]`` object
+    (a ``types.GenericAlias``), exactly as in the user's setup.py — this module's
+    own PEP 563 import would otherwise turn the annotation into a harmless string
+    and bypass the truncation path entirely.
+    """
+    from safe_lab_agents import Quantity, experiment
+
+    ns: dict = {"Quantity": Quantity}
+    # dont_inherit=True: don't leak this module's PEP 563 future flag into the
+    # exec, so the annotation stays a live object rather than a string.
+    code = compile(
+        "class _Setup:\n"
+        "    def measure_power(self) -> dict[str, Quantity]:\n"
+        '        """Measure the optical power."""\n'
+        "        return {}\n",
+        "<setup>",
+        "exec",
+        dont_inherit=True,
+    )
+    exec(code, ns)
+    exp = experiment(ns["_Setup"])
+
+    # Sanity: the return hint really is a live generic, not a PEP 563 string.
+    assert isinstance(inspect.signature(exp.measure_power).return_annotation, type(dict[str, int]))
+
+    _, src = _exec_generated(monkeypatch, [exp.measure_power])
+    assert "def measure_power() -> dict[str, Quantity]:" in src
+
+    info = _format_tools_info([exp.measure_power])
+    assert "measure_power() -> dict[str, Quantity]" in info
