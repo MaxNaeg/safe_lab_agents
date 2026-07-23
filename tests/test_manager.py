@@ -320,7 +320,7 @@ def test_build_volumes_makes_writable_mounts_agent_writable(tmp_path: Path) -> N
 
 def test_make_agent_writable_tolerates_partial_chmod_failure(tmp_path, monkeypatch) -> None:
     """An entry the host can't chmod (e.g. owned by a Podman subuid) is skipped
-    with a warning; the rest of the tree is still widened, nothing raises."""
+    (logged at debug); the rest of the tree is still widened, nothing raises."""
     (tmp_path / "ok").mkdir()
     blocked = tmp_path / "blocked.bin"
     blocked.write_text("x")

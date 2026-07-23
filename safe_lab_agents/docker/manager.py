@@ -96,8 +96,15 @@ def _make_agent_writable(path: Path) -> None:
     Applied recursively so pre-existing content (seeded data, files left by an
     earlier session) becomes writable too.  Best-effort: files owned by another
     user that the host can't chmod (e.g. left by a session under a *different*
-    container runtime, owned by a Podman subuid) are logged and skipped rather
-    than aborting the whole session.
+    container runtime, owned by a Podman subuid) are skipped rather than aborting
+    the whole session.  This is logged at ``debug`` rather than ``warning``: the
+    common trigger is a *resume* under rootless Podman, where a file the prior
+    container's ``agent`` user wrote is owned by that agent's subuid — which the
+    resumed container maps back to the same ``agent`` user, so it already owns and
+    can write the file regardless of its host-side mode.  In that (benign) case
+    the failed chmod is a no-op, so surfacing it as a warning was pure noise.
+    A genuinely stuck file (owned by a *different* runtime's subuid) is still
+    skipped here and would surface downstream as an in-container write error.
     """
     for target in (path, *path.rglob("*")):
         try:
@@ -110,7 +117,7 @@ def _make_agent_writable(path: Path) -> None:
                 # add rw for all, keep existing execute bits.
                 target.chmod((mode & 0o777) | 0o666)
         except OSError as exc:
-            logger.warning("Could not widen permissions on %s: %s", target, exc)
+            logger.debug("Could not widen permissions on %s: %s", target, exc)
 
 
 def _connect_or_start_docker() -> docker.DockerClient:
