@@ -608,11 +608,24 @@ class DockerManager:
             # before the container exits, so this copy should not contain it —
             # but strip any that slipped through so no provider key lands on the
             # host session logs.
-            for auth_json in dest.rglob("auth.json"):
-                try:
-                    auth_json.unlink()
-                except OSError as exc:
-                    logger.warning("Could not strip %s from logs: %s", auth_json, exc)
+            #
+            # Walk manually (not Path.rglob) so we can prune OpenClaw's bundled
+            # plugin/npm trees. On Windows those nest deep enough that paths like
+            # codex-home/.tmp/plugins/plugins/.../skills/.../scripts overflow the
+            # 260-char MAX_PATH; rglob then raises WinError 3 and the whole copy
+            # is reported as failed even though docker cp already succeeded.
+            # auth.json lives directly under codex-home, so pruning the deep
+            # subtrees still reaches it; onerror keeps a stat failure on some
+            # other overflowing branch from aborting the scrub.
+            prune = {"node_modules", ".tmp", "plugins", "npm"}
+            for root, dirs, files in os.walk(dest, onerror=lambda _e: None):
+                dirs[:] = [d for d in dirs if d not in prune]
+                if "auth.json" in files:
+                    auth_json = Path(root) / "auth.json"
+                    try:
+                        auth_json.unlink()
+                    except OSError as exc:
+                        logger.warning("Could not strip %s from logs: %s", auth_json, exc)
 
         logger.info("Copied agent logs from container %s to %s", container_id, logs_dir)
         return True
