@@ -215,8 +215,15 @@ fi
 chmod -R go-w /home/agent/.openclaw/npm 2>/dev/null || true
 
 # ---- Resume mode ----
+# Reopen the DEFAULT "main" session explicitly so the TUI continues the SAME
+# conversation the autonomous run recorded (it stores its transcript under key
+# agent:main:main — see the autonomous block below). `openclaw tui --local`
+# already defaults to --session main, but we pass it explicitly so resume never
+# silently depends on that default staying in sync with the agent side. Without
+# targeting this session the TUI opens a brand-new empty one with no memory of
+# the previous autonomous run.
 if [ "${1:-}" = "--resume" ]; then
-    openclaw tui --local || true
+    openclaw tui --local --session main || true
     echo "Shutting down — this may take a moment …"
     stty sane 2>/dev/null || true
     bash
@@ -225,27 +232,49 @@ fi
 
 # ---- Autonomous mode ----
 if [ "$MODE" = "autonomous" ]; then
-    SESSION_ID=$(openssl rand -hex 12)
-
     MODEL_FLAG=()
     [ -n "${LLM_MODEL:-}" ] && MODEL_FLAG=(--model "$LLM_MODEL")
 
-    # Run the agent in the background and suppress its plain-text stdout.
-    # The session JSONL file is written incrementally as records arrive, so
-    # tailing it gives structured real-time output that the Python formatter
-    # can render as ⚙ tool calls and result lines.
+    # Record the run under the DEFAULT "main" session (key agent:main:main)
+    # instead of a random --session-id. This is what makes `agent resume` work:
+    # the resume path above runs `openclaw tui --local --session main`, which
+    # reopens exactly this session and replays its history. A random --session-id
+    # would be stored under agent:main:explicit:<id> — a key the TUI's main
+    # session never reopens — so a resumed run would start with no memory of the
+    # autonomous work (the bug this fixes).
+    #
+    # openclaw assigns the session's JSONL filename itself (a UUID we don't know
+    # up front), so we discover it below rather than predicting it as before.
     openclaw agent \
-        --session-id "$SESSION_ID" \
+        --session-key main \
         --local \
         "${MODEL_FLAG[@]}" \
         --message "$TASK_PROMPT" >/dev/null &
     AGENT_PID=$!
 
+    # Locate the session's record stream, which openclaw writes (incrementally,
+    # so tailing it gives live output) to
+    #   /home/agent/.openclaw/agents/<agent>/sessions/<uuid>.jsonl
+    # The search is deliberately narrow:
+    #   * -maxdepth 1 into the per-agent "sessions/" dir only — NOT a recursive
+    #     walk of the whole agents tree. The codex runtime writes its own rollout
+    #     "*.jsonl" files under agents/<agent>/agent/codex-home/… (the same trees
+    #     parse_conversation_history prunes via _PRUNE_DIRS); a recursive match
+    #     could return one of those and tail would follow the wrong file, so
+    #     nothing would stream.
+    #   * ! -name '*.trajectory.jsonl' — skip the sibling human-readable progress
+    #     file; we want the record stream the Python formatter parses.
+    # On a fresh autonomous start this yields exactly one file (a freshly built
+    # image and the config/onboard steps above create no sessions).
+    find_session_file() {
+        find /home/agent/.openclaw/agents/*/sessions -maxdepth 1 \
+            -name '*.jsonl' ! -name '*.trajectory.jsonl' 2>/dev/null | head -1
+    }
+
     # Poll until the session JSONL file appears or the agent exits.
     SESSION_FILE=""
     while kill -0 "$AGENT_PID" 2>/dev/null; do
-        F=$(find /home/agent/.openclaw/agents -name "${SESSION_ID}.jsonl" \
-            2>/dev/null | head -1)
+        F=$(find_session_file)
         if [ -n "$F" ]; then
             SESSION_FILE="$F"
             break
@@ -255,8 +284,7 @@ if [ "$MODE" = "autonomous" ]; then
 
     # One final check after the agent process exits.
     if [ -z "$SESSION_FILE" ]; then
-        SESSION_FILE=$(find /home/agent/.openclaw/agents -name "${SESSION_ID}.jsonl" \
-            2>/dev/null | head -1)
+        SESSION_FILE=$(find_session_file)
     fi
 
     if [ -n "$SESSION_FILE" ]; then

@@ -4,6 +4,11 @@ Runs the OpenClaw autonomous agent framework inside a Docker container.
 The entrypoint script configures the MCP connection and launches OpenClaw
 in either interactive (``openclaw tui --local``) or autonomous
 (``openclaw agent --local``) mode.
+
+Both modes share OpenClaw's default ``main`` session (key ``agent:main:main``):
+the autonomous run records into it via ``--session-key main`` and resume reopens
+it via ``openclaw tui --local --session main`` (:meth:`get_resume_command`), so a
+resumed session continues the autonomous conversation with its full history.
 """
 
 from __future__ import annotations
