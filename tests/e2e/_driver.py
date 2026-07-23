@@ -21,6 +21,7 @@ Assertions read the durable artifacts the pipeline leaves on disk
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -151,14 +152,43 @@ def run_autonomous(
     argv = cli_argv(
         *_common_start_args(agent, runtime, name, agent_args), "--task", task
     )
+    # Force the child's stdio to UTF-8. We capture output via a pipe, and on
+    # Windows a piped stdout defaults to the legacy cp1252 codec — the CLI prints
+    # Unicode (the ▶ session marker, box-drawing banners, …), so the first such
+    # write would raise UnicodeEncodeError and, in autonomous mode, kill the run
+    # before the agent turn completes. PYTHONIOENCODING makes the child encode
+    # UTF-8; the matching encoding= below decodes it. A real terminal (a user
+    # running `agent start` directly) is never cp1252, so this only matters when
+    # output is piped, as here — hence it lives in the harness, not the CLI.
+    child_env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     try:
-        return subprocess.run(
+        proc = subprocess.run(
             argv,
             capture_output=True,
-            text=True,
+            env=child_env,
+            # Decode as UTF-8 explicitly to match PYTHONIOENCODING above;
+            # subprocess's text mode would otherwise decode with the locale codec
+            # (cp1252 on Windows) and raise UnicodeDecodeError in the reader
+            # thread, truncating the captured output we rely on for diagnostics.
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             check=False,
         )
+        # Always persist the full autonomous output for post-mortem. pytest
+        # discards it whenever the run exits 0, which hides an "empty turn"
+        # (the agent produced no transcript / tool call) — the one failure the
+        # durable artifacts cannot explain on their own.
+        try:
+            pty_log_path(name).with_suffix(".autonomous.log").write_text(
+                f"rc={proc.returncode}\n--- stdout ---\n{proc.stdout}\n"
+                f"--- stderr ---\n{proc.stderr}\n",
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError:
+            pass
+        return proc
     except subprocess.TimeoutExpired as exc:  # pragma: no cover - failure path
         out = _as_text(exc.stdout)
         err = _as_text(exc.stderr)
@@ -298,12 +328,20 @@ def drive_pty_session(
             # Plumbing-only: let the TUI finish booting before we tear down.
             _read_for(min(settle_secs, 8.0))
 
-        # 3. Graceful teardown via Ctrl-C. The console delivers it as SIGINT to
-        # the CLI (POSIX) or a CTRL_C_EVENT via ConPTY (Windows); either way the
-        # CLI's start/resume handler unwinds to _cleanup → commit regardless of
-        # what the TUI is showing. Give the commit ample time — committing a
-        # multi-GB image is not instant.
+        # 3. Graceful teardown by stopping the container. A single Ctrl-C into
+        # the PTY does NOT end an interactive claude-code session: the entrypoint
+        # runs the TUI and then drops to a `bash` shell, so the TUI swallows the
+        # ^C and the container keeps running (the real quit sequence is ^C ^C to
+        # exit the TUI, then `exit` to leave the shell). Puppeting that through
+        # the PTY is brittle, so we instead stop the container directly: that
+        # makes the CLI's `docker start -ai` return and unwind into its normal
+        # _cleanup → commit path — exactly what a real user's quit-and-exit does,
+        # independent of whatever the TUI is showing. Ctrl-C is still sent first
+        # as a best-effort graceful signal. Give the commit ample time —
+        # committing a multi-GB image is not instant.
         console.interrupt()
+        _drain(time.monotonic() + 2.0)
+        _runtime_call(runtime, "stop", "-t", "10", container_name(session_name))
         rc = _wait_exit(console, captured, _drain, timeout=180.0)
     finally:
         console.kill()
