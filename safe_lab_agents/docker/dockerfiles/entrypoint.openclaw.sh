@@ -113,6 +113,27 @@ PYEOF
 }
 trap _scrub_credentials EXIT
 
+
+# ---- Prefer npm's offline cache for container-start plugin resolution ----
+# Launching the interactive TUI (and `openclaw onboard`) makes OpenClaw resolve
+# its provider plugins — notably @openclaw/codex — via `npm install`. Even though
+# that plugin is pre-baked into the image at the matching version (see
+# Dockerfile.openclaw), npm still performs a network *revalidation* of the
+# packument against registry.npmjs.org before trusting the cached copy. The npm
+# registry is public (the egress firewall leaves it reachable), but a container
+# whose resolver is the host's LAN DNS with corporate search domains — the norm
+# under rootless Podman, which copies the host's /etc/resolv.conf verbatim,
+# unlike Docker's clean embedded resolver — makes npm's getaddrinfo path flake
+# with EAI_AGAIN. npm then dies after 3 retries and `openclaw onboard` hangs, so
+# the TUI never renders (Docker/macOS avoid this only by having reliable DNS).
+#
+# Everything the agent needs at container start is already baked, so prefer the
+# offline cache: with the packument+tarball cached, npm serves the plugin from
+# ~/.npm without any registry round-trip, making startup deterministic across
+# runtimes. `prefer-offline` (not hard `offline`) still lets a genuinely-missing
+# plugin fetch over the network when DNS is healthy, so nothing regresses.
+export NPM_CONFIG_PREFER_OFFLINE=true
+
 # ---- Register MCP server ----
 if [ -n "${MCP_AUTH_TOKEN:-}" ]; then
     openclaw mcp set experiment-tools \
