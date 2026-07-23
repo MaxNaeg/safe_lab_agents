@@ -51,10 +51,21 @@ dev = [
     "types-requests",
     "types-docker",
     "types-Markdown",
+    # Windows only: ConPTY backend for the e2e interactive/resume driver
+    # (POSIX uses the stdlib `pty`). See tests/e2e/_console.py.
+    "pywinpty>=2.0; sys_platform == 'win32'",
 ]
 
 [project.scripts]
 agent = "safe_lab_agents.cli:app"
+
+[tool.pytest.ini_options]
+# The e2e marker gates real full-pipeline tests (see tests/e2e/ and
+# docs/E2E_TESTING.md). Registering it here lets `pytest -m "not e2e"` filter
+# cleanly even though the tests/e2e package is only collected when SLA_E2E=1.
+markers = [
+    "e2e: real full-pipeline test (needs SLA_E2E=1, containers, and agent creds)",
+]
 
 [tool.setuptools]
 include-package-data = true
