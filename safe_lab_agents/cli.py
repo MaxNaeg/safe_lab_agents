@@ -71,6 +71,39 @@ logger = logging.getLogger(__name__)
 console = Console(stderr=True)
 
 
+def _open_html_in_browser(path: Path) -> None:
+    """Open a self-contained HTML file in the default browser.
+
+    Snap-confined browsers (the default Firefox on Ubuntu) can only read
+    non-hidden files under the user's home directory; their ``home`` interface
+    deliberately excludes dotfiles, so a file inside ``~/.safe_lab_agents`` opens
+    as "Access to file denied". When the target lives inside a hidden directory
+    on Linux, copy the (self-contained) HTML to a non-hidden location the sandbox
+    can reach and open that instead.
+    """
+    import webbrowser
+
+    target = path.resolve()
+    if sys.platform.startswith("linux") and any(
+        part.startswith(".") for part in target.parts
+    ):
+        import shutil
+
+        dest_dir = Path.home() / "safe_lab_agents_html"
+        try:
+            dest_dir.mkdir(exist_ok=True)
+            dest = dest_dir / target.name
+            shutil.copy2(target, dest)
+            console.print(
+                f"[dim]Opening a browser-accessible copy (snap sandbox can't read "
+                f"hidden dirs):[/dim] {dest}"
+            )
+            target = dest
+        except OSError:
+            pass  # fall back to opening the original path
+    webbrowser.open(target.as_uri())
+
+
 def _flag_passed_on_command_line(ctx: typer.Context, param: str) -> bool:
     """Return True if ``param`` was set by an explicit command-line flag.
 
@@ -1226,9 +1259,7 @@ def history(
         build_conversation_html(entries, metadata, out_path)
         console.print(f"[green]Conversation written →[/green] {out_path}")
         if open_browser:
-            import webbrowser
-
-            webbrowser.open(out_path.resolve().as_uri())
+            _open_html_in_browser(out_path)
         return
 
     print_history(name, last=last, console=console)
@@ -1313,9 +1344,7 @@ def report(
 
     console.print(f"[green]Report written →[/green] {out_path}")
     if open_browser:
-        import webbrowser
-
-        webbrowser.open(out_path.resolve().as_uri())
+        _open_html_in_browser(out_path)
 
 
 # ======================================================================
