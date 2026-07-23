@@ -11,7 +11,9 @@ import codecs
 import logging
 import os
 import platform
+import shutil
 import subprocess
+import tarfile
 import time
 from pathlib import Path
 from typing import Optional
@@ -70,6 +72,33 @@ _SESSION_CAP_ADD = ["NET_ADMIN", *_LOGIN_CAP_ADD]
 # (numpy arrays, plots) need real headroom, and a too-small limit would turn
 # ordinary analyses into OOM kills.
 _MIN_MEM_LIMIT_BYTES = 2 * 1024**3
+
+
+class _ChunkStream:
+    """Minimal read-only file object over an iterator of byte chunks.
+
+    ``docker``/``podman`` API ``get_archive`` returns the tar payload as a
+    generator of chunks; :mod:`tarfile` in streaming mode ("r|") needs a
+    file-like ``read(n)``. This adapts one to the other without buffering the
+    whole archive in memory.
+    """
+
+    def __init__(self, chunks) -> None:
+        self._it = iter(chunks)
+        self._buf = b""
+
+    def read(self, size: int = -1) -> bytes:
+        if size is None or size < 0:
+            data = self._buf + b"".join(self._it)
+            self._buf = b""
+            return data
+        while len(self._buf) < size:
+            try:
+                self._buf += next(self._it)
+            except StopIteration:
+                break
+        data, self._buf = self._buf[:size], self._buf[size:]
+        return data
 
 
 def _make_agent_writable(path: Path) -> None:
@@ -572,63 +601,191 @@ class DockerManager:
         logs_dir.mkdir(parents=True, exist_ok=True)
 
         if agent_type == "claude-code":
+            # NOTE: `docker cp` on a live/exited container is unreliable on
+            # Windows/WSL2 — the host's view of the container layer propagates in
+            # bursts, so a copy taken at teardown can return a missing or partial
+            # transcript (observed: 6 of 15 transcript lines). Callers that need
+            # the *complete* transcript should commit first and copy from the
+            # image via :meth:`copy_agent_logs_from_image` (immutable snapshot).
             src = f"{container_id}:/home/agent/.claude/projects"
-            dest = logs_dir
-        elif agent_type == "openclaw":
-            # Copy only the session-log subtree, not the whole ~/.openclaw.
-            # The full directory also contains OpenClaw's bundled npm install
-            # tree (e.g. .openclaw/npm/.../node_modules/.bin/codex), which is
-            # full of symlinks. Recreating those on a Windows host fails with
-            # "A required privilege is not held by the client" (the user lacks
-            # SeCreateSymbolicLinkPrivilege), aborting the whole copy. The JSONL
-            # logs we actually parse live under .openclaw/agents/, so copy just
-            # that into a pre-created .openclaw/ to preserve the expected layout.
+            result = subprocess.run(
+                [container_cli(), "cp", src, str(logs_dir)],
+                capture_output=True,
+            )
+            if result.returncode != 0:
+                logger.warning(
+                    "Could not copy agent logs from container %s: %s",
+                    container_id,
+                    result.stderr.decode(errors="replace"),
+                )
+                return False
+            logger.info("Copied agent logs from container %s to %s", container_id, logs_dir)
+            return True
+
+        if agent_type == "openclaw":
             dest = logs_dir / ".openclaw"
             dest.mkdir(parents=True, exist_ok=True)
-            src = f"{container_id}:/home/agent/.openclaw/agents"
-        else:
-            logger.info("No log copy defined for agent type '%s'.", agent_type)
-            return False
+            return self._extract_openclaw_session_logs(container_id, dest)
 
-        result = subprocess.run(
-            [container_cli(), "cp", src, str(dest)],
-            capture_output=True,
-        )
-        if result.returncode != 0:
+        logger.info("No log copy defined for agent type '%s'.", agent_type)
+        return False
+
+    # Directory basenames belonging to OpenClaw's bundled plugin/npm/codex
+    # install trees — never session logs. These nest deep enough that a plain
+    # ``docker cp`` of the whole ``agents`` tree overflows Windows' 260-char
+    # MAX_PATH mid-extraction and aborts *before* reaching the session logs, and
+    # they hold the codex provider credential we must not copy out. Skipping
+    # them mirrors OpenClaw.parse_conversation_history's own prune set.
+    _OPENCLAW_PRUNE_DIRS = frozenset(
+        {"codex-home", "node_modules", ".tmp", "plugins", "npm"}
+    )
+
+    def _extract_openclaw_session_logs(self, container_id: str, dest: Path) -> bool:
+        """Extract OpenClaw ``*.jsonl`` session logs, skipping the plugin tree.
+
+        A plain ``docker cp .../.openclaw/agents <dest>`` writes the *entire*
+        tree to the host, and on Windows the bundled
+        ``agents/<id>/agent/codex-home/.tmp/plugins/…`` paths exceed MAX_PATH
+        (260 chars); the copy then aborts before reaching
+        ``agents/<id>/sessions/*.jsonl`` — the actual conversation logs — so
+        history import comes up empty even though the run succeeded (auto-log
+        still records the tool calls). Instead we pull the tree as a tar via the
+        Engine API (``get_archive``) and extract only the ``*.jsonl`` files that
+        are not under a pruned directory, so no over-long path is ever created on
+        disk. As a bonus the codex credential (``codex-home/auth.json``) is never
+        copied out at all.
+
+        The API client talks to whatever ``DOCKER_HOST`` points at, so this works
+        for both docker and podman — unlike a CLI ``cp SRC -`` tar stream, which
+        podman does not support on Windows (it resolves ``-`` to ``/dev/stdout``
+        and errors).
+
+        Returns ``True`` if at least one session log was extracted.
+        """
+        try:
+            stream, _stat = self.client.api.get_archive(
+                container_id, "/home/agent/.openclaw/agents"
+            )
+        except Exception as exc:  # noqa: BLE001 - never block teardown on this
             logger.warning(
-                "Could not copy agent logs from container %s: %s",
+                "Could not fetch OpenClaw log archive from container %s: %s",
                 container_id,
-                result.stderr.decode(errors="replace"),
+                exc,
             )
             return False
 
-        if agent_type == "openclaw":
-            # Defence in depth: the entrypoint scrubs the codex provider plugin's
-            # credential file (codex-home/auth.json, which holds the raw API key)
-            # before the container exits, so this copy should not contain it —
-            # but strip any that slipped through so no provider key lands on the
-            # host session logs.
-            #
-            # Walk manually (not Path.rglob) so we can prune OpenClaw's bundled
-            # plugin/npm trees. On Windows those nest deep enough that paths like
-            # codex-home/.tmp/plugins/plugins/.../skills/.../scripts overflow the
-            # 260-char MAX_PATH; rglob then raises WinError 3 and the whole copy
-            # is reported as failed even though docker cp already succeeded.
-            # auth.json lives directly under codex-home, so pruning the deep
-            # subtrees still reaches it; onerror keeps a stat failure on some
-            # other overflowing branch from aborting the scrub.
-            prune = {"node_modules", ".tmp", "plugins", "npm"}
-            for root, dirs, files in os.walk(dest, onerror=lambda _e: None):
-                dirs[:] = [d for d in dirs if d not in prune]
-                if "auth.json" in files:
-                    auth_json = Path(root) / "auth.json"
-                    try:
-                        auth_json.unlink()
-                    except OSError as exc:
-                        logger.warning("Could not strip %s from logs: %s", auth_json, exc)
+        dest_root = dest.resolve()
+        extracted = 0
+        try:
+            # get_archive yields raw tar chunks; wrap them as a file object and
+            # read the tar in streaming mode ("r|", no seeking).
+            with tarfile.open(fileobj=_ChunkStream(stream), mode="r|") as tar:
+                for member in tar:
+                    if not member.isfile() or not member.name.endswith(".jsonl"):
+                        continue
+                    if set(Path(member.name).parts) & self._OPENCLAW_PRUNE_DIRS:
+                        continue
+                    target = (dest / member.name).resolve()
+                    # Defend against tar path traversal (../ members).
+                    if dest_root not in target.parents and target != dest_root:
+                        continue
+                    fsrc = tar.extractfile(member)
+                    if fsrc is None:
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with open(target, "wb") as fdst:
+                        shutil.copyfileobj(fsrc, fdst)
+                    extracted += 1
+        except (tarfile.TarError, OSError) as exc:
+            logger.warning(
+                "Could not extract OpenClaw logs from container %s: %s",
+                container_id,
+                exc,
+            )
 
-        logger.info("Copied agent logs from container %s to %s", container_id, logs_dir)
-        return True
+        logger.info(
+            "Extracted %d OpenClaw session log(s) from container %s to %s",
+            extracted,
+            container_id,
+            dest,
+        )
+        return extracted > 0
+
+    def copy_agent_logs_from_image(
+        self, image_tag: str, session_dir: Path, agent_type: str
+    ) -> bool:
+        """Copy native agent logs out of a committed session *image*.
+
+        Unlike a live-container ``docker cp`` (unreliable on Windows/WSL2, see
+        :meth:`copy_agent_logs`), an image is an immutable snapshot, so copying
+        from a throwaway container *created* — not started — from it yields the
+        complete transcript deterministically. Delegates the actual copy to
+        :meth:`copy_agent_logs` so the per-agent source paths and post-processing
+        stay in one place.
+        """
+        cli = container_cli()
+        create = subprocess.run(
+            [cli, "create", "--entrypoint", "sh", image_tag],
+            capture_output=True,
+            text=True,
+        )
+        if create.returncode != 0:
+            logger.warning(
+                "Could not create throwaway container from image %s: %s",
+                image_tag,
+                create.stderr.strip(),
+            )
+            return False
+        cid = create.stdout.strip()
+        try:
+            return self.copy_agent_logs(cid, session_dir, agent_type)
+        finally:
+            try:
+                self.remove_container(cid, force=True)
+            except Exception as exc:  # noqa: BLE001 - throwaway cleanup only
+                logger.warning(
+                    "Could not remove throwaway log-extraction container %s: %s",
+                    cid,
+                    exc,
+                )
+
+    def commit_and_extract_logs(
+        self,
+        container_id: str,
+        session_name: str,
+        session_dir: Path,
+        agent_type: str,
+        scrub_env_keys: Optional[list[str]] = None,
+    ) -> Optional[str]:
+        """Commit the container and extract its agent logs from the image.
+
+        On Windows/WSL2 a ``docker cp`` of the *live* container's rootfs at
+        teardown can return a missing or partial transcript (the host's view of
+        the just-written ``*.jsonl`` propagates late). The committed *image* is
+        an immutable snapshot and does not have this problem, so we stop the
+        container (flush + exit), commit it, and extract the logs from the image
+        via :meth:`copy_agent_logs_from_image`.
+
+        Returns the committed image tag, or ``None`` if the commit failed.
+        """
+        # Stop first so the agent has flushed and exited before the snapshot.
+        # Bounded, and a no-op for an already-exited (autonomous) container.
+        # NOT wait(): an interactive agent may still be running at teardown and
+        # wait() would block for its full timeout.
+        try:
+            self.client.containers.get(container_id).stop(timeout=10)
+        except Exception as exc:  # noqa: BLE001 - never block teardown on this
+            logger.debug("stop() before commit did not complete cleanly: %s", exc)
+
+        try:
+            image_tag = self.commit_container(
+                container_id, session_name, scrub_env_keys=scrub_env_keys
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not commit container: %s", exc)
+            return None
+        self.copy_agent_logs_from_image(image_tag, session_dir, agent_type)
+        return image_tag
 
 
     # ------------------------------------------------------------------

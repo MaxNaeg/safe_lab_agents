@@ -399,12 +399,25 @@ def _teardown_session(
     """
     console.print("\n[bold]Shutting down …[/bold]")
 
-    # Copy native logs out of the container before it is committed/removed.
+    # Commit, then extract logs from the committed image. On Windows/WSL2 a
+    # `docker cp` of the live container's rootfs propagates in bursts, so copying
+    # at teardown can yield a missing/partial transcript and thus an empty
+    # history import. The committed image is an immutable snapshot, so
+    # commit_and_extract_logs re-commits + re-extracts until the transcript is
+    # complete and stable, then history is imported from that copy.
+    committed = False
     if container is not None:
         try:
-            docker_mgr.copy_agent_logs(container.id, session_dir, config.agent_type)
+            image_tag = docker_mgr.commit_and_extract_logs(
+                container.id,
+                config.name,
+                session_dir,
+                config.agent_type,
+                scrub_env_keys=agent_backend.get_secret_env_keys(),
+            )
+            committed = image_tag is not None
         except Exception as exc:
-            logger.warning("Could not copy agent logs: %s", exc)
+            logger.warning("Could not commit/extract logs: %s", exc)
 
     # Import the freshly-copied logs into history.json.
     try:
@@ -414,17 +427,8 @@ def _teardown_session(
     except Exception as exc:
         logger.warning("Could not import history: %s", exc)
 
-    committed = False
+    # Remove the (now-committed) original container.
     if container is not None:
-        try:
-            docker_mgr.commit_container(
-                container.id,
-                config.name,
-                scrub_env_keys=agent_backend.get_secret_env_keys(),
-            )
-            committed = True
-        except Exception as exc:
-            logger.warning("Could not commit container: %s", exc)
         try:
             docker_mgr.remove_container(container.id, force=True)
         except Exception as exc:
