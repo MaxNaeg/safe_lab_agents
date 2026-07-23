@@ -81,6 +81,38 @@ umask 000
 # committed image, before the setup commands below would otherwise re-warn.
 chmod -R go-w /home/agent/.openclaw/npm 2>/dev/null || true
 
+# ---- Scrub provider credentials before the container is committed ----
+# The provider API key reaches OpenClaw via env vars (which the host blanks at
+# commit time). But the bundled `codex` provider plugin also writes the raw key
+# to ~/.openclaw/agents/**/codex-home/auth.json, and `openclaw onboard` can
+# record an auth profile in ~/.openclaw/state/openclaw.sqlite. Both live inside
+# the container filesystem, so they would persist in the committed session image
+# — and, because copy_agent_logs pulls ~/.openclaw/agents out to the host, in
+# the host session logs too — where anyone with container-runtime access could
+# read them. This entrypoint is PID 1 in every OpenClaw mode (none `exec` away),
+# and the host commits (and copies logs from) the *exited* container, so an EXIT
+# trap runs before the snapshot is taken. Resume re-onboards with a freshly
+# supplied key, so clearing is loss-free. Best-effort — never block shutdown.
+_scrub_credentials() {
+    find /home/agent/.openclaw/agents -name auth.json -delete 2>/dev/null || true
+    python3 - <<'PYEOF' 2>/dev/null || true
+import sqlite3
+try:
+    con = sqlite3.connect("/home/agent/.openclaw/state/openclaw.sqlite")
+    tables = [r[0] for r in con.execute(
+        "select name from sqlite_master where type='table' and name like 'auth_profile%'"
+    )]
+    for t in tables:
+        con.execute(f"delete from {t}")
+    con.commit()
+    con.execute("vacuum")
+    con.close()
+except Exception:
+    pass
+PYEOF
+}
+trap _scrub_credentials EXIT
+
 # ---- Register MCP server ----
 if [ -n "${MCP_AUTH_TOKEN:-}" ]; then
     openclaw mcp set experiment-tools \

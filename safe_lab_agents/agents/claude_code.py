@@ -94,6 +94,33 @@ class ClaudeCodeAgent(BaseAgent):
 
         return env
 
+    def get_secret_env_keys(self) -> list[str]:
+        """Blank the OAuth credential env vars when committing the container.
+
+        ``CLAUDE_CREDENTIALS_JSON`` (host-copied credentials) and
+        ``CLAUDE_CODE_OAUTH_TOKEN`` (a directly-supplied token) are both
+        injected as env vars, so ``docker commit`` would otherwise bake them
+        into the image config.  The entrypoint additionally scrubs the
+        ``~/.claude/.credentials.json`` file it writes, so no credential remains
+        in the committed image.
+        """
+        return super().get_secret_env_keys() + [
+            "CLAUDE_CREDENTIALS_JSON",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+        ]
+
+    def resume_credential_env(self, config: SessionConfig) -> dict[str, str]:
+        """Re-inject a directly-supplied OAuth token on resume, if given.
+
+        A token passed via ``--agent-args oauth-token=…`` is re-injected (and
+        popped so it is never persisted).  When absent nothing is injected: the
+        entrypoint scrubbed ``~/.claude/.credentials.json`` before commit, so the
+        resumed (interactive) session re-authenticates via the in-container
+        login flow.
+        """
+        token = config.agent_args.pop("oauth-token", None)
+        return {"CLAUDE_CODE_OAUTH_TOKEN": token} if token else {}
+
     def get_entrypoint_command(self) -> list[str]:
         """Return the entrypoint command.
 

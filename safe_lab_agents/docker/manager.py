@@ -595,6 +595,18 @@ class DockerManager:
             )
             return False
 
+        if agent_type == "openclaw":
+            # Defence in depth: the entrypoint scrubs the codex provider plugin's
+            # credential file (codex-home/auth.json, which holds the raw API key)
+            # before the container exits, so this copy should not contain it —
+            # but strip any that slipped through so no provider key lands on the
+            # host session logs.
+            for auth_json in dest.rglob("auth.json"):
+                try:
+                    auth_json.unlink()
+                except OSError as exc:
+                    logger.warning("Could not strip %s from logs: %s", auth_json, exc)
+
         logger.info("Copied agent logs from container %s to %s", container_id, logs_dir)
         return True
 
@@ -717,25 +729,45 @@ class DockerManager:
         )
         logger.info("Container %s stopped.", container_id)
 
-    def commit_container(self, container_id: str, session_name: str) -> str:
+    def commit_container(
+        self,
+        container_id: str,
+        session_name: str,
+        scrub_env_keys: Optional[list[str]] = None,
+    ) -> str:
         """Commit the container's filesystem state to a new Docker image.
 
         This preserves the agent's conversation state, installed packages,
         and any files created inside the container (outside of volumes).
 
+        ``docker commit`` also bakes the container's environment into the image
+        config, so any secret passed as an env var would be readable via
+        ``docker inspect``/``save`` by anyone with runtime access.  Each key in
+        *scrub_env_keys* is therefore blanked in the committed image (``ENV
+        KEY=``); the entrypoints treat an empty value as absent, and resume
+        re-injects fresh values, so blanking is loss-free.
+
         Args:
             container_id: Container ID or name.
             session_name: The session name used for the image tag.
+            scrub_env_keys: Env-var names to blank in the committed image
+                (typically ``agent.get_secret_env_keys()``).
 
         Returns:
             The image tag of the committed image.
         """
         image_tag = self._session_image_tag(session_name)
         repo, tag = image_tag.rsplit(":", 1)
+        changes = [f"ENV {key}=" for key in (scrub_env_keys or [])]
 
         def _commit() -> None:
             container = self.client.containers.get(container_id)
-            container.commit(repository=repo, tag=tag, message=f"Session {session_name}")
+            container.commit(
+                repository=repo,
+                tag=tag,
+                message=f"Session {session_name}",
+                changes=changes or None,
+            )
 
         self._with_reconnect(_commit)
         logger.info("Committed container %s as image %s", container_id, image_tag)

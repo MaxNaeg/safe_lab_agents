@@ -368,6 +368,41 @@ def test_with_reconnect_passes_through_when_healthy(monkeypatch) -> None:
     assert mgr._with_reconnect(lambda: "ok") == "ok"
 
 
+class _CommitCapture:
+    """Fake client whose container records the kwargs passed to commit()."""
+
+    def __init__(self) -> None:
+        self.commit_kwargs: dict = {}
+
+        class _Container:
+            def commit(inner, **kwargs):  # noqa: N805 - fake, self is outer via closure
+                self.commit_kwargs = kwargs
+
+        self.containers = types.SimpleNamespace(get=lambda _id: _Container())
+
+
+def test_commit_blanks_secret_env_keys(monkeypatch) -> None:
+    """commit_container turns each secret env key into an `ENV KEY=` blank."""
+    monkeypatch.setattr(manager_mod, "_connect_or_start_docker", lambda: None)
+    client = _CommitCapture()
+    mgr = DockerManager(docker_client=client)
+
+    tag = mgr.commit_container("cid", "MySession", scrub_env_keys=["MCP_AUTH_TOKEN", "LLM_API_KEY"])
+
+    assert tag == "safe-lab-agents-session-mysession:latest"
+    assert client.commit_kwargs["changes"] == ["ENV MCP_AUTH_TOKEN=", "ENV LLM_API_KEY="]
+
+
+def test_commit_without_scrub_keys_sends_no_changes(monkeypatch) -> None:
+    """With no secret keys the commit sends changes=None (unchanged behaviour)."""
+    monkeypatch.setattr(manager_mod, "_connect_or_start_docker", lambda: None)
+    client = _CommitCapture()
+    mgr = DockerManager(docker_client=client)
+
+    mgr.commit_container("cid", "s")
+    assert client.commit_kwargs["changes"] is None
+
+
 def test_resolve_mcp_host_none_for_docker() -> None:
     """Docker needs no override — the client default (host.docker.internal) is used."""
     assert DockerManager._resolve_mcp_host(_config("docker")) is None

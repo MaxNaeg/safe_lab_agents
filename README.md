@@ -224,13 +224,13 @@ Stopping (exiting the container) automatically saves the session: the container 
 agent resume --name session-20260413-153042
 ```
 
-> **Security — committed images contain your secrets.** The session image committed on stop includes the
-> credentials supplied to the agent: the OpenClaw `LLM_API_KEY` (and provider keys such as `ANTHROPIC_API_KEY`)
-> and, for Claude Code, the OAuth token / credentials file.
-> Treat committed session images and the sessions directory as secrets.
-> The CLI keeps `~/.safe_lab_agents` owner-only (`0700` on macOS/Linux; an equivalent owner-only ACL
-> applied via `icacls` on Windows), so other local users cannot read session data or metadata —
-> committed images are the remaining copy to guard.
+> **Security — your credentials and saved sessions.** Stopping a session saves it as a local image so you can
+> resume it. On the way out, the tool tries to strip the login credentials you gave the agent out of that saved
+> image, and it doesn't keep them in the session folder either. So resuming asks you to sign in again.
+>
+> This clean-up is **best-effort, not a guarantee** — a stray copy of a secret could still end up inside a
+> saved image or the session files. Treat both as sensitive: don't share saved session images, and rotate the
+> key or token if you think one may have leaked.
 
 ### See a real run
 
@@ -520,17 +520,20 @@ Claude Code uses a Claude **subscription** (Pro/Max) — no API key is needed. T
    - **Interactive mode:** just log in inside the container session as usual.
    - **Autonomous mode:** the CLI launches a one-time login first — it runs `claude setup-token` inside a throwaway container, prints a sign-in URL, you open it and paste the code back, and the resulting token is captured and used for the run. After that, the autonomous task starts automatically.
 
+> **Resuming asks you to sign in again.** Your login isn't kept in the saved session (see the note under [Stop and resume](#stop-and-resume)), so resuming a Claude Code session logs in again — re-run the in-container login, or pass `--agent-args oauth-token=…`. If you used `copy-host-credentials`, it re-copies from your machine automatically instead. Your conversation is preserved either way.
+
 > **Security:** passing a token on the command line leaves it in your shell history and process list. Prefer `oauth-token` for short-lived/CI use, or rely on host credentials / the in-container login otherwise.
 
 ### OpenClaw
 
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
-| `api-key` | string | — | API key for the LLM provider (required, secret) |
+| `api-key` | string | — | API key for the LLM provider (required, secret). Not saved with the session — you re-enter it on `resume` (prompted, or `--agent-args api-key=…`) |
 | `provider` | string | — | LLM provider: `anthropic`, `openai`, `google`, `openrouter` (required) |
 | `model` | string | — | Model name, e.g. `gpt-4o`, `claude-sonnet-4-6` (required) |
 
-All three are required — if omitted, the CLI prompts for them.
+All three are required — if omitted, the CLI prompts for them. Because the key is not persisted, `agent resume`
+re-prompts for it (pass `--agent-args api-key=…` to supply it non-interactively).
 
 ```bash
 agent start --tools tools.py \

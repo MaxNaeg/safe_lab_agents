@@ -61,6 +61,22 @@ fi
 # Explicit chmods below (e.g. the 600 on credentials) still take precedence.
 umask 000
 
+# ---- Scrub OAuth credentials before the container is committed ----
+# Claude Code stores the account credential in ~/.claude/.credentials.json
+# (written from the host env below, or minted by an in-container login). The
+# host commits the *exited* container on stop, so without this the credential
+# would persist in the committed session image — readable via docker save/export
+# by anyone with container-runtime access. Remove it when the entrypoint (PID 1)
+# exits, before the snapshot is taken; resume re-authenticates (in-container
+# login, or --agent-args oauth-token=…). The transcripts under ~/.claude/projects
+# are untouched, so `--resume` still finds the conversation. Best-effort — never
+# block shutdown. (Autonomous mode runs claude in the background rather than
+# exec-ing it precisely so this trap still fires on exit.)
+_scrub_credentials() {
+    rm -f /home/agent/.claude/.credentials.json 2>/dev/null || true
+}
+trap _scrub_credentials EXIT
+
 # ---- Seed OAuth credentials from host ----
 # The host credential JSON ({"claudeAiOauth": {...}}) is passed via env var.
 # Write it to the file Claude Code reads on Linux when no secret service is available.
@@ -245,13 +261,21 @@ if [ "$MODE" = "autonomous" ]; then
     if [ "${NO_WEB:-}" = "true" ]; then
         NO_WEB_FLAG=(--disallowedTools "WebSearch,WebFetch")
     fi
-    exec claude -p "$TASK_PROMPT" \
+    # Run claude in the background (not `exec`) so the EXIT trap that scrubs the
+    # credential still fires when the run ends. stdout is inherited unchanged, so
+    # the stream-json output reaches the host exactly as before; INT/TERM are
+    # forwarded to claude so a host-driven stop still shuts it down gracefully.
+    claude -p "$TASK_PROMPT" \
         --verbose \
         --append-system-prompt "$SYSTEM_PROMPT" \
         "${NO_WEB_FLAG[@]}" \
         --output-format stream-json \
         --dangerously-skip-permissions \
-        "${CLAUDE_OPTS[@]}"
+        "${CLAUDE_OPTS[@]}" &
+    CLAUDE_PID=$!
+    trap 'kill -TERM "$CLAUDE_PID" 2>/dev/null || true' INT TERM
+    wait "$CLAUDE_PID"
+    exit $?
 fi
 
 # ---- Interactive mode but no resume ----

@@ -182,6 +182,48 @@ class BaseAgent(ABC):
             f"{type(self).__name__} does not support in-container login."
         )
 
+    # ------------------------------------------------------------------
+    # Credential hygiene
+    #
+    # Secrets must never be baked into the committed session image or written
+    # to ``metadata.json``.  These three hooks keep them out: ``pop_secret_env``
+    # strips credential agent-args into runtime env at ``start`` (so they never
+    # reach metadata); ``get_secret_env_keys`` lists the env keys the host
+    # blanks when it commits the container; ``resume_credential_env`` re-obtains
+    # any credential that a resumed image therefore no longer carries.
+    # ------------------------------------------------------------------
+
+    def get_secret_env_keys(self) -> list[str]:
+        """Return the env-var names to blank when committing the container.
+
+        ``docker commit`` bakes the container's environment into the image
+        config, so any secret passed as an env var would otherwise be readable
+        (via ``docker inspect``/``save``) by anyone with access to the container
+        runtime.  The host blanks these keys at commit time.  The per-session
+        MCP auth token is always included; subclasses extend the list with their
+        provider/credential keys.
+        """
+        return ["MCP_AUTH_TOKEN"]
+
+    def pop_secret_env(self, config: SessionConfig) -> dict[str, str]:
+        """Pop credential agent-args out of ``config.agent_args`` into env vars.
+
+        Called on ``start``.  Popping (rather than reading) keeps the secret out
+        of ``metadata.json`` — and therefore out of any later resumed run.  The
+        returned mapping is merged into the container environment.  The base
+        implementation pops nothing.
+        """
+        return {}
+
+    def resume_credential_env(self, config: SessionConfig) -> dict[str, str]:
+        """Return credential env vars to inject on ``resume``.
+
+        Because secrets are never persisted, an agent whose credentials cannot
+        be recovered from the committed image must re-obtain them here (e.g. by
+        prompting the user).  The base implementation requires nothing.
+        """
+        return {}
+
     def get_system_prompt(self, config: SessionConfig) -> str:
         """Return the base *environment* system prompt for the agent.
 

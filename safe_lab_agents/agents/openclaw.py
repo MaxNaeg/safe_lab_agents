@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from rich.markup import escape
+from rich.prompt import Prompt
 
 from safe_lab_agents.agents.base import (
     AgentArg,
@@ -34,6 +35,20 @@ _PROVIDER_KEY_MAP = {
     "google": "GOOGLE_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
 }
+
+
+def build_llm_env(provider: str, api_key: str) -> dict[str, str]:
+    """Return the environment variables that hand *api_key* to OpenClaw.
+
+    ``LLM_API_KEY`` is the generic key the entrypoint always reads; the
+    provider-specific alias (e.g. ``ANTHROPIC_API_KEY``) is set alongside it so
+    provider plugins that read their own variable also authenticate.
+    """
+    env = {"LLM_API_KEY": api_key}
+    provider_env_key = _PROVIDER_KEY_MAP.get(provider)
+    if provider_env_key:
+        env[provider_env_key] = api_key
+    return env
 
 
 @register_agent("openclaw")
@@ -90,15 +105,11 @@ class OpenClawAgent(BaseAgent):
         # which the host writes and the entrypoint loads — setting an env var
         # the entrypoint ignores would imply enforcement that does not exist.
 
-        api_key: str = config.agent_args.get("api-key", "")
+        # The api-key is deliberately NOT read here.  It is a secret and is
+        # injected separately via pop_secret_env()/resume_credential_env(), which
+        # pop it out of config.agent_args so it never reaches metadata.json (and
+        # so a resumed run must re-supply it).
         provider: str = config.agent_args.get("provider", "")
-
-        if api_key:
-            env["LLM_API_KEY"] = api_key
-            provider_env_key = _PROVIDER_KEY_MAP.get(provider)
-            if provider_env_key:
-                env[provider_env_key] = api_key
-
         if provider:
             env["LLM_PROVIDER"] = provider
 
@@ -107,6 +118,41 @@ class OpenClawAgent(BaseAgent):
             env["LLM_MODEL"] = f"{provider}/{model}" if provider else model
 
         return env
+
+    def get_secret_env_keys(self) -> list[str]:
+        """Blank the provider API-key env vars when committing the container."""
+        return super().get_secret_env_keys() + [
+            "LLM_API_KEY",
+            *_PROVIDER_KEY_MAP.values(),
+        ]
+
+    def pop_secret_env(self, config: SessionConfig) -> dict[str, str]:
+        """Pop the ``api-key`` agent-arg into env vars (keeps it out of metadata)."""
+        api_key = config.agent_args.pop("api-key", None)
+        if not api_key:
+            return {}
+        return build_llm_env(config.agent_args.get("provider", ""), api_key)
+
+    def resume_credential_env(self, config: SessionConfig) -> dict[str, str]:
+        """Re-obtain the provider API key on resume.
+
+        The key lives only in the container environment (blanked at commit) and,
+        for plugin-backed providers, in ``codex-home/auth.json`` (scrubbed by the
+        entrypoint before commit), so a resumed image carries no usable
+        credential.  A key re-supplied via ``--agent-args api-key=…`` is honoured;
+        otherwise the user is prompted.
+        """
+        env = self.pop_secret_env(config)
+        if env:
+            return env
+        provider = config.agent_args.get("provider", "")
+        suffix = f" for provider '{escape(provider)}'" if provider else ""
+        api_key = Prompt.ask(
+            f"Re-enter the LLM provider API key{suffix} to resume", password=True
+        ).strip()
+        if not api_key:
+            raise ValueError("An API key is required to resume an OpenClaw session.")
+        return build_llm_env(provider, api_key)
 
     def get_entrypoint_command(self) -> list[str]:
         return ["/entrypoint.sh"]

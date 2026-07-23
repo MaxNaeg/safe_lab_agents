@@ -384,7 +384,11 @@ def _teardown_session(
     committed = False
     if container is not None:
         try:
-            docker_mgr.commit_container(container.id, config.name)
+            docker_mgr.commit_container(
+                container.id,
+                config.name,
+                scrub_env_keys=agent_backend.get_secret_env_keys(),
+            )
             committed = True
         except Exception as exc:
             logger.warning("Could not commit container: %s", exc)
@@ -860,6 +864,11 @@ def start(
                     "[dim]No Claude credentials found on host — you may need to log in inside the container.[/dim]"
                 )
 
+    # Pop any credential agent-args (e.g. OpenClaw's api-key) into the runtime
+    # env. Popping keeps the secret out of metadata.json, and get_secret_env_keys
+    # blanks it in the committed image, so no session persists the credential.
+    extra_env.update(agent_backend.pop_secret_env(config))
+
     if tty:
         extra_env["TERM"] = os.environ.get("TERM", "xterm-256color")
         if "COLORTERM" in os.environ:
@@ -1045,19 +1054,48 @@ def resume(
     _maybe_print_podman_windows_firewall_notice(config)
 
     # Create container from committed image (always interactive — see above).
-    # A directly-supplied OAuth token is re-injected (never persisted): token-based
-    # sessions don't carry credentials in the committed image, so resuming them
-    # requires re-supplying the token via --agent-args oauth-token=…
     resume_extra_env: dict[str, str] = {"MCP_AUTH_TOKEN": auth_token}
     # Propagate the terminal type so the interactive TUI renders correctly (mirrors start).
     resume_extra_env["TERM"] = os.environ.get("TERM", "xterm-256color")
     if "COLORTERM" in os.environ:
         resume_extra_env["COLORTERM"] = os.environ["COLORTERM"]
-    if config.agent_type == "claude-code":
-        resume_token = config.agent_args.pop("oauth-token", None)
-        if resume_token:
-            console.print("[dim]Using the supplied Claude OAuth token …[/dim]")
-            resume_extra_env["CLAUDE_CODE_OAUTH_TOKEN"] = resume_token
+    # Secrets are never persisted, so a committed image may carry no usable
+    # credential: OpenClaw's provider key is env-only (and its plugin auth file
+    # is scrubbed before commit), and a Claude token session likewise. Let the
+    # agent re-obtain what it needs — re-injecting a token supplied via
+    # --agent-args, or prompting — before the container is created.
+    try:
+        resume_extra_env.update(agent_backend.resume_credential_env(config))
+    except ValueError as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        _mcp[0].stop()
+        raise typer.Exit(1)
+
+    # A copy-host-credentials Claude session re-copies the host's credentials on
+    # resume too (they were scrubbed from the committed image), so resume stays
+    # login-free without persisting anything — mirroring `start`. Skipped when a
+    # token was already supplied above.
+    if (
+        config.agent_type == "claude-code"
+        and "CLAUDE_CODE_OAUTH_TOKEN" not in resume_extra_env
+        and config.agent_args.get("copy-host-credentials", False)
+    ):
+        creds = _get_claude_credentials()
+        if creds:
+            try:
+                oauth = json.loads(creds)["claudeAiOauth"]
+                console.print("[dim]Copying Claude credentials from host …[/dim]")
+                resume_extra_env["CLAUDE_CREDENTIALS_JSON"] = json.dumps(
+                    {"claudeAiOauth": oauth}
+                )
+            except (json.JSONDecodeError, KeyError):
+                console.print(
+                    "[yellow]Warning: could not parse host Claude credentials — you may need to log in inside the container.[/yellow]"
+                )
+        else:
+            console.print(
+                "[dim]No Claude credentials found on host — you may need to log in inside the container.[/dim]"
+            )
 
     # Regenerate the prompt and Python client files from the current tools file so
     # a resume picks up edits made between sessions (mirrors start).

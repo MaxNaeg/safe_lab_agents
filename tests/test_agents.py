@@ -310,6 +310,96 @@ class TestOpenClawAgent:
         assert results[0].tool_name == "experiment-tools.get_temperature"
         assert results[0].content == '{"temperature":22.5}'
 
+    def _cfg(self, tmp_path: Path, **agent_args) -> SessionConfig:
+        return SessionConfig(
+            name="t",
+            tools_file=tmp_path / "t.py",
+            workspace_dir=tmp_path / "ws",
+            agent_args=agent_args,
+        )
+
+    def test_env_omits_api_key(self, tmp_path: Path) -> None:
+        """The api-key never appears in the plain environment (it is a secret)."""
+        agent = get_agent("openclaw")
+        cfg = self._cfg(tmp_path, provider="anthropic", model="m", **{"api-key": "sk-secret"})
+        env = agent.get_environment_variables(cfg, mcp_port=8000)
+        assert "LLM_API_KEY" not in env
+        assert "ANTHROPIC_API_KEY" not in env
+        assert env["LLM_PROVIDER"] == "anthropic"
+        assert env["LLM_MODEL"] == "anthropic/m"
+
+    def test_pop_secret_env_removes_key_from_agent_args(self, tmp_path: Path) -> None:
+        """pop_secret_env moves api-key into env and deletes it from agent_args."""
+        agent = get_agent("openclaw")
+        cfg = self._cfg(tmp_path, provider="openai", **{"api-key": "sk-secret"})
+        secret_env = agent.pop_secret_env(cfg)
+        assert secret_env == {"LLM_API_KEY": "sk-secret", "OPENAI_API_KEY": "sk-secret"}
+        assert "api-key" not in cfg.agent_args  # never reaches metadata.json
+
+    def test_secret_env_keys_cover_all_providers(self) -> None:
+        agent = get_agent("openclaw")
+        keys = agent.get_secret_env_keys()
+        for expected in ("MCP_AUTH_TOKEN", "LLM_API_KEY", "ANTHROPIC_API_KEY",
+                         "OPENAI_API_KEY", "GOOGLE_API_KEY", "OPENROUTER_API_KEY"):
+            assert expected in keys
+
+    def test_resume_credential_env_prefers_supplied_key(self, tmp_path: Path) -> None:
+        """A key re-supplied via --agent-args is used without prompting."""
+        agent = get_agent("openclaw")
+        cfg = self._cfg(tmp_path, provider="anthropic", **{"api-key": "sk-new"})
+        env = agent.resume_credential_env(cfg)
+        assert env == {"LLM_API_KEY": "sk-new", "ANTHROPIC_API_KEY": "sk-new"}
+
+    def test_resume_credential_env_prompts_when_missing(self, tmp_path, monkeypatch) -> None:
+        """With no supplied key, resume prompts the user for one."""
+        from rich.prompt import Prompt
+
+        agent = get_agent("openclaw")
+        cfg = self._cfg(tmp_path, provider="openai")
+        monkeypatch.setattr(Prompt, "ask", staticmethod(lambda *a, **k: "sk-typed"))
+        env = agent.resume_credential_env(cfg)
+        assert env == {"LLM_API_KEY": "sk-typed", "OPENAI_API_KEY": "sk-typed"}
+
+    def test_resume_credential_env_rejects_empty(self, tmp_path, monkeypatch) -> None:
+        from rich.prompt import Prompt
+
+        agent = get_agent("openclaw")
+        cfg = self._cfg(tmp_path, provider="openai")
+        monkeypatch.setattr(Prompt, "ask", staticmethod(lambda *a, **k: "   "))
+        with pytest.raises(ValueError, match="API key is required"):
+            agent.resume_credential_env(cfg)
+
+
+class TestClaudeCodeCredentialHygiene:
+    """Claude Code keeps OAuth secrets out of the committed image."""
+
+    def test_secret_env_keys(self) -> None:
+        agent = get_agent("claude-code")
+        keys = agent.get_secret_env_keys()
+        assert "CLAUDE_CREDENTIALS_JSON" in keys
+        assert "CLAUDE_CODE_OAUTH_TOKEN" in keys
+        assert "MCP_AUTH_TOKEN" in keys
+
+    def test_resume_reinjects_supplied_token(self, tmp_path: Path) -> None:
+        agent = get_agent("claude-code")
+        cfg = SessionConfig(
+            name="t", tools_file=tmp_path / "t.py", workspace_dir=tmp_path / "ws",
+            agent_args={"oauth-token": "sk-ant-oat-x"},
+        )
+        env = agent.resume_credential_env(cfg)
+        assert env == {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat-x"}
+        assert "oauth-token" not in cfg.agent_args  # never persisted
+
+    def test_resume_no_token_injects_nothing(self, tmp_path: Path) -> None:
+        """With no supplied token, resume injects no credential; the entrypoint
+        scrubbed ~/.claude/.credentials.json before commit, so the agent
+        re-authenticates in-container (in-container login)."""
+        agent = get_agent("claude-code")
+        cfg = SessionConfig(
+            name="t", tools_file=tmp_path / "t.py", workspace_dir=tmp_path / "ws",
+        )
+        assert agent.resume_credential_env(cfg) == {}
+
 
 class TestMergeAgentArgs:
     """Tests for merging config-file agent-args with CLI --agent-args."""
