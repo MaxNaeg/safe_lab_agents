@@ -62,6 +62,25 @@ fi
 # dirs 0777, so the host (the 'other' class) can read, write, and delete them.
 umask 000
 
+# ---- Un-world-write OpenClaw's plugin tree (umask 000 side effect) ----
+# umask 000 (above) is for the /agent/* bind mounts: it lets the host edit and
+# delete files the container's 'agent' user writes there despite the UID
+# mismatch. As a side effect it also makes everything OpenClaw materializes
+# under ~/.openclaw/npm world-writable (0777) — and OpenClaw's own plugin loader
+# refuses to load any plugin from a world-writable path (e.g. the codex provider
+# plugin), emitting repeated "blocked plugin candidate" warnings.
+#
+# That npm tree is container-internal: it is never bind-mounted and never copied
+# out (copy_agent_logs deliberately extracts only ~/.openclaw/agents, not npm),
+# and the 'agent' user owns it, so stripping *group/other* write costs nothing —
+# the owner keeps full access. We scope the chmod to ~/.openclaw/npm on purpose:
+# ~/.openclaw/agents must stay world-writable so the host can clean up the logs
+# that get docker-cp'd out of it on Linux (a foreign-UID directory).
+#
+# This first pass fixes a codex dir already present at 0777 when *resuming* a
+# committed image, before the setup commands below would otherwise re-warn.
+chmod -R go-w /home/agent/.openclaw/npm 2>/dev/null || true
+
 # ---- Register MCP server ----
 if [ -n "${MCP_AUTH_TOKEN:-}" ]; then
     openclaw mcp set experiment-tools \
@@ -85,6 +104,15 @@ if [ -n "${LLM_PROVIDER:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then
         *)          KEY_FLAG="" ;;
     esac
     if [ -n "$KEY_FLAG" ]; then
+        # Run onboarding under a normal umask, NOT umask 000. onboard writes only
+        # to ~/.openclaw — config plus any plugins it installs/refreshes with a
+        # valid key (notably the codex provider plugin) — and never to the
+        # /agent/* bind mounts, so it does not need the world-writable umask.
+        # Under umask 000 the plugin dirs it materializes are born 0777, and
+        # OpenClaw's own loader then refuses to load them, spamming
+        # "blocked plugin candidate: world-writable path" warnings on every
+        # subsequent command. A normal umask makes them 0755 and silent.
+        umask 022
         openclaw onboard \
             --non-interactive \
             --accept-risk \
@@ -92,6 +120,14 @@ if [ -n "${LLM_PROVIDER:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then
             "$KEY_FLAG" "$LLM_API_KEY" \
             --skip-health \
         || { echo "ERROR: API key registration failed for provider '${LLM_PROVIDER}'. Check that the key is valid." >&2; exit 1; }
+        # Restore the world-writable umask for the agent run (bind-mount writes).
+        umask 000
+        # onboard may have (re)created the session-log tree under umask 022, i.e.
+        # 0755. Those logs are docker-cp'd out at shutdown and the host must be
+        # able to delete them (a foreign UID on Linux), so restore world-write on
+        # that subtree only. The plugin tree under ~/.openclaw/npm is intentionally
+        # left non-world-writable (it is never copied out) so plugins keep loading.
+        chmod -R go+w /home/agent/.openclaw/agents 2>/dev/null || true
     fi
 fi
 
@@ -137,6 +173,14 @@ fi
 if [ -f "/agent/workspace/reload_info.txt" ]; then
     cat /agent/workspace/reload_info.txt >> "$SOUL"
 fi
+
+# ---- Safety net: un-world-write the plugin tree once more, pre-launch ----
+# onboard already installs under a normal umask (0755) above, so this is belt-
+# and-suspenders: should any later step under umask 000 re-materialize a plugin
+# dir at 0777 (e.g. a config reload triggering a refresh), strip group/other
+# write before the agent run. A no-op when everything is already 0755. Verified
+# to persist across plugin reloads and the run. See the note by the first pass.
+chmod -R go-w /home/agent/.openclaw/npm 2>/dev/null || true
 
 # ---- Resume mode ----
 if [ "${1:-}" = "--resume" ]; then
