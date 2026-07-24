@@ -9,6 +9,9 @@ prune example_setup
 # so they render on GitHub and PyPI without travelling inside the package.
 prune docs/figures_mini_example
 
+# Demo videos/GIFs (~29 MB) live on GitHub; they must not travel inside the sdist.
+prune docs/example_videos
+
 # Cruft that should never be packaged.
 global-exclude .DS_Store
 global-exclude *.py[cod]
