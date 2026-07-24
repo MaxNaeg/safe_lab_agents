@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import inspect
 import io
 import json
+import typing
 import urllib.error
+from enum import Enum
+from pathlib import Path
 
 import pytest
 
-from safe_lab_agents.mcp.client_generator import _CLIENT_HEADER, _format_tools_info
+from safe_lab_agents.mcp.client_generator import (
+    _CLIENT_HEADER,
+    _format_tools_info,
+    _render_function,
+)
 
 
 def _exec_header(monkeypatch, *, port: str, host: str | None) -> dict:
@@ -97,3 +105,226 @@ def test_invoke_type_error_still_maps_to_type_error(monkeypatch) -> None:
     with pytest.raises(TypeError) as exc:
         ns["_invoke"]("my_tool")
     assert "missing required argument" in str(exc.value)
+
+
+# --- default-value rendering (non-literal reprs must not break the client) ---
+
+
+class _Mode(Enum):
+    FAST = 1
+    SLOW = 2
+
+
+def _tricky_tool(
+    p: Path = Path("."),
+    x: float = float("inf"),
+    mode: _Mode = _Mode.FAST,
+    n: int = 5,
+    label: str = "run",
+) -> dict:
+    """A tool whose defaults have non-literal reprs."""
+    return {}
+
+
+def _scan(start: float, stop: float, steps: int = 100):
+    """A tool with required args."""
+    return []
+
+
+def _exec_generated(monkeypatch, funcs):
+    """Compile+exec the full generated client (header + funcs); return its namespace."""
+    monkeypatch.setenv("MCP_PORT", "5000")
+    src = _CLIENT_HEADER + "".join(_render_function(f) for f in funcs)
+    ns: dict = {}
+    exec(compile(src, "<client>", "exec"), ns)  # must not raise
+    return ns, src
+
+
+def test_client_with_nonliteral_defaults_is_importable(monkeypatch) -> None:
+    """Path()/float('inf')/enum defaults used to emit PosixPath('.')/inf/<Mode.FAST:1>
+    — a NameError/SyntaxError on import. Now the module compiles and exec's cleanly."""
+    ns, _ = _exec_generated(monkeypatch, [_tricky_tool])
+    fn = ns["_tricky_tool"]
+    # Every optional param defaults to the sentinel in the executable signature.
+    for param in inspect.signature(fn).parameters.values():
+        assert param.default is ns["_MISSING"]
+
+
+def test_client_type_hints_preserved_in_signature(monkeypatch) -> None:
+    _, src = _exec_generated(monkeypatch, [_tricky_tool])
+    assert "p: Path = _MISSING" in src
+    assert "x: float = _MISSING" in src
+    assert "mode: _Mode = _MISSING" in src
+
+
+def test_client_docstring_shows_true_defaults(monkeypatch) -> None:
+    """The real defaults survive as documentation (source-faithful, not repr)."""
+    _, src = _exec_generated(monkeypatch, [_tricky_tool])
+    assert "p: Path = Path('.')" in src
+    assert "x: float = float('inf')" in src
+    assert "mode: _Mode = _Mode.FAST" in src
+    assert "n: int = 5" in src
+
+
+def test_client_omits_missing_args_so_host_applies_defaults(monkeypatch) -> None:
+    ns, _ = _exec_generated(monkeypatch, [_tricky_tool])
+    sent: dict = {}
+    ns["_invoke"] = lambda name, **kw: sent.update(name=name, kw=kw)
+
+    ns["_tricky_tool"](n=7)
+    assert sent["kw"] == {"n": 7}  # only the supplied arg is sent
+
+    sent.clear()
+    ns["_tricky_tool"]()
+    assert sent["kw"] == {}  # nothing sent → host uses every real default
+
+
+def test_client_required_args_always_sent(monkeypatch) -> None:
+    ns, _ = _exec_generated(monkeypatch, [_scan])
+    sent: dict = {}
+    ns["_invoke"] = lambda name, **kw: sent.update(name=name, kw=kw)
+    ns["_scan"](1.0, 2.0)
+    assert sent["kw"] == {"start": 1.0, "stop": 2.0}  # required args sent, steps omitted
+
+
+def test_tools_info_shows_true_defaults() -> None:
+    info = _format_tools_info([_tricky_tool])
+    assert "Path('.')" in info
+    assert "float('inf')" in info
+    assert "_Mode.FAST" in info
+
+
+# --- Quantity reconstruction on the client side ---
+
+
+def test_invoke_rebuilds_scalar_quantity(monkeypatch) -> None:
+    """A bare {value, unit} result comes back as a Quantity, not a plain dict."""
+    ns = _exec_header(monkeypatch, port="5000", host=None)
+    import pickle
+
+    monkeypatch.setattr(
+        ns["urllib"].request,
+        "urlopen",
+        lambda req: io.BytesIO(pickle.dumps({"value": 2.5, "unit": "W"})),
+    )
+    result = ns["_invoke"]("read_power")
+    assert isinstance(result, ns["Quantity"])
+    assert result.value == 2.5
+    assert result.unit == "W"
+    assert result.term is None
+    assert float(result) == 2.5
+
+
+def test_invoke_rebuilds_nested_quantities(monkeypatch) -> None:
+    """Quantities nested inside dicts/lists are rebuilt; plain values are untouched."""
+    ns = _exec_header(monkeypatch, port="5000", host=None)
+    import pickle
+
+    payload = {
+        "power": {"value": 2.5, "unit": "W", "term": "http://qudt.org/vocab/unit/W"},
+        "readings": [{"value": 1, "unit": "V"}, {"value": 2, "unit": "V"}],
+        "label": "run-1",
+    }
+    monkeypatch.setattr(
+        ns["urllib"].request,
+        "urlopen",
+        lambda req: io.BytesIO(pickle.dumps(payload)),
+    )
+    result = ns["_invoke"]("read_all")
+    assert isinstance(result["power"], ns["Quantity"])
+    assert result["power"].term == "http://qudt.org/vocab/unit/W"
+    assert all(isinstance(r, ns["Quantity"]) for r in result["readings"])
+    assert result["label"] == "run-1"  # plain values pass through unchanged
+
+
+def test_invoke_does_not_rebuild_ndarray_ref_dict(monkeypatch) -> None:
+    """An ndarray reference dict (has a 'unit' key) must not be mistaken for a
+    quantity."""
+    ns = _exec_header(monkeypatch, port="5000", host=None)
+    import pickle
+
+    ref = {"_type": "ndarray", "value": "scan.x", "unit": "V"}
+    monkeypatch.setattr(
+        ns["urllib"].request,
+        "urlopen",
+        lambda req: io.BytesIO(pickle.dumps(ref)),
+    )
+    result = ns["_invoke"]("read_trace")
+    assert result == ref  # left as-is, not wrapped in Quantity
+
+
+def test_quantity_type_annotation_surfaces_in_signature(monkeypatch) -> None:
+    """A '-> Quantity' return annotation is preserved in the generated stub, and
+    the stub is importable because Quantity is defined in the header."""
+
+    def read_power() -> Quantity:  # noqa: F821 - annotation is a string (PEP 563)
+        """Read power."""
+        return {}
+
+    ns, src = _exec_generated(monkeypatch, [read_power])
+    assert "-> Quantity" in src
+    assert "read_power" in ns
+
+
+def test_tools_info_explains_quantity() -> None:
+    """The agent-facing info explains the Quantity object it will receive."""
+    info = _format_tools_info([_a_tool])
+    assert "Quantity" in info
+    assert ".value" in info
+    assert ".unit" in info
+
+
+# --- annotation rendering when source is unavailable (experiment() methods) ---
+
+
+def test_annotation_str_preserves_generic_parameters() -> None:
+    """A parameterised generic must keep its args — ``dict[str, Quantity].__name__``
+    is just ``dict``, which used to truncate the annotation the agent sees."""
+    from safe_lab_agents import Quantity
+    from safe_lab_agents.mcp.client_generator import _annotation_str
+
+    assert _annotation_str(dict[str, Quantity]) == "dict[str, Quantity]"
+    assert _annotation_str(dict[str, Quantity | str]) == "dict[str, Quantity | str]"
+    assert _annotation_str(list[float]) == "list[float]"
+    assert _annotation_str(typing.Optional[int]) == "int | None"
+    assert _annotation_str(float) == "float"
+
+
+def test_experiment_method_return_hint_survives_in_stub_and_info(monkeypatch) -> None:
+    """A method registered via ``experiment()`` has no source of its own (its
+    runtime wrapper's source is the ``call`` closure), so the source path fails
+    and the fallback must still render the full ``-> dict[str, Quantity]`` — in
+    both the generated stub and the system-prompt tools info.
+
+    Regression: the agent inside Docker saw ``-> dict`` instead. The class is
+    defined via ``exec`` in a namespace *without* ``from __future__ import
+    annotations`` so its return hint is a live ``dict[str, Quantity]`` object
+    (a ``types.GenericAlias``), exactly as in the user's setup.py — this module's
+    own PEP 563 import would otherwise turn the annotation into a harmless string
+    and bypass the truncation path entirely.
+    """
+    from safe_lab_agents import Quantity, experiment
+
+    ns: dict = {"Quantity": Quantity}
+    # dont_inherit=True: don't leak this module's PEP 563 future flag into the
+    # exec, so the annotation stays a live object rather than a string.
+    code = compile(
+        "class _Setup:\n"
+        "    def measure_power(self) -> dict[str, Quantity]:\n"
+        '        """Measure the optical power."""\n'
+        "        return {}\n",
+        "<setup>",
+        "exec",
+        dont_inherit=True,
+    )
+    exec(code, ns)
+    exp = experiment(ns["_Setup"])
+
+    # Sanity: the return hint really is a live generic, not a PEP 563 string.
+    assert isinstance(inspect.signature(exp.measure_power).return_annotation, type(dict[str, int]))
+
+    _, src = _exec_generated(monkeypatch, [exp.measure_power])
+    assert "def measure_power() -> dict[str, Quantity]:" in src
+
+    info = _format_tools_info([exp.measure_power])
+    assert "measure_power() -> dict[str, Quantity]" in info

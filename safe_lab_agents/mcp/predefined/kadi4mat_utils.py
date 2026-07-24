@@ -4,9 +4,7 @@ These functions have no dependency on kadi-apy and can be tested in isolation.
 They handle Kadi4Mat identifier generation (slugs, record/collection ids).
 
 Format-neutral serialization helpers (``json_safe``, the quantity convention,
-numpy-array extraction) live in
-:mod:`safe_lab_agents.mcp.predefined.records`; ``json_safe`` is
-re-exported here for backwards compatibility.
+numpy-array extraction) live in :mod:`safe_lab_agents.mcp.predefined.records`.
 """
 
 from __future__ import annotations
@@ -14,15 +12,11 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-# Re-exported for backwards compatibility — the canonical home is serialization.
-from safe_lab_agents.mcp.predefined.records import json_safe
-
 __all__ = [
     "slugify",
     "make_user_slug",
     "make_collection_identifier",
     "make_record_identifier",
-    "json_safe",
 ]
 
 # Kadi4Mat enforces a maximum identifier length of 50 characters.

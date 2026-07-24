@@ -123,12 +123,40 @@ def experiment(factory, *args, **kwargs):
     """
     return _LazyExperiment(factory, args, kwargs)
 
-def get_return_expr(func):
-    """Return the source text of the first value-returning ``return`` in *func*.
+def _iter_own_returns(node):
+    """Yield value-returning ``ast.Return`` nodes belonging directly to *node*.
 
-    Used by :func:`results_to_shared` to recover the names a function returns
-    (``return x, y`` -> ``"x, y"``).  Raises ``ValueError`` with a clear message
-    at decoration time — rather than failing obscurely later — when the source
+    Descends through control-flow (if/for/with/try) in source order but does NOT
+    enter nested functions/lambdas, so a helper's ``return`` is never mistaken
+    for the decorated function's own.
+    """
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            continue
+        if isinstance(child, ast.Return) and child.value is not None:
+            yield child
+        yield from _iter_own_returns(child)
+
+
+def _element_name(elt, index: int) -> str:
+    """Name one returned element: a plain variable/attribute keeps its name;
+    any other expression gets a positional ``result{index}`` fallback so the
+    saved filename stays valid and aligned with its value."""
+    if isinstance(elt, ast.Name):
+        return elt.id
+    if isinstance(elt, ast.Attribute):
+        return elt.attr
+    return f"result{index}"
+
+
+def get_return_names(func) -> list[str]:
+    """Return the names *func* returns, recovered structurally from its AST.
+
+    Used by :func:`results_to_shared`.  Parses the decorated function's first
+    own ``return``: a tuple return yields one name per element (via the AST
+    ``Tuple`` elements, so commas inside calls like ``return combine(a, b), c``
+    don't over-split), and a single-value return yields one name.  Raises
+    ``ValueError`` with a clear message at decoration time when the source
     cannot be read or there is no ``return <value>`` statement.
     """
     try:
@@ -142,14 +170,25 @@ def get_return_expr(func):
             "function)."
         ) from exc
 
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Return) and node.value is not None:
-            return ast.unparse(node.value)
-
-    raise ValueError(
-        f"results_to_shared requires {getattr(func, '__name__', func)!r} to "
-        "have a `return <names>` statement, e.g. `return x, y, z`."
+    tree = ast.parse(source)
+    func_def = next(
+        (
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and n.name == getattr(func, "__name__", None)
+        ),
+        None,
     )
+    ret = next(_iter_own_returns(func_def), None) if func_def is not None else None
+    if ret is None:
+        raise ValueError(
+            f"results_to_shared requires {getattr(func, '__name__', func)!r} to "
+            "have a `return <names>` statement, e.g. `return x, y, z`."
+        )
+
+    elts = ret.value.elts if isinstance(ret.value, ast.Tuple) else [ret.value]
+    return [_element_name(elt, i) for i, elt in enumerate(elts)]
 
 
 def results_to_shared(results_to_save: list[bool] | None = None):
@@ -162,15 +201,14 @@ def results_to_shared(results_to_save: list[bool] | None = None):
         The decorated function.
     '''
     def decorator(func):
-        return_str = get_return_expr(func)
-        return_names = return_str.split(",") if "," in return_str else [return_str]
-        if len(return_names) > 1:
-            # strip the surrounding brackets from `return (x, y, z)`
-            return_names[0] = return_names[0].lstrip(" (")
-            return_names[-1] = return_names[-1].rstrip(" )")
-        return_names = [name.strip() for name in return_names]
+        return_names = get_return_names(func)
         save_mask = results_to_save if results_to_save is not None else [True] * len(return_names)
-        assert len(save_mask) == len(return_names), f"Length of results_to_save ({len(save_mask)}) must match number of return values ({len(return_names)})."
+        # Explicit raise (not assert) so validation survives `python -O`.
+        if len(save_mask) != len(return_names):
+            raise ValueError(
+                f"Length of results_to_save ({len(save_mask)}) must match the "
+                f"number of return values ({len(return_names)}: {return_names})."
+            )
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -182,8 +220,13 @@ def results_to_shared(results_to_save: list[bool] | None = None):
             to_return = []
             result = func(*args, **kwargs)
             if len(return_names) != 1:
-                assert isinstance(result, tuple) and len(result) == len(return_names), \
-                    f"Expected {len(return_names)} return values (one for each name in {return_names}), got {len(result)}"
+                # Explicit raise (not assert) so this survives `python -O`.
+                if not isinstance(result, tuple) or len(result) != len(return_names):
+                    got = len(result) if isinstance(result, tuple) else type(result).__name__
+                    raise ValueError(
+                        f"Expected {len(return_names)} return values (one per name "
+                        f"in {return_names}), got {got}."
+                    )
             if len(return_names) == 1:
                 result = (result,)  # make it a tuple for consistent processing
             for name, value, save_res in zip(return_names, result, save_mask):
@@ -191,7 +234,7 @@ def results_to_shared(results_to_save: list[bool] | None = None):
                     save_type = 'pkl'
                     if isinstance(value, np.ndarray):
                         save_type = 'npy'
-                    basepath = Path(f"{SHARED_DATA_DIR}/{name}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.{save_type}") 
+                    basepath = Path(f"{SHARED_DATA_DIR}/{name}_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S')}.{save_type}")
                     # add dateime and underscore if already exists:
                     while basepath.exists():
                         basepath = basepath.with_name(basepath.stem + "_").with_suffix(f".{save_type}")

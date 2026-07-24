@@ -7,10 +7,13 @@ to the host filesystem.
 
 from __future__ import annotations
 
+import codecs
 import logging
 import os
 import platform
+import shutil
 import subprocess
+import tarfile
 import time
 from pathlib import Path
 from typing import Optional
@@ -31,6 +34,11 @@ from safe_lab_agents.docker.runtime import (
 
 logger = logging.getLogger(__name__)
 
+# Single Console for all user-facing status output in this module (stderr, so it
+# never mixes with an agent's stdout). Matches the convention in cli.py and the
+# rest of the package — no bare print() calls.
+console = Console(stderr=True)
+
 # Docker image prefix for committed session images.
 _SESSION_IMAGE_PREFIX = "safe-lab-agents-session-"
 
@@ -48,6 +56,49 @@ _DOCKER_START_TIMEOUT = 60
 _HARDENING_CAP_DROP = ["ALL"]
 _HARDENING_SECURITY_OPT = ["no-new-privileges:true"]
 _HARDENING_PIDS_LIMIT = 512
+
+# Capabilities added back on top of ``cap_drop ALL``. Every container starts
+# as root only so the entrypoint can run its root phase, then drops to the
+# unprivileged ``agent`` user via setpriv — which needs SETUID/SETGID.
+# Session containers additionally get NET_ADMIN so the entrypoint can install
+# the egress firewall (scope host access to the MCP port) before the drop.
+# After the drop the capabilities survive only in the bounding set, where the
+# ``no-new-privileges`` flag makes them unreacquirable.
+_LOGIN_CAP_ADD = ["SETUID", "SETGID"]
+_SESSION_CAP_ADD = ["NET_ADMIN", *_LOGIN_CAP_ADD]
+
+# Floor for the default memory limit. The default is half the RAM visible to
+# the container runtime, but never less than this — scientific workloads
+# (numpy arrays, plots) need real headroom, and a too-small limit would turn
+# ordinary analyses into OOM kills.
+_MIN_MEM_LIMIT_BYTES = 2 * 1024**3
+
+
+class _ChunkStream:
+    """Minimal read-only file object over an iterator of byte chunks.
+
+    ``docker``/``podman`` API ``get_archive`` returns the tar payload as a
+    generator of chunks; :mod:`tarfile` in streaming mode ("r|") needs a
+    file-like ``read(n)``. This adapts one to the other without buffering the
+    whole archive in memory.
+    """
+
+    def __init__(self, chunks) -> None:
+        self._it = iter(chunks)
+        self._buf = b""
+
+    def read(self, size: int = -1) -> bytes:
+        if size is None or size < 0:
+            data = self._buf + b"".join(self._it)
+            self._buf = b""
+            return data
+        while len(self._buf) < size:
+            try:
+                self._buf += next(self._it)
+            except StopIteration:
+                break
+        data, self._buf = self._buf[:size], self._buf[size:]
+        return data
 
 
 def _make_agent_writable(path: Path) -> None:
@@ -74,8 +125,15 @@ def _make_agent_writable(path: Path) -> None:
     Applied recursively so pre-existing content (seeded data, files left by an
     earlier session) becomes writable too.  Best-effort: files owned by another
     user that the host can't chmod (e.g. left by a session under a *different*
-    container runtime, owned by a Podman subuid) are logged and skipped rather
-    than aborting the whole session.
+    container runtime, owned by a Podman subuid) are skipped rather than aborting
+    the whole session.  This is logged at ``debug`` rather than ``warning``: the
+    common trigger is a *resume* under rootless Podman, where a file the prior
+    container's ``agent`` user wrote is owned by that agent's subuid — which the
+    resumed container maps back to the same ``agent`` user, so it already owns and
+    can write the file regardless of its host-side mode.  In that (benign) case
+    the failed chmod is a no-op, so surfacing it as a warning was pure noise.
+    A genuinely stuck file (owned by a *different* runtime's subuid) is still
+    skipped here and would surface downstream as an in-container write error.
     """
     for target in (path, *path.rglob("*")):
         try:
@@ -88,7 +146,7 @@ def _make_agent_writable(path: Path) -> None:
                 # add rw for all, keep existing execute bits.
                 target.chmod((mode & 0o777) | 0o666)
         except OSError as exc:
-            logger.warning("Could not widen permissions on %s: %s", target, exc)
+            logger.debug("Could not widen permissions on %s: %s", target, exc)
 
 
 def _connect_or_start_docker() -> docker.DockerClient:
@@ -105,10 +163,17 @@ def _connect_or_start_docker() -> docker.DockerClient:
         RuntimeError: If Docker cannot be started or does not become ready
             within the timeout.
     """
-    # Fast path — Docker is already running.
+    # Fast path — Docker is already running. from_env() is lazy and does NOT
+    # contact the daemon, so it succeeds even when Docker is stopped; ping()
+    # forces a real round-trip so a stopped daemon is detected here (routing us
+    # into auto-start) instead of surfacing as an opaque error on the first API
+    # call. A dead socket raises requests' ConnectionError, not a
+    # DockerException, so both are caught.
     try:
-        return docker.from_env()
-    except docker.errors.DockerException as exc:
+        client = docker.from_env()
+        client.ping()
+        return client
+    except (docker.errors.DockerException, requests.exceptions.RequestException) as exc:
         if os.environ.get("DOCKER_HOST"):
             raise RuntimeError(
                 f"Could not connect to container runtime at {os.environ['DOCKER_HOST']}. "
@@ -126,7 +191,9 @@ def _connect_or_start_docker() -> docker.DockerClient:
 
     system = platform.system()
     logger.info("Docker is not running — attempting to start it (%s) …", system)
-    print("Docker is not running — starting it automatically …", flush=True)
+    console.print(
+        "Docker is not running — starting it automatically …", highlight=False
+    )
 
     try:
         if system == "Darwin":
@@ -147,16 +214,23 @@ def _connect_or_start_docker() -> docker.DockerClient:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError(f"Failed to start Docker: {exc}") from exc
 
-    # Poll until the daemon responds.
+    # Poll until the daemon responds. ping() (not just from_env(), which would
+    # succeed instantly) is what actually confirms the daemon is up, so the wait
+    # reflects Docker Desktop's real boot time.
     deadline = time.monotonic() + _DOCKER_START_TIMEOUT
     while time.monotonic() < deadline:
         try:
             client = docker.from_env()
-            print("Docker is ready.", flush=True)
+            client.ping()
+            console.print("Docker is ready.", highlight=False)
             return client
-        except docker.errors.DockerException:
+        except (docker.errors.DockerException, requests.exceptions.RequestException):
             remaining = int(deadline - time.monotonic())
-            print(f"  Waiting for Docker … ({remaining}s remaining)", end="\r", flush=True)
+            console.print(
+                f"  Waiting for Docker … ({remaining}s remaining)",
+                end="\r",
+                highlight=False,
+            )
             time.sleep(2)
 
     raise RuntimeError(
@@ -245,9 +319,26 @@ class DockerManager:
         mcp_host = self._resolve_mcp_host(config)
         if mcp_host:
             environment["MCP_HOST"] = mcp_host
+        # Tell the entrypoint whether to install the egress firewall before
+        # dropping privileges (see firewall.sh). The host-gateway mapping
+        # itself must stay: the entrypoint's MCP URL and the firewall's
+        # host-IP resolution both rely on the host.docker.internal name
+        # (rootless Podman does not define it on its own), and the firewall —
+        # not the absence of the name — is what scopes host access.
+        environment["EGRESS_LOCKDOWN"] = (
+            "true" if config.egress_lockdown else "false"
+        )
         command = (
             agent.get_resume_command() if resume else agent.get_entrypoint_command()
         )
+
+        # User-configured memory/CPU limits override the runtime-sized
+        # defaults applied in _containers_create (setdefault semantics).
+        resource_overrides: dict = {}
+        if config.mem_limit is not None:
+            resource_overrides["mem_limit"] = config.mem_limit
+        if config.cpu_limit is not None:
+            resource_overrides["nano_cpus"] = int(config.cpu_limit * 1_000_000_000)
 
         container = self._containers_create(
             image=image_tag,
@@ -256,9 +347,11 @@ class DockerManager:
             environment=environment,
             volumes=volumes,
             extra_hosts={"host.docker.internal": "host-gateway"},
+            cap_add=_SESSION_CAP_ADD,
             tty=tty,
             stdin_open=tty,
             detach=True,
+            **resource_overrides,
         )
 
         logger.info(
@@ -281,13 +374,19 @@ class DockerManager:
 
         The container is created but **not** started; run it with
         :meth:`start_interactive`.
+
+        Unlike session containers it gets no ``host.docker.internal`` mapping
+        and no ``NET_ADMIN`` — the OAuth flow only needs the public internet,
+        so the host is not exposed to it at all (and with ``EGRESS_LOCKDOWN``
+        unset the entrypoint skips the firewall). SETUID/SETGID remain so the
+        entrypoint can drop from root to the ``agent`` user.
         """
         container = self._containers_create(
             image=image_tag,
             name=f"safe-lab-agents-login-{os.getpid()}",
             command=agent.get_login_command(),
             environment={"TERM": os.environ.get("TERM", "xterm-256color")},
-            extra_hosts={"host.docker.internal": "host-gateway"},
+            cap_add=_LOGIN_CAP_ADD,
             tty=True,
             stdin_open=True,
             detach=True,
@@ -349,17 +448,91 @@ class DockerManager:
             self.client = _connect_or_start_docker()
             return operation()
 
+    def _resource_limit_defaults(self) -> dict:
+        """Return default memory/CPU limits sized from the runtime's resources.
+
+        Sized against what the *daemon* reports (``client.info()``), not the
+        physical host: on macOS/Windows that is the Docker Desktop / Podman VM
+        (whose size already caps total usage — the in-container limit stops one
+        session from wedging the VM), while on native Linux it is the host
+        itself — the case where a runaway agent could otherwise exhaust host
+        RAM mid-experiment.
+
+        Defaults: half the visible RAM (floor :data:`_MIN_MEM_LIMIT_BYTES`,
+        capped at the total) and all-but-one visible CPU core — the spared
+        core keeps the host-side MCP server (which drives the real lab
+        hardware) responsive. Returns ``{}`` with a warning if the runtime
+        does not report its resources.
+        """
+        try:
+            info = self.client.info()
+            mem_total = int(info.get("MemTotal") or 0)
+            ncpu = int(info.get("NCPU") or 0)
+        except Exception as exc:
+            logger.warning("Could not query runtime resources: %s", exc)
+            mem_total, ncpu = 0, 0
+        if mem_total <= 0 or ncpu <= 0:
+            logger.warning(
+                "Container runtime did not report its RAM/CPUs — creating the "
+                "container without memory/CPU limits."
+            )
+            return {}
+        return {
+            "mem_limit": min(max(mem_total // 2, _MIN_MEM_LIMIT_BYTES), mem_total),
+            "nano_cpus": max(1, ncpu - 1) * 1_000_000_000,
+        }
+
     def _containers_create(self, **kwargs) -> Container:
         """Create a container, reconnecting once if the connection went stale.
 
         Applies the hardening defaults (drop all capabilities, no-new-privileges,
-        PID cap) to every container unless the caller explicitly overrides them.
-        Both Docker and Podman honour these options.
+        PID cap, memory/CPU limits) to every container unless the caller
+        explicitly overrides them.  ``memswap_limit`` always follows
+        ``mem_limit`` so the container gets **no swap**: with swap available a
+        runaway agent would not OOM inside the container but swap-thrash the
+        whole host — itself a DoS.  Both Docker and Podman honour these options.
+
+        The memory/CPU limits are availability hardening, not a security
+        boundary, so they degrade gracefully: if the runtime rejects them
+        (rootless Podman without cgroups-v2 delegation), the create is retried
+        once without limits and a warning is printed.
         """
         kwargs.setdefault("cap_drop", _HARDENING_CAP_DROP)
         kwargs.setdefault("security_opt", _HARDENING_SECURITY_OPT)
         kwargs.setdefault("pids_limit", _HARDENING_PIDS_LIMIT)
-        return self._with_reconnect(lambda: self.client.containers.create(**kwargs))
+        limits = self._resource_limit_defaults()
+        if limits:
+            kwargs.setdefault("mem_limit", limits["mem_limit"])
+            kwargs.setdefault("nano_cpus", limits["nano_cpus"])
+        if kwargs.get("mem_limit") is not None:
+            # Same value, same unit string if the caller passed one — docker's
+            # SDK parses both fields identically.
+            kwargs.setdefault("memswap_limit", kwargs["mem_limit"])
+
+        def _create() -> Container:
+            try:
+                return self.client.containers.create(**kwargs)
+            except docker.errors.APIError as exc:
+                limit_keys = [
+                    k
+                    for k in ("mem_limit", "memswap_limit", "nano_cpus")
+                    if kwargs.get(k) is not None
+                ]
+                if not limit_keys:
+                    raise
+                logger.warning(
+                    "Container runtime rejected the resource limits (%s) — "
+                    "retrying without memory/CPU limits. A runaway agent can "
+                    "then exhaust host resources; on rootless Podman, enable "
+                    "cgroups-v2 delegation to make limits enforceable. Error: %s",
+                    ", ".join(limit_keys),
+                    exc,
+                )
+                for key in limit_keys:
+                    kwargs.pop(key)
+                return self.client.containers.create(**kwargs)
+
+        return self._with_reconnect(_create)
 
     def engine_is_podman(self) -> bool:
         """Return True if the connected container engine is actually Podman.
@@ -428,38 +601,191 @@ class DockerManager:
         logs_dir.mkdir(parents=True, exist_ok=True)
 
         if agent_type == "claude-code":
+            # NOTE: `docker cp` on a live/exited container is unreliable on
+            # Windows/WSL2 — the host's view of the container layer propagates in
+            # bursts, so a copy taken at teardown can return a missing or partial
+            # transcript (observed: 6 of 15 transcript lines). Callers that need
+            # the *complete* transcript should commit first and copy from the
+            # image via :meth:`copy_agent_logs_from_image` (immutable snapshot).
             src = f"{container_id}:/home/agent/.claude/projects"
-            dest = logs_dir
-        elif agent_type == "openclaw":
-            # Copy only the session-log subtree, not the whole ~/.openclaw.
-            # The full directory also contains OpenClaw's bundled npm install
-            # tree (e.g. .openclaw/npm/.../node_modules/.bin/codex), which is
-            # full of symlinks. Recreating those on a Windows host fails with
-            # "A required privilege is not held by the client" (the user lacks
-            # SeCreateSymbolicLinkPrivilege), aborting the whole copy. The JSONL
-            # logs we actually parse live under .openclaw/agents/, so copy just
-            # that into a pre-created .openclaw/ to preserve the expected layout.
+            result = subprocess.run(
+                [container_cli(), "cp", src, str(logs_dir)],
+                capture_output=True,
+            )
+            if result.returncode != 0:
+                logger.warning(
+                    "Could not copy agent logs from container %s: %s",
+                    container_id,
+                    result.stderr.decode(errors="replace"),
+                )
+                return False
+            logger.info("Copied agent logs from container %s to %s", container_id, logs_dir)
+            return True
+
+        if agent_type == "openclaw":
             dest = logs_dir / ".openclaw"
             dest.mkdir(parents=True, exist_ok=True)
-            src = f"{container_id}:/home/agent/.openclaw/agents"
-        else:
-            logger.info("No log copy defined for agent type '%s'.", agent_type)
-            return False
+            return self._extract_openclaw_session_logs(container_id, dest)
 
-        result = subprocess.run(
-            [container_cli(), "cp", src, str(dest)],
-            capture_output=True,
-        )
-        if result.returncode != 0:
+        logger.info("No log copy defined for agent type '%s'.", agent_type)
+        return False
+
+    # Directory basenames belonging to OpenClaw's bundled plugin/npm/codex
+    # install trees — never session logs. These nest deep enough that a plain
+    # ``docker cp`` of the whole ``agents`` tree overflows Windows' 260-char
+    # MAX_PATH mid-extraction and aborts *before* reaching the session logs, and
+    # they hold the codex provider credential we must not copy out. Skipping
+    # them mirrors OpenClaw.parse_conversation_history's own prune set.
+    _OPENCLAW_PRUNE_DIRS = frozenset(
+        {"codex-home", "node_modules", ".tmp", "plugins", "npm"}
+    )
+
+    def _extract_openclaw_session_logs(self, container_id: str, dest: Path) -> bool:
+        """Extract OpenClaw ``*.jsonl`` session logs, skipping the plugin tree.
+
+        A plain ``docker cp .../.openclaw/agents <dest>`` writes the *entire*
+        tree to the host, and on Windows the bundled
+        ``agents/<id>/agent/codex-home/.tmp/plugins/…`` paths exceed MAX_PATH
+        (260 chars); the copy then aborts before reaching
+        ``agents/<id>/sessions/*.jsonl`` — the actual conversation logs — so
+        history import comes up empty even though the run succeeded (auto-log
+        still records the tool calls). Instead we pull the tree as a tar via the
+        Engine API (``get_archive``) and extract only the ``*.jsonl`` files that
+        are not under a pruned directory, so no over-long path is ever created on
+        disk. As a bonus the codex credential (``codex-home/auth.json``) is never
+        copied out at all.
+
+        The API client talks to whatever ``DOCKER_HOST`` points at, so this works
+        for both docker and podman — unlike a CLI ``cp SRC -`` tar stream, which
+        podman does not support on Windows (it resolves ``-`` to ``/dev/stdout``
+        and errors).
+
+        Returns ``True`` if at least one session log was extracted.
+        """
+        try:
+            stream, _stat = self.client.api.get_archive(
+                container_id, "/home/agent/.openclaw/agents"
+            )
+        except Exception as exc:  # noqa: BLE001 - never block teardown on this
             logger.warning(
-                "Could not copy agent logs from container %s: %s",
+                "Could not fetch OpenClaw log archive from container %s: %s",
                 container_id,
-                result.stderr.decode(errors="replace"),
+                exc,
             )
             return False
 
-        logger.info("Copied agent logs from container %s to %s", container_id, logs_dir)
-        return True
+        dest_root = dest.resolve()
+        extracted = 0
+        try:
+            # get_archive yields raw tar chunks; wrap them as a file object and
+            # read the tar in streaming mode ("r|", no seeking).
+            with tarfile.open(fileobj=_ChunkStream(stream), mode="r|") as tar:
+                for member in tar:
+                    if not member.isfile() or not member.name.endswith(".jsonl"):
+                        continue
+                    if set(Path(member.name).parts) & self._OPENCLAW_PRUNE_DIRS:
+                        continue
+                    target = (dest / member.name).resolve()
+                    # Defend against tar path traversal (../ members).
+                    if dest_root not in target.parents and target != dest_root:
+                        continue
+                    fsrc = tar.extractfile(member)
+                    if fsrc is None:
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with open(target, "wb") as fdst:
+                        shutil.copyfileobj(fsrc, fdst)
+                    extracted += 1
+        except (tarfile.TarError, OSError) as exc:
+            logger.warning(
+                "Could not extract OpenClaw logs from container %s: %s",
+                container_id,
+                exc,
+            )
+
+        logger.info(
+            "Extracted %d OpenClaw session log(s) from container %s to %s",
+            extracted,
+            container_id,
+            dest,
+        )
+        return extracted > 0
+
+    def copy_agent_logs_from_image(
+        self, image_tag: str, session_dir: Path, agent_type: str
+    ) -> bool:
+        """Copy native agent logs out of a committed session *image*.
+
+        Unlike a live-container ``docker cp`` (unreliable on Windows/WSL2, see
+        :meth:`copy_agent_logs`), an image is an immutable snapshot, so copying
+        from a throwaway container *created* — not started — from it yields the
+        complete transcript deterministically. Delegates the actual copy to
+        :meth:`copy_agent_logs` so the per-agent source paths and post-processing
+        stay in one place.
+        """
+        cli = container_cli()
+        create = subprocess.run(
+            [cli, "create", "--entrypoint", "sh", image_tag],
+            capture_output=True,
+            text=True,
+        )
+        if create.returncode != 0:
+            logger.warning(
+                "Could not create throwaway container from image %s: %s",
+                image_tag,
+                create.stderr.strip(),
+            )
+            return False
+        cid = create.stdout.strip()
+        try:
+            return self.copy_agent_logs(cid, session_dir, agent_type)
+        finally:
+            try:
+                self.remove_container(cid, force=True)
+            except Exception as exc:  # noqa: BLE001 - throwaway cleanup only
+                logger.warning(
+                    "Could not remove throwaway log-extraction container %s: %s",
+                    cid,
+                    exc,
+                )
+
+    def commit_and_extract_logs(
+        self,
+        container_id: str,
+        session_name: str,
+        session_dir: Path,
+        agent_type: str,
+        scrub_env_keys: Optional[list[str]] = None,
+    ) -> Optional[str]:
+        """Commit the container and extract its agent logs from the image.
+
+        On Windows/WSL2 a ``docker cp`` of the *live* container's rootfs at
+        teardown can return a missing or partial transcript (the host's view of
+        the just-written ``*.jsonl`` propagates late). The committed *image* is
+        an immutable snapshot and does not have this problem, so we stop the
+        container (flush + exit), commit it, and extract the logs from the image
+        via :meth:`copy_agent_logs_from_image`.
+
+        Returns the committed image tag, or ``None`` if the commit failed.
+        """
+        # Stop first so the agent has flushed and exited before the snapshot.
+        # Bounded, and a no-op for an already-exited (autonomous) container.
+        # NOT wait(): an interactive agent may still be running at teardown and
+        # wait() would block for its full timeout.
+        try:
+            self.client.containers.get(container_id).stop(timeout=10)
+        except Exception as exc:  # noqa: BLE001 - never block teardown on this
+            logger.debug("stop() before commit did not complete cleanly: %s", exc)
+
+        try:
+            image_tag = self.commit_container(
+                container_id, session_name, scrub_env_keys=scrub_env_keys
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not commit container: %s", exc)
+            return None
+        self.copy_agent_logs_from_image(image_tag, session_dir, agent_type)
+        return image_tag
 
 
     # ------------------------------------------------------------------
@@ -480,59 +806,89 @@ class DockerManager:
         if cid is None:
             raise RuntimeError("Container has no id; cannot start it.")
         if hasattr(os, "fork"):
+            # Self-pipe idiom: the write end is close-on-exec (Python's default),
+            # so a SUCCESSFUL execvp closes it and the parent reads EOF. On exec
+            # failure the child writes the error and terminates with os._exit —
+            # NOT a raised exception — so it never unwinds into the caller's
+            # `finally: _cleanup()`, which in the forked child would race the
+            # parent on commit/remove/MCP-shutdown (the _cleaned_up re-entrancy
+            # guard is per-process and not shared across the fork).
+            err_r, err_w = os.pipe()
             pid = os.fork()
-            if pid == 0:
-                os.execvp(cli, [cli, "start", "-ai", cid])
-            else:
+            if pid == 0:  # child
+                os.close(err_r)
+                try:
+                    os.execvp(cli, [cli, "start", "-ai", cid])
+                except BaseException as exc:  # noqa: BLE001 - must never propagate
+                    try:
+                        os.write(err_w, str(exc).encode("utf-8", "replace")[:500])
+                    except BaseException:
+                        pass
+                    os._exit(127)
+            else:  # parent
+                os.close(err_w)
+                err = b""
+                while True:
+                    chunk = os.read(err_r, 4096)
+                    if not chunk:
+                        break
+                    err += chunk
+                os.close(err_r)
                 os.waitpid(pid, 0)
+                if err:
+                    raise RuntimeError(
+                        f"Failed to launch '{cli}': {err.decode('utf-8', 'replace')}"
+                    )
         else:
             subprocess.run([cli, "start", "-ai", cid])
 
-    def start_autonomous(
-        self,
-        container: Container,
-        agent: BaseAgent,
-        stream_log_file: Optional[Path] = None,
-    ) -> None:
+    def start_autonomous(self, container: Container, agent: BaseAgent) -> None:
         """Start the container and stream its formatted output to the terminal.
 
         Each line of container output is passed through the agent's
         :meth:`~BaseAgent.format_autonomous_line` method before printing, so
         agents can render their native log format (e.g. ``stream-json``) in a
-        human-friendly way.
-
-        If *stream_log_file* is given, every raw JSON line is also written
-        there so it can be re-parsed as conversation history later.
+        human-friendly way. The stream is used for the live display only —
+        conversation history is reconstructed at shutdown from the agent's own
+        on-disk transcript (see :meth:`copy_agent_logs`), so nothing is
+        persisted here.
 
         Blocks until the container exits.
         """
         container.start()
         logger.info("Streaming output from container %s …", container.name)
-        console = Console()
-        log_fh = stream_log_file.open("a", encoding="utf-8") if stream_log_file else None
-        try:
-            # Buffer across chunks so we only process complete newline-delimited
-            # lines. Docker delivers logs in small chunks; splitting each chunk
-            # individually would break multi-byte sequences and JSON records.
-            buf = ""
-            for chunk in container.logs(stream=True, follow=True):
-                buf += chunk.decode(errors="replace")
-                while "\n" in buf:
-                    line, buf = buf.split("\n", 1)
-                    if log_fh and line.strip().startswith("{"):
-                        log_fh.write(line.strip() + "\n")
-                    formatted = agent.format_autonomous_line(line)
-                    if formatted is not None:
-                        console.print(formatted, markup=True, highlight=False)
-            if buf.strip():
-                if log_fh and buf.strip().startswith("{"):
-                    log_fh.write(buf.strip() + "\n")
-                formatted = agent.format_autonomous_line(buf)
+        # The agent's live output is primary content, so it goes to stdout (can be
+        # redirected/captured), unlike the module-level status console on stderr.
+        out_console = Console()
+        # Buffer across chunks so we only process complete newline-delimited
+        # lines. Docker delivers logs in small chunks; splitting each chunk
+        # individually would break multi-byte sequences and JSON records.
+        #
+        # We attach rather than call ``container.logs(stream=True)``: for a
+        # non-TTY container docker-py's ``logs`` demux
+        # (``_multiplexed_response_stream_helper``) reads each frame payload
+        # with a single ``read(length)``, which short-reads on large frames
+        # (Claude Code's stream-json emits multi-kB lines — big tool_results
+        # and thinking blocks). A short read makes it mistake payload bytes
+        # for the next 8-byte frame header, desyncing the stream and
+        # corrupting the JSON (which then surfaces as raw/garbled lines).
+        # ``attach`` routes through ``frames_iter`` → ``read_exactly``, which
+        # reassembles frames correctly. Decode incrementally so a UTF-8
+        # sequence split across chunks is never mangled.
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        buf = ""
+        for chunk in container.attach(stream=True, logs=True, stdout=True, stderr=True):
+            buf += decoder.decode(chunk)
+            while "\n" in buf:
+                line, buf = buf.split("\n", 1)
+                formatted = agent.format_autonomous_line(line)
                 if formatted is not None:
-                    console.print(formatted, markup=True, highlight=False)
-        finally:
-            if log_fh:
-                log_fh.close()
+                    out_console.print(formatted, markup=True, highlight=False)
+        buf += decoder.decode(b"", final=True)
+        if buf.strip():
+            formatted = agent.format_autonomous_line(buf)
+            if formatted is not None:
+                out_console.print(formatted, markup=True, highlight=False)
 
     # ------------------------------------------------------------------
     # Lifecycle operations
@@ -550,25 +906,45 @@ class DockerManager:
         )
         logger.info("Container %s stopped.", container_id)
 
-    def commit_container(self, container_id: str, session_name: str) -> str:
+    def commit_container(
+        self,
+        container_id: str,
+        session_name: str,
+        scrub_env_keys: Optional[list[str]] = None,
+    ) -> str:
         """Commit the container's filesystem state to a new Docker image.
 
         This preserves the agent's conversation state, installed packages,
         and any files created inside the container (outside of volumes).
 
+        ``docker commit`` also bakes the container's environment into the image
+        config, so any secret passed as an env var would be readable via
+        ``docker inspect``/``save`` by anyone with runtime access.  Each key in
+        *scrub_env_keys* is therefore blanked in the committed image (``ENV
+        KEY=``); the entrypoints treat an empty value as absent, and resume
+        re-injects fresh values, so blanking is loss-free.
+
         Args:
             container_id: Container ID or name.
             session_name: The session name used for the image tag.
+            scrub_env_keys: Env-var names to blank in the committed image
+                (typically ``agent.get_secret_env_keys()``).
 
         Returns:
             The image tag of the committed image.
         """
         image_tag = self._session_image_tag(session_name)
         repo, tag = image_tag.rsplit(":", 1)
+        changes = [f"ENV {key}=" for key in (scrub_env_keys or [])]
 
         def _commit() -> None:
             container = self.client.containers.get(container_id)
-            container.commit(repository=repo, tag=tag, message=f"Session {session_name}")
+            container.commit(
+                repository=repo,
+                tag=tag,
+                message=f"Session {session_name}",
+                changes=changes or None,
+            )
 
         self._with_reconnect(_commit)
         logger.info("Committed container %s as image %s", container_id, image_tag)

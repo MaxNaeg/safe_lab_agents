@@ -2,7 +2,7 @@
 import os
 import sys
 
-from safe_lab_agents import quantity  # Wrapper for physical quantities with units enables improved logging
+from safe_lab_agents import quantity, Quantity  # Wrapper for physical quantities with units enables improved logging
 
 sys.path.append(os.path.dirname(__file__))  # Add the current directory to the Python path
 from simulation import simulate_experiment
@@ -60,7 +60,7 @@ class ExampleOpticalSetup:
         
         return f"{component.capitalize()} angle set to {angle} degrees."
     
-    def measure_power(self) -> dict:
+    def measure_power(self) -> dict[str, Quantity]:
         """Measure the optical power at the detector.
 
         Returns:

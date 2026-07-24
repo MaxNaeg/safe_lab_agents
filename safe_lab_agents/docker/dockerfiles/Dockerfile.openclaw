@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
         openssl \
+        iptables \
+        util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/python3 /usr/local/bin/python
 
@@ -50,16 +52,32 @@ RUN if [ -s /tmp/user_requirements.txt ] && [ "$REQUIREMENTS_FILE" != "" ]; then
             -r /tmp/user_requirements.txt; \
     fi && rm -f /tmp/user_requirements.txt
 
-# ---- Entrypoint script ----
+# ---- Entrypoint + egress-firewall scripts ----
 COPY entrypoint.openclaw.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY firewall.sh /firewall.sh
+RUN chmod +x /entrypoint.sh /firewall.sh
 
 USER agent
 
 # Pre-install the Codex plugin so it doesn't install on every container start.
 # @openclaw/codex is lazily downloaded on first agent run; installing it here
-# bakes it into the image.
+# bakes it into the image.  Runs as 'agent' so the plugin lands in
+# /home/agent/.openclaw with the right owner.
 RUN openclaw plugins install @openclaw/codex 2>/dev/null || true
+
+# Back to root for runtime: the entrypoint needs CAP_NET_ADMIN to apply the
+# egress firewall, then drops to 'agent' via setpriv.
+USER root
+
+# ---- Toolchain provenance ----
+# The npm install above is deliberately unpinned (see AUDIT.md), so record
+# what was actually installed. Placed last so it never invalidates the
+# expensive layers above; falls back to the npm listing should the CLI ever
+# stop supporting --version. Read back with:
+#   docker run --rm --entrypoint cat <image> /image-versions.txt
+RUN (openclaw --version || npm list -g openclaw --depth=0 | grep openclaw) \
+        > /image-versions.txt \
+    && cat /image-versions.txt
 
 WORKDIR /agent/workspace
 

@@ -131,10 +131,28 @@ class TestLoadModuleExports:
         acquire = mcp_tools[0]
         acquire()        # mutate module state via the tool
         hook()           # hook must see the mutation
-        # Re-read the module's results list through the hook's closure.
-        import sys
-        module = sys.modules["_user_tools_tools"]
-        assert module.results == [True]
+        # Read the module's results list via the tool's own globals (its module
+        # namespace) — robust to the stem+hash module name and test isolation.
+        assert acquire.__globals__["results"] == [True]
+
+    def test_same_stem_files_do_not_collide(self, tmp_path: Path) -> None:
+        """Two tools files sharing a basename load as distinct modules (no
+        sys.modules key collision), so one does not clobber the other."""
+        a = tmp_path / "projA" / "tools.py"
+        b = tmp_path / "projB" / "tools.py"
+        a.parent.mkdir()
+        b.parent.mkdir()
+        a.write_text(
+            'def fa() -> int:\n    """A."""\n    return 1\n\nMCP_TOOLS = [fa]\n'
+        )
+        b.write_text(
+            'def fb() -> int:\n    """B."""\n    return 2\n\nMCP_TOOLS = [fb]\n'
+        )
+        (ta, _, _), (tb, _, _) = load_module_exports(a), load_module_exports(b)
+        # Each file kept its own tool — no cross-contamination.
+        assert ta[0].__name__ == "fa"
+        assert tb[0].__name__ == "fb"
+        assert ta[0].__module__ != tb[0].__module__  # distinct module names
 
     def test_raises_on_non_callable_hook(self, tmp_path: Path) -> None:
         """ValueError when GRACEFUL_EXPERIMENT_SHUTDOWN is not callable."""

@@ -9,14 +9,47 @@
 #   MODE          – "interactive" or "autonomous".
 #   TASK_PROMPT   – The task description (only used in autonomous mode).
 #   CONTEXT_DIR   – Path to the read-only context directory (optional).
-#   NO_WEB        – If "true", applies two layers of web blocking:
-#                   1. autonomous: --allowedTools positive list excludes web tools.
-#                   2. interactive: --disallowedTools explicit deny list.
-#                   Also injects a system-prompt restriction covering all vectors.
+#   NO_WEB        – If "true", the WebSearch/WebFetch tools are hard-blocked in
+#                   every mode via --disallowedTools (deny rules apply even under
+#                   --dangerously-skip-permissions).  This is a TOOL-level block,
+#                   not a network one: other egress vectors (Bash curl/wget,
+#                   Python) are covered only by a system-prompt restriction, since
+#                   the container keeps full network egress (required for the
+#                   agent's own model API).
 #   CLAUDE_MODEL  – Optional model alias or full name passed to --model.
 #   CLAUDE_EFFORT – Optional effort level (low/medium/high/xhigh/max) passed to --effort.
+#   EGRESS_LOCKDOWN – If "true", apply the in-container egress firewall
+#                   (/firewall.sh) before dropping privileges: the host is then
+#                   reachable ONLY on the MCP port and private/LAN ranges are
+#                   blocked, while the public internet (model API) stays open.
 # =============================================================================
 set -euo pipefail
+
+# ---- Egress lockdown + privilege drop (root phase) ----
+# The container starts as root (no USER directive) solely so this block can
+# install the egress firewall, which needs CAP_NET_ADMIN. It must run before
+# anything else — especially before any file is written — and must not create
+# files itself (root-owned files in the bind mounts would be unwritable for
+# the host user). It then permanently drops to the 'agent' user via setpriv
+# and re-execs this script; the exec keeps PID 1 and the controlling TTY, so
+# interactive/resume/login flows behave exactly as before. After the drop no
+# capabilities remain and no-new-privileges prevents reacquisition, so the
+# firewall rules are immutable from inside the container.
+if [ "$(id -u)" = "0" ]; then
+    if [ "${EGRESS_LOCKDOWN:-}" = "true" ]; then
+        if ! /firewall.sh; then
+            echo "ERROR: could not apply the egress firewall (host/LAN lockdown)." >&2
+            echo "If your container runtime cannot support in-container iptables," >&2
+            echo "rerun with --no-egress-lockdown to start without it." >&2
+            exit 1
+        fi
+    fi
+    # The runtime chowns the console device to the image's configured user
+    # (root here); hand it to 'agent' so TUIs can reopen /dev/tty.
+    chown agent "$(tty)" 2>/dev/null || true
+    exec setpriv --reuid=agent --regid=agent --init-groups --inh-caps=-all \
+        env HOME=/home/agent USER=agent LOGNAME=agent /entrypoint.sh "$@"
+fi
 
 # ---- Make everything the agent creates writable from the host ----
 # The agent runs as the non-root 'agent' user, whose UID never matches the host
@@ -27,6 +60,22 @@ set -euo pipefail
 # dirs 0777, so the host (the 'other' class) can read, write, and delete them.
 # Explicit chmods below (e.g. the 600 on credentials) still take precedence.
 umask 000
+
+# ---- Scrub OAuth credentials before the container is committed ----
+# Claude Code stores the account credential in ~/.claude/.credentials.json
+# (written from the host env below, or minted by an in-container login). The
+# host commits the *exited* container on stop, so without this the credential
+# would persist in the committed session image — readable via docker save/export
+# by anyone with container-runtime access. Remove it when the entrypoint (PID 1)
+# exits, before the snapshot is taken; resume re-authenticates (in-container
+# login, or --agent-args oauth-token=…). The transcripts under ~/.claude/projects
+# are untouched, so `--resume` still finds the conversation. Best-effort — never
+# block shutdown. (Autonomous mode runs claude in the background rather than
+# exec-ing it precisely so this trap still fires on exit.)
+_scrub_credentials() {
+    rm -f /home/agent/.claude/.credentials.json 2>/dev/null || true
+}
+trap _scrub_credentials EXIT
 
 # ---- Seed OAuth credentials from host ----
 # The host credential JSON ({"claudeAiOauth": {...}}) is passed via env var.
@@ -83,14 +132,17 @@ export API_TIMEOUT_MS="${API_TIMEOUT_MS:-600000}"
 # ---- Configure MCP server connection ----
 # Remove any stale entry from a previous session before re-adding
 # (committed images already contain the previous MCP config).
-claude mcp remove experiment-tools 2>/dev/null || true
+# stdout is silenced ("Added HTTP MCP server … / Headers … / File modified …"
+# would otherwise clutter the host terminal right after the start banner);
+# stderr stays visible so real failures still surface.
+claude mcp remove experiment-tools >/dev/null 2>&1 || true
 if [ -n "${MCP_AUTH_TOKEN:-}" ]; then
     claude mcp add --transport http experiment-tools \
         "http://${MCP_HOST:-host.docker.internal}:${MCP_PORT}/mcp" \
-        --header "Authorization: Bearer ${MCP_AUTH_TOKEN}"
+        --header "Authorization: Bearer ${MCP_AUTH_TOKEN}" >/dev/null
 else
     claude mcp add --transport http experiment-tools \
-        "http://${MCP_HOST:-host.docker.internal}:${MCP_PORT}/mcp"
+        "http://${MCP_HOST:-host.docker.internal}:${MCP_PORT}/mcp" >/dev/null
 fi
 
 # ---- Mark onboarding complete (only when credentials were injected) ----
@@ -159,7 +211,29 @@ if [ "${1:-}" = "--resume" ]; then
         # Hard block on resume too (same as the interactive non-resume path).
         NO_WEB_FLAG=(--disallowedTools "WebSearch,WebFetch")
     fi
-    claude --continue \
+
+    # Resume by explicit session id, not `claude --continue`. `--continue` uses
+    # Claude Code's session picker, which intentionally EXCLUDES headless
+    # (`claude -p`) sessions — i.e. every autonomous run. So `--continue` reports
+    # "No conversation found to continue" for those even though the transcript
+    # exists on disk. Resuming by id works for both headless and interactive
+    # sessions. The transcript filename is the session id; pick the most recently
+    # modified transcript for this working directory's project, falling back to
+    # the newest transcript across all projects if the cwd→slug mapping differs.
+    PROJECTS_DIR="/home/agent/.claude/projects"
+    CWD_SLUG="$(pwd | sed 's#/#-#g')"
+    LATEST_TRANSCRIPT="$(ls -1t "$PROJECTS_DIR/$CWD_SLUG"/*.jsonl 2>/dev/null | head -n1 || true)"
+    if [ -z "$LATEST_TRANSCRIPT" ]; then
+        LATEST_TRANSCRIPT="$(ls -1t "$PROJECTS_DIR"/*/*.jsonl 2>/dev/null | head -n1 || true)"
+    fi
+    RESUME_FLAG=(--continue)
+    if [ -n "$LATEST_TRANSCRIPT" ]; then
+        SESSION_ID="$(basename "$LATEST_TRANSCRIPT" .jsonl)"
+        echo "Resuming Claude Code session ${SESSION_ID} …"
+        RESUME_FLAG=(--resume "$SESSION_ID")
+    fi
+
+    claude "${RESUME_FLAG[@]}" \
         --append-system-prompt "$SYSTEM_PROMPT" \
         "${NO_WEB_FLAG[@]}" \
         "${SKIP_PERMS_FLAG[@]}" \
@@ -179,19 +253,29 @@ fi
 
 # ---- Autonomous mode ----
 if [ "$MODE" = "autonomous" ]; then
-    # Build the allowed-tools list. Web tools are included by default and
-    # removed when NO_WEB=true (hard block via positive allowlist).
-    ALLOWED_TOOLS="mcp__experiment-tools*,Read,Edit,Bash,Write"
-    if [ "${NO_WEB:-}" != "true" ]; then
-        ALLOWED_TOOLS="${ALLOWED_TOOLS},WebSearch,WebFetch"
+    # No allowlist: --dangerously-skip-permissions bypasses allow rules
+    # entirely (permission order: deny → allow → mode), so an allowlist would
+    # be dead weight. Deny rules ARE evaluated before the bypass, so
+    # --disallowedTools is a real hard block for the web tools.
+    NO_WEB_FLAG=()
+    if [ "${NO_WEB:-}" = "true" ]; then
+        NO_WEB_FLAG=(--disallowedTools "WebSearch,WebFetch")
     fi
-    exec claude -p "$TASK_PROMPT" \
+    # Run claude in the background (not `exec`) so the EXIT trap that scrubs the
+    # credential still fires when the run ends. stdout is inherited unchanged, so
+    # the stream-json output reaches the host exactly as before; INT/TERM are
+    # forwarded to claude so a host-driven stop still shuts it down gracefully.
+    claude -p "$TASK_PROMPT" \
         --verbose \
         --append-system-prompt "$SYSTEM_PROMPT" \
-        --allowedTools "$ALLOWED_TOOLS" \
+        "${NO_WEB_FLAG[@]}" \
         --output-format stream-json \
         --dangerously-skip-permissions \
-        "${CLAUDE_OPTS[@]}"
+        "${CLAUDE_OPTS[@]}" &
+    CLAUDE_PID=$!
+    trap 'kill -TERM "$CLAUDE_PID" 2>/dev/null || true' INT TERM
+    wait "$CLAUDE_PID"
+    exit $?
 fi
 
 # ---- Interactive mode but no resume ----

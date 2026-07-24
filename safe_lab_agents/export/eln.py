@@ -31,19 +31,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from safe_lab_agents.utils import safe_under
 from safe_lab_agents.mcp.predefined.records import (
+    flatten_record,
+    is_array_ref,
     is_quantity,
     json_safe,
+    ndarray_summary,
     split_quantity,
 )
 from safe_lab_agents.report.builder import _load_entries
 
 logger = logging.getLogger(__name__)
 
-_CRATE_CONTEXT = "https://w3id.org/ro/crate/1.1/context"
+_CRATE_CONTEXT = [
+    "https://w3id.org/ro/crate/1.1/context",
+    {"sha256": "https://w3id.org/ro/terms/#sha256"},
+]
 _CRATE_CONFORMS = "https://w3id.org/ro/crate/1.1"
 _SOFTWARE_ID = "#safe-lab-agents"
 _SOFTWARE_URL = "https://pypi.org/project/safe-lab-agents/"
+_DEFAULT_LICENSE = (
+    "License not specified. Refer to individual records or contact the data author."
+)
 
 # A small, extensible lookup of common units → QUDT IRIs for schema.org
 # ``unitCode``.  Unknown units still get a human-readable ``unitText``.
@@ -66,6 +76,10 @@ _QUDT_UNITS: dict[str, str] = {
     "ohm": "http://qudt.org/vocab/unit/OHM",
     "Ω": "http://qudt.org/vocab/unit/OHM",
     "°C": "http://qudt.org/vocab/unit/DEG_C",
+    # ASCII spellings of degrees Celsius so tools that avoid non-ASCII unit
+    # strings (e.g. ``quantity(..., "degrees_C")``) still resolve a unitCode.
+    "degrees_C": "http://qudt.org/vocab/unit/DEG_C",
+    "degC": "http://qudt.org/vocab/unit/DEG_C",
 }
 
 # Exclude previously-generated artifacts from the file inventory.
@@ -118,9 +132,9 @@ def _property_value(node_id: str, name: str, value: Any) -> dict[str, Any]:
     node: dict[str, Any] = {"@id": node_id, "@type": "PropertyValue", "name": name}
     unit: str | None = None
     term: str | None = None
-    if isinstance(value, dict) and value.get("_type") == "ndarray":
-        shape = "×".join(str(s) for s in value.get("shape", []))
-        node["value"] = f"ndarray[{shape}] {value.get('dtype', '')}".strip()
+    if is_array_ref(value):
+        # unit is lifted into unitText/unitCode below, so keep it out of the text
+        node["value"] = ndarray_summary(value, include_unit=False)
         unit = value.get("unit")
     elif is_quantity(value):
         num, unit, term = split_quantity(value)
@@ -138,9 +152,14 @@ def _property_value(node_id: str, name: str, value: Any) -> dict[str, Any]:
 def _measurements(
     graph: list[dict], dataset_id: str, prefix: str, mapping: dict | None
 ) -> list[dict[str, str]]:
-    """Append PropertyValue nodes for *mapping* to *graph*; return their refs."""
+    """Append PropertyValue nodes for *mapping* to *graph*; return their refs.
+
+    *mapping* is flattened first (``flatten_record``) so an array nested inside a
+    list/dict value becomes its own ``ndarray[…]`` PropertyValue (dotted name,
+    e.g. ``scan.x``) rather than being embedded as a raw reference dict.
+    """
     refs: list[dict[str, str]] = []
-    for key, value in (mapping or {}).items():
+    for key, value in flatten_record(mapping).items():
         name = key[6:] if key.startswith("param_") else key
         node_id = f"#{dataset_id.rstrip('/')}-{prefix}-{name}"
         graph.append(_property_value(node_id, name, value))
@@ -151,16 +170,29 @@ def _measurements(
 def _entry_files(log_dir: Path, entry: dict) -> list[Path]:
     """Disk files belonging to *entry*: id-prefixed records + referenced figures."""
     eid = entry.get("id", "")
+    # ``iterdir`` + ``is_file`` follows symlinks, so an agent-planted symlink in
+    # the (bind-mounted) log dir pointing at a host file would otherwise be
+    # packed.  ``safe_under`` resolves each entry and rejects out-of-tree targets.
     files = [
-        p for p in log_dir.iterdir() if p.is_file() and eid and p.name.startswith(eid)
+        p
+        for p in log_dir.iterdir()
+        if p.is_file()
+        and eid
+        # Require the id to end at a separator ('.' before an extension or '-'
+        # before a title suffix) so e.g. eid "exp_1" doesn't grab "exp_10-…".
+        and (p.name == eid or p.name.startswith(f"{eid}-") or p.name.startswith(f"{eid}."))
+        and safe_under(log_dir, p.name) is not None
     ]
     seen = {p.name for p in files}
     for fig in entry.get("figures", []):
         name = fig.get("file") if isinstance(fig, dict) else fig
         if not name or name in seen:
             continue
-        p = log_dir / name
-        if p.is_file():
+        # Figure names come from agent-written records; confine to log_dir so a
+        # crafted absolute/../ name can't smuggle arbitrary host files into the
+        # archive.
+        p = safe_under(log_dir, name)
+        if p is not None and p.is_file():
             files.append(p)
             seen.add(name)
     return files
@@ -201,14 +233,16 @@ def _entry_dataset(
                     graph, dataset_id, "batch", {scalar: entry[scalar]}
                 )
         # Flatten each run's params + results as PropertyValues (full per-run
-        # detail also lives in the attached batch JSON file).
+        # detail also lives in the attached batch JSON file).  Params and results
+        # use distinct prefixes so a run with a param and a result of the same
+        # name don't collide on a single PropertyValue @id (invalid JSON-LD).
         for i, exp in enumerate(entry.get("experiments", []), 1):
             var_refs += _measurements(
-                graph, dataset_id, f"run{i}", exp.get("parameters")
+                graph, dataset_id, f"run{i}-param", exp.get("parameters")
             )
             result = exp.get("result")
             if isinstance(result, dict):
-                var_refs += _measurements(graph, dataset_id, f"run{i}", result)
+                var_refs += _measurements(graph, dataset_id, f"run{i}-result", result)
     else:
         var_refs += _measurements(graph, dataset_id, "param", entry.get("parameters"))
         result = entry.get("result")
@@ -219,13 +253,17 @@ def _entry_dataset(
     if var_refs:
         node["variableMeasured"] = var_refs
 
-    # Files belonging to this record, packed under its folder.
+    # Files belonging to this record, packed under its folder.  The File @id is
+    # the crate-root-relative path with an explicit ``./`` prefix: importers such
+    # as Kadi4Mat's strip the first path segment of the @id to locate the file on
+    # disk, so a bare ``eid/name`` would drop the folder and fail to resolve.
     packed: list[tuple[str, Path]] = []
     has_part: list[dict[str, str]] = []
     for path in _entry_files(log_dir, entry):
         arc = f"{eid}/{path.name}"
-        graph.append(_file_node(arc, path))
-        has_part.append({"@id": arc})
+        file_id = f"./{arc}"
+        graph.append(_file_node(file_id, path))
+        has_part.append({"@id": file_id})
         packed.append((arc, path))
     if has_part:
         node["hasPart"] = has_part
@@ -300,12 +338,15 @@ def build_eln(
     for path in sorted(log_dir.iterdir()):
         if not path.is_file() or path.name in claimed:
             continue
+        # Skip symlinks resolving outside log_dir (see _entry_files).
+        if safe_under(log_dir, path.name) is None:
+            continue
         if path.suffix.lower() in _EXCLUDE_SUFFIXES or path.name in _EXCLUDE_NAMES:
             continue
         if path.resolve() == out_path.resolve():
             continue
-        graph.append(_file_node(path.name, path))
-        root_parts.append({"@id": path.name})
+        graph.append(_file_node(f"./{path.name}", path))
+        root_parts.append({"@id": f"./{path.name}"})
         packed.append((path.name, path))
 
     # Root data entity + metadata descriptor.
@@ -315,6 +356,7 @@ def build_eln(
         "name": name or log_dir.parent.name or "safe-lab-agents session",
         "datePublished": datetime.now(timezone.utc).isoformat(),
         "description": "Experiment session logged by safe-lab-agents.",
+        "license": _DEFAULT_LICENSE,
         "hasPart": root_parts,
     }
     descriptor = {

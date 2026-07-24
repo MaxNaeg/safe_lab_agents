@@ -60,3 +60,37 @@ def test_build_image_passes_no_cache_and_pull(monkeypatch) -> None:
     build_mod._build_image("claude-code", "tag:latest", "abc123", None, no_cache=True, pull=True)
     assert "--no-cache" in captured["cmd"]
     assert "--pull" in captured["cmd"]
+
+
+def test_compute_hash_covers_firewall_script(monkeypatch) -> None:
+    """A change to the shared firewall.sh must change the content hash, so the
+    image is rebuilt even though the Dockerfile/entrypoint are untouched."""
+
+    def read_with(firewall_content: str):
+        def fake_read(filename: str) -> str:
+            return firewall_content if filename == "firewall.sh" else "static"
+        return fake_read
+
+    monkeypatch.setattr(build_mod, "_read_packaged_file", read_with("v1"))
+    hash_v1 = build_mod._compute_hash("claude-code", None)
+    monkeypatch.setattr(build_mod, "_read_packaged_file", read_with("v2"))
+    hash_v2 = build_mod._compute_hash("claude-code", None)
+    assert hash_v1 != hash_v2
+
+
+def test_build_image_ships_firewall_script_in_context(monkeypatch) -> None:
+    """firewall.sh is copied into the build context so the Dockerfiles' COPY works."""
+    from pathlib import Path
+
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        context_dir = Path(cmd[-1])
+        seen["files"] = sorted(p.name for p in context_dir.iterdir())
+        seen["firewall_bytes"] = (context_dir / "firewall.sh").read_bytes()
+
+    monkeypatch.setattr(build_mod.subprocess, "run", fake_run)
+    build_mod._build_image("claude-code", "tag:latest", "abc123", None)
+    assert "firewall.sh" in seen["files"]
+    # LF-only, or the shebang breaks when the build runs on Windows.
+    assert b"\r" not in seen["firewall_bytes"]

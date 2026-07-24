@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -91,6 +91,30 @@ class ConversationEntry:
     metadata: dict = field(default_factory=dict)
 
 
+def parse_iso_timestamp(timestamp_str: str) -> datetime:
+    """Parse an ISO-8601 timestamp into a **timezone-aware** UTC datetime.
+
+    Log lines may carry a zoned timestamp (``...Z`` / ``+00:00``), a *naive*
+    one (no offset), or none at all.  Every parsed timestamp is normalized to
+    aware-UTC — naive values are assumed to be UTC and stamped accordingly — so
+    that mixing sources never yields a naive/aware mix.  Such a mix makes
+    ``sorted(entries, key=lambda e: e.timestamp)`` raise ``TypeError: can't
+    compare offset-naive and offset-aware datetimes`` and abort the whole
+    history import.  Empty or unparseable input falls back to ``now`` in UTC.
+    """
+    try:
+        dt = (
+            datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            if timestamp_str
+            else datetime.now(tz=timezone.utc)
+        )
+    except (ValueError, TypeError, AttributeError):
+        dt = datetime.now(tz=timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 # ---------------------------------------------------------------------------
 # Base class
 # ---------------------------------------------------------------------------
@@ -158,6 +182,48 @@ class BaseAgent(ABC):
             f"{type(self).__name__} does not support in-container login."
         )
 
+    # ------------------------------------------------------------------
+    # Credential hygiene
+    #
+    # Secrets must never be baked into the committed session image or written
+    # to ``metadata.json``.  These three hooks keep them out: ``pop_secret_env``
+    # strips credential agent-args into runtime env at ``start`` (so they never
+    # reach metadata); ``get_secret_env_keys`` lists the env keys the host
+    # blanks when it commits the container; ``resume_credential_env`` re-obtains
+    # any credential that a resumed image therefore no longer carries.
+    # ------------------------------------------------------------------
+
+    def get_secret_env_keys(self) -> list[str]:
+        """Return the env-var names to blank when committing the container.
+
+        ``docker commit`` bakes the container's environment into the image
+        config, so any secret passed as an env var would otherwise be readable
+        (via ``docker inspect``/``save``) by anyone with access to the container
+        runtime.  The host blanks these keys at commit time.  The per-session
+        MCP auth token is always included; subclasses extend the list with their
+        provider/credential keys.
+        """
+        return ["MCP_AUTH_TOKEN"]
+
+    def pop_secret_env(self, config: SessionConfig) -> dict[str, str]:
+        """Pop credential agent-args out of ``config.agent_args`` into env vars.
+
+        Called on ``start``.  Popping (rather than reading) keeps the secret out
+        of ``metadata.json`` — and therefore out of any later resumed run.  The
+        returned mapping is merged into the container environment.  The base
+        implementation pops nothing.
+        """
+        return {}
+
+    def resume_credential_env(self, config: SessionConfig) -> dict[str, str]:
+        """Return credential env vars to inject on ``resume``.
+
+        Because secrets are never persisted, an agent whose credentials cannot
+        be recovered from the committed image must re-obtain them here (e.g. by
+        prompting the user).  The base implementation requires nothing.
+        """
+        return {}
+
     def get_system_prompt(self, config: SessionConfig) -> str:
         """Return the base *environment* system prompt for the agent.
 
@@ -186,6 +252,10 @@ class BaseAgent(ABC):
             "Instruments write data there; you can read it and also write results there."
         )
         if config.no_web:
+            # Prompt-level (soft) restriction. The container keeps network egress
+            # (needed for the agent's own model API), so for vectors other than
+            # the hard-blocked WebSearch/WebFetch tools this instruction — not a
+            # network block — is what discourages web access.
             parts.append(
                 "RESTRICTION: All internet and web access is strictly forbidden. Do not "
                 "access the web by any means — including built-in tools, shell commands "

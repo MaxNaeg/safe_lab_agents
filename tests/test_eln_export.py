@@ -45,7 +45,14 @@ def test_build_eln_produces_valid_crate(tmp_path: Path):
     assert out.exists()
 
     crate = _crate(out)
-    assert crate["@context"] == "https://w3id.org/ro/crate/1.1/context"
+    # @context is a list: the RO-Crate 1.1 context plus a local term declaring
+    # ``sha256`` (not defined upstream) so the key resolves in compacted JSON-LD.
+    assert crate["@context"][0] == "https://w3id.org/ro/crate/1.1/context"
+    assert "sha256" in crate["@context"][1]
+
+    # RO-Crate 1.1 REQUIRES a license on the root data entity.
+    root = next(n for n in crate["@graph"] if n["@id"] == "./")
+    assert root["license"]
 
     # Descriptor + root Dataset MUSTs.
     descriptor = next(
@@ -53,7 +60,6 @@ def test_build_eln_produces_valid_crate(tmp_path: Path):
     )
     assert descriptor["@type"] == "CreativeWork"
     assert descriptor["conformsTo"]["@id"] == "https://w3id.org/ro/crate/1.1"
-    root = next(n for n in crate["@graph"] if n["@id"] == "./")
     assert root["@type"] == "Dataset"
     assert root["hasPart"]
 
@@ -68,6 +74,36 @@ def test_build_eln_produces_valid_crate(tmp_path: Path):
     assert power["value"] == 2.5
     assert power["unitText"] == "W"
     assert power["unitCode"] == "http://qudt.org/vocab/unit/W"
+
+
+def test_build_eln_resolves_ascii_celsius_unitcode(tmp_path: Path):
+    """The ASCII spelling ``degrees_C`` resolves to the DEG_C QUDT unitCode
+    (not just the non-ASCII ``°C``), so example tools emitting it aren't
+    silently dropped to unitText-only."""
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    _write(
+        log_dir,
+        "exp_20260101_000000_000001-temp.json",
+        {
+            "type": "individual",
+            "id": "exp_20260101_000000_000001",
+            "title": "temp",
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "parameters": {},
+            "result": {"temperature": {"value": 22.5, "unit": "degrees_C"}},
+        },
+    )
+
+    out = tmp_path / "session.eln"
+    build_eln(log_dir, out)
+
+    crate = _crate(out)
+    pvs = _graph_by_type(crate, "PropertyValue")
+    temp = next(p for p in pvs if p["name"] == "temperature")
+    assert temp["value"] == 22.5
+    assert temp["unitText"] == "degrees_C"
+    assert temp["unitCode"] == "http://qudt.org/vocab/unit/DEG_C"
 
 
 def test_build_eln_includes_files_with_checksums(tmp_path: Path):
@@ -119,6 +155,150 @@ def test_build_eln_includes_files_with_checksums(tmp_path: Path):
     # Files are packed under a single root folder named after the archive.
     with zipfile.ZipFile(str(out), "r") as zf:
         assert all(n.startswith("session/") for n in zf.namelist())
+
+
+def test_entry_files_requires_separator_after_id(tmp_path: Path):
+    """A file for entry 'exp_1' must not grab 'exp_10-…' (prefix without separator)."""
+    from safe_lab_agents.export.eln import _entry_files
+
+    (tmp_path / "exp_1-measure.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "exp_1.h5").write_text("x", encoding="utf-8")
+    (tmp_path / "exp_10-measure.json").write_text("{}", encoding="utf-8")
+
+    names = {p.name for p in _entry_files(tmp_path, {"id": "exp_1"})}
+    assert "exp_1-measure.json" in names
+    assert "exp_1.h5" in names
+    assert "exp_10-measure.json" not in names
+
+
+def test_entry_files_rejects_absolute_and_traversal_figures(tmp_path: Path):
+    """Figure names come from agent-written records; an absolute or ``../`` name
+    must not smuggle a host file into the .eln archive."""
+    from safe_lab_agents.export.eln import _entry_files
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    (log_dir / "legit.png").write_bytes(b"img")
+
+    secret = tmp_path / "secret.txt"
+    secret.write_text("top secret", encoding="utf-8")
+
+    entry = {
+        "id": "exp_1",
+        "figures": [
+            str(secret),  # absolute path outside log_dir
+            "../secret.txt",  # traversal escape
+            "legit.png",  # the only legitimate figure
+        ],
+    }
+    names = {p.name for p in _entry_files(log_dir, entry)}
+    assert "legit.png" in names
+    assert "secret.txt" not in names
+
+
+def test_entry_files_rejects_symlink_escaping_log_dir(tmp_path: Path):
+    """A symlink planted in the (bind-mounted) log dir pointing at a host file
+    must be rejected — ``safe_under`` resolves symlinks before the containment
+    check."""
+    from safe_lab_agents.export.eln import _entry_files
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    secret = tmp_path / "secret.txt"
+    secret.write_text("top secret", encoding="utf-8")
+
+    link = log_dir / "evil.png"
+    try:
+        link.symlink_to(secret)
+    except (OSError, NotImplementedError):  # pragma: no cover - platform w/o symlinks
+        import pytest
+
+        pytest.skip("symlinks not supported on this platform")
+
+    entry = {"id": "exp_1", "figures": ["evil.png"]}
+    names = {p.name for p in _entry_files(log_dir, entry)}
+    assert "evil.png" not in names
+
+
+def test_build_eln_batch_run_param_and_result_same_name_have_distinct_ids(tmp_path: Path):
+    """A batch run with a param and a result of the same name must produce two
+    PropertyValues with distinct @ids (duplicate @ids are invalid JSON-LD)."""
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    _write(
+        log_dir,
+        "batch_a.json",
+        {
+            "type": "batch",
+            "id": "batch_a",
+            "label": "sweep",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "experiment_count": 1,
+            "experiments": [
+                {
+                    "id": "exp_1",
+                    "title": "measure",
+                    "parameters": {"param_x": 1.0},
+                    "result": {"x": 2.0},
+                }
+            ],
+        },
+    )
+
+    out = tmp_path / "session.eln"
+    build_eln(log_dir, out)
+    crate = _crate(out)
+
+    ids = [n["@id"] for n in crate["@graph"] if "@id" in n]
+    assert len(ids) == len(set(ids)), "duplicate @id in RO-Crate graph"
+
+    # Both the param and the result surface as separate PropertyValues.
+    pv_ids = {n["@id"] for n in _graph_by_type(crate, "PropertyValue")}
+    assert any("run1-param-x" in i for i in pv_ids)
+    assert any("run1-result-x" in i for i in pv_ids)
+
+
+def test_build_eln_flattens_nested_array_into_own_measurement(tmp_path: Path):
+    """An array nested inside a dict value becomes its own PropertyValue with a
+    dotted name and the ndarray summary — not an object-valued PropertyValue."""
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    _write(
+        log_dir,
+        "exp_a-measure.json",
+        {
+            "type": "individual",
+            "id": "exp_a",
+            "title": "measure",
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "parameters": {},
+            "result": {
+                "scan": {
+                    "x": {
+                        "_type": "ndarray",
+                        "file": "exp_a-measure.h5",
+                        "dataset": "/scan/x",
+                        "shape": [5],
+                        "dtype": "float64",
+                        "unit": "V",
+                    },
+                    "n": 5,
+                }
+            },
+        },
+    )
+
+    out = tmp_path / "session.eln"
+    build_eln(log_dir, out)
+    crate = _crate(out)
+    pvs = {p["name"]: p for p in _graph_by_type(crate, "PropertyValue")}
+
+    assert "scan.x" in pvs and "scan.n" in pvs
+    assert pvs["scan.x"]["value"].startswith("ndarray[5]")
+    assert pvs["scan.x"]["unitText"] == "V"
+    assert pvs["scan.n"]["value"] == 5
+    # No PropertyValue carries a raw object value (the pre-fix failure mode).
+    assert all(not isinstance(p.get("value"), (dict, list)) for p in pvs.values())
 
 
 def test_build_eln_with_human_author(tmp_path: Path):

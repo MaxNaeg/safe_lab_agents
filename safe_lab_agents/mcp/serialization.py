@@ -98,6 +98,11 @@ def _coerce_or_raise(name: str, value: Any, expected: Any) -> Any:
     if expected is float and isinstance(value, int) and not isinstance(value, bool):
         return float(value)
 
+    # A JSON boolean must not satisfy an ``int`` hint: bool is a subclass of int,
+    # so the generic isinstance check below would otherwise accept true/false.
+    if expected is int and isinstance(value, bool):
+        raise TypeError(f"'{name}': expected int, got bool")
+
     # Only the FIRST level of a hint is validated — element types inside a
     # generic (the ``int`` in ``list[int]`` / ``dict[str, int]``) are never
     # inspected. This is deliberate leniency; see the safety note in the README

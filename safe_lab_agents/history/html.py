@@ -22,8 +22,12 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
+import markdown
+import nh3
+
 from safe_lab_agents.agents.base import ConversationEntry
 from safe_lab_agents.config import SessionMetadata
+from safe_lab_agents.history.render_utils import guess_language, is_image_content
 
 logger = logging.getLogger(__name__)
 
@@ -65,27 +69,25 @@ def _collapsible(label: str, inner: str, open: bool = True) -> str:
 
 
 def _render_markdown(text: str) -> str:
-    """Render assistant markdown to HTML; fall back to escaped text if the
-    ``markdown`` library is unavailable."""
+    """Render assistant markdown to sanitized HTML.
+
+    Assistant content is model output that can be steered by untrusted data
+    (prompt injection), so python-markdown's raw-HTML passthrough would embed
+    live ``<script>``/``onerror`` payloads into the report.  The rendered HTML
+    is therefore passed through an allowlist sanitizer (``nh3``) that keeps
+    formatting tags but strips scripts, event handlers, and other active
+    content.  Both ``markdown`` and ``nh3`` are required dependencies, so they
+    are imported at module load time.
+    """
     if not text:
         return ""
-    try:
-        import markdown  # local import: keep the module importable without it
-    except Exception:  # pragma: no cover - exercised only when dep missing
-        return f"<div class='text'>{_render_text(text)}</div>"
     rendered = markdown.markdown(text, extensions=["fenced_code", "tables"])
-    return f"<div class='text md'>{rendered}</div>"
-
-
-def _guess_language(key: str, value: str) -> str:
-    if key == "command":
-        return "bash"
-    if key in ("code", "script", "source"):
-        return "python"
-    stripped = value.strip()
-    if stripped.startswith(("import ", "from ", "def ", "class ", "#!/usr/bin/env python")):
-        return "python"
-    return "text"
+    # Preserve the language ``class`` on code/table tags so styling survives.
+    attributes = {tag: set(attrs) for tag, attrs in nh3.ALLOWED_ATTRIBUTES.items()}
+    for tag in ("code", "pre", "span", "div", "table", "th", "td"):
+        attributes[tag] = attributes.get(tag, set()) | {"class"}
+    safe = nh3.clean(rendered, attributes=attributes)
+    return f"<div class='text md'>{safe}</div>"
 
 
 def _render_tool_input(tool_input: Optional[dict]) -> str:
@@ -95,7 +97,7 @@ def _render_tool_input(tool_input: Optional[dict]) -> str:
     rows = []
     for key, value in tool_input.items():
         if isinstance(value, str) and "\n" in value:
-            cls = _guess_language(key, value)
+            cls = guess_language(key, value)
             cell = f"<pre class='lang-{cls}'>{_esc(value.strip())}</pre>"
         elif isinstance(value, (dict, list)):
             cell = f"<pre>{_esc(json.dumps(value, indent=2, default=str))}</pre>"
@@ -103,10 +105,6 @@ def _render_tool_input(tool_input: Optional[dict]) -> str:
             cell = _esc(value)
         rows.append(f"<tr><td class='k'>{_esc(key)}</td><td>{cell}</td></tr>")
     return f"<table class='kv'>{''.join(rows)}</table>"
-
-
-def _is_image_content(content: str) -> bool:
-    return bool(re.search(r"['\"]type['\"]\s*:\s*['\"]image['\"]", content[:200]))
 
 
 _IMG_DATA_RE = re.compile(r"['\"]data['\"]\s*:\s*['\"]([A-Za-z0-9+/]{20,}={0,2})['\"]")
@@ -136,7 +134,7 @@ def _render_tool_output(content: str) -> str:
     (ported from display.py)."""
     if not content:
         return "<div class='dim'>(no output)</div>"
-    if _is_image_content(content):
+    if is_image_content(content):
         imgs = _render_images(content)
         if imgs:
             return f"<div class='figures'>{imgs}</div>"

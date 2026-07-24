@@ -19,7 +19,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from safe_lab_agents.mcp.predefined.records import is_quantity, split_quantity
+from safe_lab_agents.mcp.predefined.records import (
+    array_shape_str,
+    is_array_ref,
+    is_quantity,
+    split_quantity,
+)
+from safe_lab_agents.utils import safe_under
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +126,7 @@ def _array_stats(log_dir: Path, ref: dict) -> str:
 
     Reads the HDF5 file lazily; never raises — falls back to shape/dtype only.
     """
-    shape = "×".join(str(s) for s in ref.get("shape", [])) or "scalar"
+    shape = array_shape_str(ref) or "scalar"
     dtype = ref.get("dtype", "")
     unit = ref.get("unit")
     base = f"{shape} {dtype}".strip()
@@ -130,30 +136,48 @@ def _array_stats(log_dir: Path, ref: dict) -> str:
     dataset = ref.get("dataset")
     if not fname or not dataset:
         return base
+    # fname comes from an agent-written record; confine to log_dir so a crafted
+    # absolute/../ name (or an out-of-tree symlink) can't open host files.
+    h5_path = safe_under(log_dir, fname)
+    if h5_path is None:
+        return base
     try:
         import h5py  # local import: keep the module importable without h5py
         import numpy as np
 
-        with h5py.File(str(log_dir / fname), "r") as f:
+        with h5py.File(str(h5_path), "r") as f:
             arr = np.asarray(f[dataset.lstrip("/")][()])
         if arr.size and np.issubdtype(arr.dtype, np.number):
             return f"{base} · min {arr.min():.4g}, max {arr.max():.4g}, mean {arr.mean():.4g}"
     except Exception:
-        pass
+        # Best-effort enrichment: a missing h5py or an unreadable/odd dataset
+        # just means no min/max/mean suffix, not a report failure. Log at debug
+        # so the cause is recoverable without noising up a normal run.
+        logger.debug(
+            "report: could not summarise array stats for %s", fname, exc_info=True
+        )
     return base
 
 
 def _render_value(log_dir: Path, value: Any) -> str:
-    """Render a single param/result/data value as an HTML fragment."""
-    if isinstance(value, dict) and value.get("_type") == "ndarray":
+    """Render a single param/result/data value as an HTML fragment.
+
+    Recurses into plain dicts and lists so an array nested inside them still
+    renders as an ``array …`` chip rather than a raw reference-dict JSON blob.
+    """
+    if is_array_ref(value):
         return f'<span class="chip">array {_esc(_array_stats(log_dir, value))}</span>'
     if is_quantity(value):
         v, unit, _ = split_quantity(value)
         return f"{_esc(v)}&nbsp;<span class='unit'>{_esc(unit)}</span>"
     if isinstance(value, dict):
-        return _esc(json.dumps(value, default=str))
+        inner = ", ".join(
+            f"<span class='mini-k'>{_esc(k)}</span> {_render_value(log_dir, v)}"
+            for k, v in value.items()
+        )
+        return f"{{ {inner} }}" if value else "{}"
     if isinstance(value, (list, tuple)):
-        return _esc(json.dumps(list(value), default=str))
+        return "[" + ", ".join(_render_value(log_dir, v) for v in value) + "]"
     return _esc(value)
 
 
@@ -188,8 +212,30 @@ def _inline_kv(log_dir: Path, mapping: dict) -> str:
     )
 
 
+def _tool_counts(experiments: list) -> str:
+    """Render a 'tool ×N' chip row summarising how often each tool ran.
+
+    Counts by each run's ``title`` (the tool name), preserving first-seen order
+    so the summary reads in call order rather than alphabetically.
+    """
+    counts: dict[str, int] = {}
+    for exp in experiments:
+        name = exp.get("title") or "—"
+        counts[name] = counts.get(name, 0) + 1
+    chips = "".join(
+        f"<span class='chip tool-count'>{_esc(name)} <span class='dim'>×{n}</span></span>"
+        for name, n in counts.items()
+    )
+    return f"<div class='tool-counts'>{chips}</div>"
+
+
 def _render_experiments(log_dir: Path, experiments: list) -> str:
-    """Render a batch's individual runs as a compact, scannable table."""
+    """Render a batch's individual runs as a compact, scannable table.
+
+    Collapsed by default (and kept collapsed by the toolbar's *show all*) — the
+    per-run table is the longest part of a batch card, and the tool-count
+    summary at the top of the card already conveys the shape of the sweep.
+    """
     head = (
         "<tr><th>#</th><th>tool</th><th>dur</th>"
         "<th>parameters</th><th>result</th></tr>"
@@ -208,7 +254,12 @@ def _render_experiments(log_dir: Path, experiments: list) -> str:
             f"<td>{_inline_kv(log_dir, result)}</td></tr>"
         )
     table = f"<table class='kv exp-table'>{head}{''.join(rows)}</table>"
-    return _collapsible(f"Experiments ({len(experiments)})", table)
+    return _collapsible(
+        f"Experiments ({len(experiments)})",
+        table,
+        open=False,
+        extra_class="experiments",
+    )
 
 
 def _render_kv_table(log_dir: Path, title: str, mapping: dict) -> str:
@@ -223,8 +274,10 @@ def _render_kv_table(log_dir: Path, title: str, mapping: dict) -> str:
 
 def _embed_figure(log_dir: Path, fname: str) -> str:
     """Return an <img>/<a> fragment with the figure base64-embedded, or a note."""
-    path = log_dir / fname
-    if not path.exists():
+    # Figure names come from agent-written records; confine to log_dir so a
+    # crafted absolute/../ name can't base64-embed arbitrary host files.
+    path = safe_under(log_dir, fname)
+    if path is None or not path.exists():
         return f"<div class='missing'>figure not found: {_esc(fname)}</div>"
     suffix = path.suffix.lower()
     if suffix not in _IMAGE_SUFFIXES:
@@ -232,7 +285,8 @@ def _embed_figure(log_dir: Path, fname: str) -> str:
         return f"<div class='missing'>figure: {_esc(fname)} (not an inline image)</div>"
     try:
         raw = path.read_bytes()
-    except Exception:
+    except OSError as exc:
+        logger.debug("report: could not read figure %s: %s", fname, exc)
         return f"<div class='missing'>could not read figure: {_esc(fname)}</div>"
     mime = mimetypes.guess_type(fname)[0] or "image/png"
     b64 = base64.b64encode(raw).decode("ascii")
@@ -248,8 +302,10 @@ def _resolve_reference(ref: str, ids: set[str]) -> str | None:
     """
     if ref in ids:
         return ref
+    # Require the id to end at a '-' separator so a ref for "exp_10-…" is not
+    # resolved to a shorter card id like "exp_1".
     for eid in ids:
-        if ref.startswith(eid):
+        if ref.startswith(f"{eid}-"):
             return eid
     return None
 
@@ -288,6 +344,9 @@ def _render_card(entry: dict, log_dir: Path, ids: set[str]) -> str:
     # Batch metadata + the individual runs it grouped
     if entry.get("type") == "batch":
         experiments = entry.get("experiments", [])
+        # Tool-run summary right at the top of the card.
+        if experiments:
+            parts.append(_tool_counts(experiments))
         meta: dict = {}
         if entry.get("description"):
             meta["description"] = entry["description"]
@@ -397,6 +456,8 @@ table.kv th { text-align: left; padding: 3px 6px; font-size: 11px; font-weight: 
 .unit { color: #57606a; font-size: 11px; }
 .chip { background: #eaeef2; border-radius: 6px; padding: 1px 6px; font-size: 12px;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tool-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.tool-count { padding: 2px 8px; }
 img.figure { max-width: 100%; border: 1px solid #d0d7de; border-radius: 8px; }
 .ref { display: inline-block; margin: 2px 6px 2px 0; padding: 1px 8px; border-radius: 6px;
        background: #ddf4ff; color: #0969da; text-decoration: none; font-size: 12px;
@@ -430,7 +491,8 @@ search.addEventListener('input', applyFilters);
 kindBoxes.forEach(b => b.addEventListener('change', applyFilters));
 
 document.getElementById('expand-all').addEventListener('click', () => {
-  document.querySelectorAll('details.block').forEach(d => d.open = true);
+  // Leave batch experiment tables collapsed even when expanding everything else.
+  document.querySelectorAll('details.block:not(.experiments)').forEach(d => d.open = true);
 });
 document.getElementById('collapse-all').addEventListener('click', () => {
   document.querySelectorAll('details.block').forEach(d => d.open = false);

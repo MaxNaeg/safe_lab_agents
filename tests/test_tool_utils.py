@@ -159,3 +159,69 @@ class TestResultsToShared:
 
         with pytest.raises(RuntimeError, match="requires a shared directory"):
             f(1)
+
+    def test_mask_length_mismatch_raises_at_decoration(self) -> None:
+        """A results_to_save mask of the wrong length raises (explicit, so it
+        still fires under `python -O` where asserts are stripped)."""
+        with pytest.raises(ValueError, match="must match"):
+            @results_to_shared(results_to_save=[True])  # 1 flag, 2 returns
+            def measure(a: int, b: int):
+                """Return two things."""
+                return a, b
+
+    def test_return_names_from_ast(self) -> None:
+        """Names come from the AST tuple elements, so commas inside a call don't
+        over-split and a trailing-comma single tuple stays one element."""
+        from safe_lab_agents.mcp.tool_utils import get_return_names
+
+        def combine(a, b):
+            return a + b
+
+        def f_call(a, b, c):
+            return combine(a, b), c
+
+        # 2 names, not 3 — the comma inside combine(a, b) must not split.
+        names = get_return_names(f_call)
+        assert len(names) == 2
+        assert names[1] == "c"
+        assert names[0] == "result0"  # a call expression → positional fallback
+
+        def f_trailing(x):
+            return x,
+
+        assert get_return_names(f_trailing) == ["x"]  # single-element tuple
+
+        def f_multi(x, y, z):
+            return x, y, z
+
+        assert get_return_names(f_multi) == ["x", "y", "z"]
+
+    def test_ignores_nested_function_return(self) -> None:
+        """A return inside a nested helper is not mistaken for the tool's own."""
+        from safe_lab_agents.mcp.tool_utils import get_return_names
+
+        def outer(a, b):
+            def helper():
+                return "inner1", "inner2"
+
+            _ = helper
+            return a, b
+
+        assert get_return_names(outer) == ["a", "b"]
+
+    def test_call_in_return_saves_correct_number_of_values(self, tmp_path, monkeypatch) -> None:
+        """End-to-end: `return combine(a, b), c` aligns 2 values to 2 names
+        (previously split into 3 bogus names and crashed the arity assertion)."""
+        monkeypatch.setattr(tool_utils, "SHARED_DATA_DIR", str(tmp_path))
+
+        def combine(a, b):
+            return a + b
+
+        @results_to_shared(results_to_save=[True, False])
+        def measure(a: int, b: int, c: int):
+            """Return a combined value and a passthrough."""
+            return combine(a, b), c
+
+        saved_msg, passthrough = measure(1, 2, 9)
+        assert saved_msg.startswith("Saved result result0")  # named positionally
+        assert passthrough == 9

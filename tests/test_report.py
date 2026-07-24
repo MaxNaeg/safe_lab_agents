@@ -9,18 +9,18 @@ import pytest
 
 from safe_lab_agents.report import build_report
 
-# The repo ships a real auto-log folder we can render end-to-end.
+# The repo ships a real auto-log folder we can render end-to-end. This is a
+# committed fixture, so the test runs unconditionally: a missing folder is a
+# real failure, not a reason to silently skip (a wrong path here previously made
+# this end-to-end test skip on every run, hiding report-rendering regressions).
 FIXTURE_DIR = (
     Path(__file__).resolve().parent.parent
     / "example_setup"
-    / "shared_data"
+    / "shared_calibration_example"
     / "auto_log"
 )
 
 
-@pytest.mark.skipif(
-    not FIXTURE_DIR.is_dir(), reason="example auto_log fixture not present"
-)
 def test_build_report_from_example_folder(tmp_path: Path):
     out = tmp_path / "report.html"
     result = build_report(FIXTURE_DIR, out)
@@ -50,6 +50,58 @@ def _write_record(folder: Path, name: str, record: dict) -> None:
     (folder / name).write_text(json.dumps(record), encoding="utf-8")
 
 
+def test_resolve_reference_requires_separator() -> None:
+    """A reference must not resolve to a shorter card id it merely prefixes."""
+    from safe_lab_agents.report.builder import _resolve_reference
+
+    ids = {"exp_1", "exp_10"}
+    assert _resolve_reference("exp_1", ids) == "exp_1"
+    assert _resolve_reference("exp_10-measure", ids) == "exp_10"
+    assert _resolve_reference("exp_1-measure", ids) == "exp_1"
+    assert _resolve_reference("exp_99", ids) is None
+
+
+def test_embed_figure_rejects_absolute_and_traversal(tmp_path: Path) -> None:
+    """Figure names come from agent-written records; an absolute or ``../`` name
+    must not base64-embed an arbitrary host file into the shared report."""
+    from safe_lab_agents.report.builder import _embed_figure
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    (log_dir / "legit.png").write_bytes(b"\x89PNG\r\n")
+
+    secret = tmp_path / "secret.png"  # image suffix so only containment blocks it
+    secret.write_bytes(b"top secret host bytes")
+
+    # A legitimate in-tree figure is embedded.
+    assert "data:" in _embed_figure(log_dir, "legit.png")
+
+    # Absolute and traversal names are refused with the not-found note, never embedded.
+    for bad in (str(secret), "../secret.png", "/etc/hosts"):
+        out = _embed_figure(log_dir, bad)
+        assert "figure not found" in out
+        assert "data:" not in out
+
+
+def test_embed_figure_rejects_symlink_escaping_log_dir(tmp_path: Path) -> None:
+    from safe_lab_agents.report.builder import _embed_figure
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    secret = tmp_path / "secret.png"
+    secret.write_bytes(b"top secret host bytes")
+
+    link = log_dir / "evil.png"
+    try:
+        link.symlink_to(secret)
+    except (OSError, NotImplementedError):  # pragma: no cover - platform w/o symlinks
+        pytest.skip("symlinks not supported on this platform")
+
+    out = _embed_figure(log_dir, "evil.png")
+    assert "figure not found" in out
+    assert "data:" not in out
+
+
 def test_quantity_result_renders_value_and_unit(tmp_path: Path):
     log_dir = tmp_path / "auto_log"
     log_dir.mkdir()
@@ -72,6 +124,43 @@ def test_quantity_result_renders_value_and_unit(tmp_path: Path):
 
     assert "2.5" in html
     assert "class='unit'>W<" in html
+
+
+def test_nested_array_renders_as_chip_not_json_blob(tmp_path: Path):
+    """An array nested in a dict value renders as an 'array …' chip, not a raw
+    reference-dict JSON blob."""
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    _write_record(
+        log_dir,
+        "exp_20260101_000000_000001-measure.json",
+        {
+            "type": "individual",
+            "id": "exp_20260101_000000_000001",
+            "title": "measure",
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "parameters": {},
+            "result": {
+                "scan": {
+                    "x": {
+                        "_type": "ndarray",
+                        "file": "x.h5",
+                        "dataset": "/scan/x",
+                        "shape": [5],
+                        "dtype": "float64",
+                    },
+                    "n": 5,
+                }
+            },
+        },
+    )
+
+    out = log_dir / "report.html"
+    build_report(log_dir, out)
+    html = out.read_text(encoding="utf-8")
+
+    assert "chip" in html and "array 5" in html  # rendered as an array chip
+    assert "_type" not in html  # not dumped as a raw reference dict
 
 
 def test_failed_kind_gets_its_own_badge_and_filter(tmp_path: Path):
@@ -184,6 +273,13 @@ def test_batch_renders_individual_experiments(tmp_path: Path):
     assert "voltage" in html  # param_ prefix stripped, value shown
     assert "2.2" in html  # a per-run result is rendered
     assert "<table class='kv exp-table'>" in html
+    # Tool-run summary at the top: "measure ×2" (both runs share a title).
+    assert "measure" in html
+    assert "×2" in html
+    # Experiments table is collapsed by default and stays collapsed on "show all".
+    assert "extra_class" not in html  # sanity: no literal kwarg leaked
+    assert "class='block experiments'>" in html  # not open
+    assert "details.block:not(.experiments)" in html  # expand-all skips it
 
 
 def test_empty_folder_writes_placeholder(tmp_path: Path):

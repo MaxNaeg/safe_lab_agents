@@ -3,22 +3,105 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import platform
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from safe_lab_agents.utils import utc_now
 
 
 def get_base_dir() -> Path:
     """Return the base directory for safe_lab_agents data.
 
     Defaults to ``~/.safe_lab_agents``.  The directory is created if it does
-    not already exist.
+    not already exist and is kept owner-only so that other local users cannot
+    read session data/metadata — even though session workspaces below are
+    deliberately world-writable (bind-mount UID mismatch, see
+    ``_make_agent_writable``) and ``metadata.json`` can hold secrets.
+    Containers are unaffected: bind mounts are set up by the runtime/owner.
+    Applied on every call so pre-existing installs are tightened too;
+    best-effort throughout — a failure is logged, never fatal.
     """
     base = Path.home() / ".safe_lab_agents"
     base.mkdir(parents=True, exist_ok=True)
+    _restrict_to_owner(base)
     return base
+
+
+def _restrict_to_owner(base: Path) -> None:
+    """Best-effort: restrict *base* (and everything beneath) to the current user.
+
+    On POSIX a ``0700`` on the top directory suffices: reaching any file
+    requires traverse permission on every directory along the path, so gating
+    the tree at the top makes everything beneath unreachable to other users.
+
+    On Windows ``Path.chmod`` only toggles the read-only bit — it does **not**
+    touch NTFS ACLs, so ``0700`` there is a silent no-op and other local users
+    keep the ``Users``/``Authenticated Users`` read access inherited from the
+    profile.  Worse, the "Bypass traverse checking" privilege is granted to
+    everyone by default, so gating only the top directory would not protect the
+    files beneath.  We therefore use ``icacls`` (ships with Windows) to remove
+    the inherited ACEs and grant an **inheritable** full-control ACE to only the
+    current user, so files/dirs created beneath stay owner-only too.  This is
+    the parallel of POSIX ``0700``: local Administrators / SYSTEM still retain
+    access (via ownership / privilege), just as ``root`` does on POSIX.
+    """
+    logger = logging.getLogger(__name__)
+    if platform.system() == "Windows":
+        # ``USERDOMAIN\USERNAME`` resolves both local (domain == machine name)
+        # and domain accounts; fall back to the bare login name.
+        user = os.environ.get("USERNAME")
+        domain = os.environ.get("USERDOMAIN")
+        principal = f"{domain}\\{user}" if domain and user else user
+        if not principal:
+            logger.warning(
+                "Could not determine the current Windows user; leaving %s "
+                "permissions unchanged (other local users may be able to read it).",
+                base,
+            )
+            return
+        # icacls builds the final DACL from all options and writes it in one
+        # atomic call, so there is no window in which the grant is missing and
+        # no risk of locking the current user out: if the principal cannot be
+        # resolved the command fails and the ACL is left untouched.
+        try:
+            subprocess.run(
+                [
+                    "icacls",
+                    str(base),
+                    "/inheritance:r",  # drop inherited (profile) ACEs
+                    "/grant:r",
+                    f"{principal}:(OI)(CI)F",  # owner: full control, inheritable
+                    "/Q",  # suppress per-file success output
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            detail = getattr(exc, "stderr", None) or exc
+            logger.warning(
+                "Could not restrict %s to the current user via icacls: %s "
+                "(other local users may be able to read it).",
+                base,
+                detail,
+            )
+        return
+
+    # POSIX: gate the tree at the top. Best-effort — exotic filesystems (e.g.
+    # some network mounts) may not support chmod.
+    try:
+        base.chmod(0o700)
+    except OSError as exc:
+        logger.warning(
+            "Could not restrict %s to owner-only permissions: %s", base, exc
+        )
 
 
 def get_sessions_dir() -> Path:
@@ -92,9 +175,40 @@ class SessionConfig(BaseModel):
         description=(
             "Disable web tools. This is a SOFT restriction for both agents: it removes "
             "the dedicated web tools but does not block network access. For Claude Code "
-            "the built-in web tools are disabled via --allowedTools / --disallowedTools, "
+            "the built-in web tools are disabled via --disallowedTools, "
             "but Bash is still allowed so curl/wget/python can reach the network. For "
             "OpenClaw there is no CLI flag, so only a system-prompt instruction is injected."
+        ),
+    )
+    egress_lockdown: bool = Field(
+        default=True,
+        description=(
+            "Apply an in-container egress firewall before the agent starts: the host "
+            "is reachable ONLY on the MCP port, and private/link-local LAN ranges are "
+            "blocked, while the public internet (the agent's model API) stays open. "
+            "Limitation: LAN hosts numbered with public IPv4 / global IPv6 are "
+            "indistinguishable from the internet and remain reachable. Disable with "
+            "--no-egress-lockdown if the container runtime cannot support "
+            "in-container iptables (the container then fails closed at start)."
+        ),
+    )
+    mem_limit: Optional[str] = Field(
+        default=None,
+        description=(
+            "Container memory limit, e.g. '8g' or '512m' (also plain bytes). "
+            "Default: half the RAM visible to the container runtime (min 2g). "
+            "Swap is always disabled alongside (memswap = mem) so the limit is "
+            "a hard ceiling — the container is OOM-killed instead of swap-"
+            "thrashing the host."
+        ),
+    )
+    cpu_limit: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Container CPU limit in cores, e.g. 2 or 2.5 (fractions allowed). "
+            "Default: all but one of the runtime's cores, so the host-side MCP "
+            "tool server stays responsive."
         ),
     )
     update_tools: bool = Field(
@@ -105,7 +219,26 @@ class SessionConfig(BaseModel):
         default_factory=dict,
         description="Agent-specific arguments passed via --agent-args.",
     )
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+
+    @field_validator("mem_limit")
+    @classmethod
+    def _validate_mem_limit(cls, value: Optional[str]) -> Optional[str]:
+        """Fail early on a malformed memory limit instead of at container create.
+
+        Accepts what the Docker SDK's ``parse_bytes`` accepts: a number with an
+        optional b/k/m/g unit (case-insensitive, optional trailing 'b', e.g.
+        '8g', '512M', '2gb', '1073741824').
+        """
+        import re
+
+        if value is not None and not re.fullmatch(
+            r"\d+(\.\d+)?([bkmg]b?)?", value, flags=re.IGNORECASE
+        ):
+            raise ValueError(
+                f"Invalid memory limit {value!r} — use e.g. '8g', '512m', or bytes."
+            )
+        return value
 
 
 class SessionMetadata(BaseModel):

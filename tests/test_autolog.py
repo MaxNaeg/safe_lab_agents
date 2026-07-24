@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -17,45 +16,39 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _setup_autolog(tmp_path: Path):
-    """Set AUTO_LOG_DIR and initialise module-level state via make_autolog_wrapper."""
-    os.environ["AUTO_LOG_DIR"] = str(tmp_path)
-    from safe_lab_agents.mcp.predefined.autolog import make_autolog_wrapper
+def _make_autologger(tmp_path: Path):
+    """Build an AutoLogger rooted at *tmp_path* (no env/module state)."""
+    from safe_lab_agents.mcp.predefined.autolog import AutoLogger
 
-    return make_autolog_wrapper()
-
-
-def _reset_autolog():
-    os.environ.pop("AUTO_LOG_DIR", None)
-    import safe_lab_agents.mcp.predefined.autolog as _m
-
-    _m._current_batch = None
-    _m._output_dir = None
+    return AutoLogger(output_dir=tmp_path)
 
 
 @pytest.fixture()
-def wrapper(tmp_path: Path):
-    w = _setup_autolog(tmp_path)
-    yield w
-    _reset_autolog()
+def auto_logger(tmp_path: Path):
+    return _make_autologger(tmp_path)
 
 
 @pytest.fixture()
-def tools(tmp_path: Path):
-    _setup_autolog(tmp_path)
-    from safe_lab_agents.mcp.predefined.autolog import start_batch, stop_batch
-
-    yield {"start_batch": start_batch, "stop_batch": stop_batch}
-    _reset_autolog()
+def wrapper(auto_logger):
+    return auto_logger.wrapper
 
 
 @pytest.fixture()
-def wrapper_and_tools(tmp_path: Path):
-    w = _setup_autolog(tmp_path)
-    from safe_lab_agents.mcp.predefined.autolog import start_batch, stop_batch
+def tools(auto_logger):
+    return {
+        "start_batch": auto_logger.start_batch,
+        "stop_batch": auto_logger.stop_batch,
+        "logger": auto_logger,
+    }
 
-    yield w, {"start_batch": start_batch, "stop_batch": stop_batch}
-    _reset_autolog()
+
+@pytest.fixture()
+def wrapper_and_tools(auto_logger):
+    return auto_logger.wrapper, {
+        "start_batch": auto_logger.start_batch,
+        "stop_batch": auto_logger.stop_batch,
+        "logger": auto_logger,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -63,34 +56,51 @@ def wrapper_and_tools(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_batch_functions_importable():
-    from safe_lab_agents.mcp.predefined.autolog import (
-        start_batch,
-        stop_batch,
-        make_autolog_wrapper,
-    )
+def test_int_env_falls_back_on_bad_value(monkeypatch):
+    """A non-integer KADI4MAT_MAX_* must fall back to the default, not crash."""
+    from safe_lab_agents.mcp.predefined.autolog import _int_env
 
-    assert callable(start_batch)
-    assert callable(stop_batch)
-    assert callable(make_autolog_wrapper)
+    monkeypatch.setenv("K_TEST_INT", "not-a-number")
+    assert _int_env("K_TEST_INT", 42) == 42
+    monkeypatch.setenv("K_TEST_INT", "")
+    assert _int_env("K_TEST_INT", 42) == 42
+    monkeypatch.delenv("K_TEST_INT", raising=False)
+    assert _int_env("K_TEST_INT", 42) == 42
+    monkeypatch.setenv("K_TEST_INT", "7")
+    assert _int_env("K_TEST_INT", 42) == 7
 
 
-def test_auto_log_dir_is_agent_writable(tmp_path: Path):
-    """The auto-log dir is created 0777 so the in-container (non-root) agent,
-    which saves figures/data into it via auto_log_client, can write there too.
+def test_autologger_methods_callable(auto_logger):
+    assert callable(auto_logger.start_batch)
+    assert callable(auto_logger.stop_batch)
+    assert callable(auto_logger.log_analysis)
+    assert callable(auto_logger.wrapper)
+
+
+def test_from_env_requires_auto_log_dir(monkeypatch):
+    """AutoLogger.from_env refuses to build without AUTO_LOG_DIR set."""
+    from safe_lab_agents.mcp.predefined.autolog import AutoLogger
+
+    monkeypatch.delenv("AUTO_LOG_DIR", raising=False)
+    with pytest.raises(ValueError, match="AUTO_LOG_DIR"):
+        AutoLogger.from_env()
+
+
+def test_from_env_auto_log_dir_is_agent_writable(tmp_path: Path, monkeypatch):
+    """from_env creates the auto-log dir 0777 so the in-container (non-root)
+    agent, which saves figures/data into it via auto_log_client, can write there.
 
     It is created host-side by the MCP server; without widening, the container
     'agent' user (a mismatched UID) falls in the 'other' class and is blocked.
     """
-    target = tmp_path / "auto_log"
-    os.environ["AUTO_LOG_DIR"] = str(target)
-    try:
-        from safe_lab_agents.mcp.predefined.autolog import make_autolog_wrapper
+    from safe_lab_agents.mcp.predefined.autolog import AutoLogger
 
-        make_autolog_wrapper()
-        assert (target.stat().st_mode & 0o777) == 0o777
-    finally:
-        _reset_autolog()
+    target = tmp_path / "auto_log"
+    monkeypatch.setenv("AUTO_LOG_DIR", str(target))
+    monkeypatch.delenv("KADI4MAT_PROJECT", raising=False)
+    logger = AutoLogger.from_env()
+    assert logger.output_dir == target
+    assert (target.stat().st_mode & 0o777) == 0o777
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +133,92 @@ def test_start_stop_batch_writes_json(wrapper_and_tools, tmp_path: Path):
     assert len(record["experiments"]) == 2
     assert "started_at" in record
     assert "completed_at" in record
+
+
+def test_concurrent_batch_calls_record_every_experiment(tools, tmp_path):
+    """Parallel calls in one batch append to a shared list and write arrays into
+    a shared .h5.  With the state/HDF5 locks, none are lost or corrupted.
+
+    Drives ``_record_call`` directly with distinct ids so the test isolates the
+    locking (not the wrapper's timestamp-derived id generation)."""
+    import concurrent.futures
+
+    logger = tools["logger"]
+
+    tools["start_batch"]("Concurrent sweep")
+    batch = logger.current_batch
+    n = 64
+
+    def record(i: int) -> None:
+        logger._record_call(
+            exp_id=f"exp_{i:04d}",
+            tool_name="measure",
+            timestamp="2026-07-20T00:00:00+00:00",
+            duration_ms=1,
+            call_args={"i": i},
+            result={"trace": np.arange(i, i + 4)},
+            batch=batch,
+            output_dir=tmp_path,
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+        list(ex.map(record, range(n)))
+
+    # Every concurrent append landed exactly once — no lost/torn writes.
+    assert len(batch.experiments) == n
+    assert len({e["id"] for e in batch.experiments}) == n
+
+    result = tools["stop_batch"]()
+    assert "Concurrent sweep" in result
+    saved = json.loads(next(tmp_path.glob("batch_*.json")).read_text())
+    assert saved["experiment_count"] == n
+
+    # All arrays are present and readable in the shared batch .h5.
+    with h5py.File(str(batch.h5_path), "r") as f:
+        for i in range(n):
+            assert np.array_equal(f[f"exp_{i:04d}/trace"][()], np.arange(i, i + 4))
+
+
+def test_flush_active_batch_persists_unclosed_batch(tools, tmp_path: Path):
+    """If the agent forgets stop_batch, the shutdown flush must still write the
+    batch JSON (and close the .h5) so experiments/arrays are not lost."""
+    logger = tools["logger"]
+
+    tools["start_batch"]("Forgotten sweep")
+    batch = logger.current_batch
+    logger._record_call(
+        exp_id="exp_0001", tool_name="m", timestamp="t", duration_ms=1,
+        call_args={}, result={"trace": np.arange(4)},
+        batch=batch, output_dir=tmp_path,
+    )
+    # Agent never calls stop_batch — simulate shutdown flush.
+    assert list(tmp_path.glob("batch_*.json")) == []  # nothing on disk yet
+    msg = logger.flush_active_batch()
+
+    assert msg is not None and "Forgotten sweep" in msg
+    assert logger.current_batch is None  # batch closed
+    assert batch.h5_file is None  # handle closed
+
+    record = json.loads(next(tmp_path.glob("batch_*.json")).read_text())
+    assert record["experiment_count"] == 1
+    with h5py.File(str(batch.h5_path), "r") as f:
+        np.testing.assert_array_equal(f["exp_0001/trace"][()], np.arange(4))
+
+
+def test_flush_active_batch_noop_when_none_active(tools):
+    logger = tools["logger"]
+
+    assert logger.current_batch is None
+    assert logger.flush_active_batch() is None
+
+
+def test_flush_active_batch_noop_after_stop(tools):
+    """A batch the agent already stopped must not be double-written by the flush."""
+    logger = tools["logger"]
+
+    tools["start_batch"]("Sweep")
+    tools["stop_batch"]()
+    assert logger.flush_active_batch() is None
 
 
 def test_stop_batch_without_start_returns_error(tools):
@@ -225,6 +321,58 @@ def test_numpy_array_in_result_saved_to_hdf5(wrapper, tmp_path: Path):
     assert ref["dataset"] == "/spectrum"
     assert ref["shape"] == [10]
     assert ref["dtype"] == "float64"
+
+
+def test_batch_opens_hdf5_once_and_closes_on_stop(tools, tmp_path: Path):
+    """In batch mode the shared .h5 is opened lazily on the first array write,
+    reused across calls (no per-call reopen), and closed at stop_batch."""
+    logger = tools["logger"]
+
+    tools["start_batch"]("Sweep")
+    batch = logger.current_batch
+    assert batch.h5_file is None  # not opened until an array is actually written
+
+    logger._record_call(
+        exp_id="exp_0001", tool_name="m", timestamp="t", duration_ms=1,
+        call_args={}, result={"trace": np.arange(3)},
+        batch=batch, output_dir=tmp_path,
+    )
+    handle = batch.h5_file
+    assert handle is not None and bool(handle)  # open now
+
+    logger._record_call(
+        exp_id="exp_0002", tool_name="m", timestamp="t", duration_ms=1,
+        call_args={}, result={"trace": np.arange(3, 6)},
+        batch=batch, output_dir=tmp_path,
+    )
+    assert batch.h5_file is handle  # same handle reused, not reopened
+
+    tools["stop_batch"]()
+    assert batch.h5_file is None  # cleared
+    assert not handle  # a closed h5py.File is falsy
+
+    # Both experiments landed in the single shared file, correct data.
+    with h5py.File(str(batch.h5_path), "r") as f:
+        assert set(f.keys()) == {"exp_0001", "exp_0002"}
+        np.testing.assert_array_equal(f["exp_0001/trace"][()], np.arange(3))
+        np.testing.assert_array_equal(f["exp_0002/trace"][()], np.arange(3, 6))
+
+
+def test_batch_scalar_only_never_opens_hdf5(tools, tmp_path: Path):
+    """A sweep returning only scalars never touches HDF5 — logging is a pure
+    in-memory append, so there is no per-call file cost at all."""
+    logger = tools["logger"]
+
+    tools["start_batch"]("Sweep")
+    batch = logger.current_batch
+    logger._record_call(
+        exp_id="exp_0001", tool_name="m", timestamp="t", duration_ms=1,
+        call_args={"v": 1}, result={"reading": 2.0},
+        batch=batch, output_dir=tmp_path,
+    )
+    assert batch.h5_file is None  # scalars never open the file
+    tools["stop_batch"]()
+    assert list(tmp_path.glob("batch_*.h5")) == []
 
 
 def test_scalar_quantity_recorded_with_unit(wrapper, tmp_path: Path):
@@ -394,12 +542,10 @@ def test_session_summary_empty_dir(tmp_path: Path):
     assert not (tmp_path / "session_summary.json").exists()
 
 
-def test_session_summary_collects_all_entry_types(wrapper, tmp_path: Path):
-    from safe_lab_agents.mcp.predefined.autolog import (
-        write_session_summary,
-        start_batch,
-        stop_batch,
-    )
+def test_session_summary_collects_all_entry_types(auto_logger, tmp_path: Path):
+    from safe_lab_agents.mcp.predefined.autolog import write_session_summary
+
+    wrapper = auto_logger.wrapper
 
     # Individual entry
     def measure() -> dict:
@@ -408,9 +554,9 @@ def test_session_summary_collects_all_entry_types(wrapper, tmp_path: Path):
     wrapper(measure)()
 
     # Batch entry
-    start_batch("Test batch")
+    auto_logger.start_batch("Test batch")
     wrapper(measure)()
-    stop_batch()
+    auto_logger.stop_batch()
 
     # Fake analysis entry
     analysis = {
@@ -535,33 +681,21 @@ def test_auto_log_client_url_honours_mcp_host_override(tmp_path: Path, monkeypat
 # ---------------------------------------------------------------------------
 
 
-def test_log_analysis_defaults_kind_to_analysis(tmp_path: Path):
+def test_log_analysis_defaults_kind_to_analysis(auto_logger, tmp_path: Path):
     """Omitting kind yields kind='analysis' so pre-kind records read consistently."""
-    _setup_autolog(tmp_path)
-    from safe_lab_agents.mcp.predefined.autolog import log_analysis
-
-    try:
-        log_analysis(title="Some result", text="It worked.")
-        record = json.loads(next(tmp_path.glob("analysis_*.json")).read_text())
-        assert record["kind"] == "analysis"
-    finally:
-        _reset_autolog()
+    auto_logger.log_analysis(title="Some result", text="It worked.")
+    record = json.loads(next(tmp_path.glob("analysis_*.json")).read_text())
+    assert record["kind"] == "analysis"
 
 
-def test_log_analysis_records_failed_kind(tmp_path: Path):
+def test_log_analysis_records_failed_kind(auto_logger, tmp_path: Path):
     """A failed attempt can be logged and is tagged kind='failed'."""
-    _setup_autolog(tmp_path)
-    from safe_lab_agents.mcp.predefined.autolog import log_analysis
-
-    try:
-        log_analysis(
-            title="Gaussian fit did not converge",
-            text="curve_fit raised RuntimeError.",
-            script="raise RuntimeError()",
-            kind="failed",
-        )
-        record = json.loads(next(tmp_path.glob("analysis_*.json")).read_text())
-        assert record["kind"] == "failed"
-        assert record["script"] == "raise RuntimeError()"
-    finally:
-        _reset_autolog()
+    auto_logger.log_analysis(
+        title="Gaussian fit did not converge",
+        text="curve_fit raised RuntimeError.",
+        script="raise RuntimeError()",
+        kind="failed",
+    )
+    record = json.loads(next(tmp_path.glob("analysis_*.json")).read_text())
+    assert record["kind"] == "failed"
+    assert record["script"] == "raise RuntimeError()"

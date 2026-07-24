@@ -13,6 +13,7 @@ and personal access token (see ``kadi-apy config create``).
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from typing import Any
 
@@ -21,7 +22,11 @@ from safe_lab_agents.mcp.predefined.kadi4mat_utils import (
     make_record_identifier,
     make_user_slug,
 )
-from safe_lab_agents.mcp.predefined.records import is_quantity, split_quantity
+from safe_lab_agents.mcp.predefined.records import (
+    is_quantity,
+    split_quantity,
+    to_native_scalar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +75,15 @@ class KadiClient:
         self._collection_id: int | None = None
         self._disabled = False
 
-        # Rate limiting state.
+        # Rate limiting state.  ``create_record`` can run on parallel threads
+        # (each auto-log push happens on the calling tool's thread), so the
+        # counters below are guarded by ``_lock``.  The lock is held only around
+        # the counter reads/writes, never across the Kadi network calls.
         self._max_per_minute = max_per_minute
         self._max_per_session = max_per_session
         self._session_count = 0
         self._recent_timestamps: list[float] = []
+        self._lock = threading.Lock()
 
     # ---- Lazy init ---------------------------------------------------
 
@@ -124,17 +133,38 @@ class KadiClient:
     # ---- Record creation ---------------------------------------------
 
     def _check_rate_limit_before(self) -> str | None:
-        """Check whether we have already been blocked by a previous limit.
+        """Check whether this record must be blocked by a rate limit.
 
         The session limit is a hard stop — once reached, no more records
-        are created.  Returns an error message if blocked, or ``None``.
+        are created.  The per-minute limit is a soft stop that catches
+        runaway loops: once the sliding window is full the record is
+        rejected until enough old entries age out.  Returns an error
+        message if blocked, or ``None`` if the record may be created.
         """
-        if self._session_count >= self._max_per_session:
-            return (
-                f"Kadi4Mat: session limit of {self._max_per_session} records "
-                f"was already reached.  This record was NOT saved.  "
-                f"No more records will be created in this session."
-            )
+        with self._lock:
+            if self._session_count >= self._max_per_session:
+                return (
+                    f"Kadi4Mat: session limit of {self._max_per_session} "
+                    f"records was already reached.  This record was NOT saved. "
+                    f" No more records will be created in this session."
+                )
+
+            # Per-minute sliding window: hard-block while the window is full so
+            # a runaway loop cannot keep creating records at full speed.
+            now = time.monotonic()
+            self._recent_timestamps = [
+                t for t in self._recent_timestamps if now - t < 60.0
+            ]
+            if len(self._recent_timestamps) >= self._max_per_minute:
+                oldest = min(self._recent_timestamps)
+                wait_seconds = int(60.0 - (now - oldest)) + 1
+                return (
+                    f"Kadi4Mat: rate limit of {self._max_per_minute} records "
+                    f"per minute reached.  This record was NOT saved.  Wait at "
+                    f"least {wait_seconds} seconds before the next tool call.  "
+                    f"This is a safety measure — please check whether your "
+                    f"experiment is stuck in a loop."
+                )
         return None
 
     def _check_rate_limit_after(self) -> str | None:
@@ -143,31 +173,35 @@ class KadiClient:
         Returns a warning message about the *next* call if a limit is
         about to be reached, or ``None`` if everything is fine.
         """
-        # Session limit warning.
-        if self._session_count >= self._max_per_session:
-            return (
-                f"WARNING: Kadi4Mat session limit of {self._max_per_session} "
-                f"records has been reached.  This record was saved, but the "
-                f"NEXT tool call will NOT be recorded.  No more records will "
-                f"be created in this session.  This is a safety measure to "
-                f"avoid overloading the server — please check whether your "
-                f"experiment is running as expected."
-            )
+        with self._lock:
+            # Session limit warning.
+            if self._session_count >= self._max_per_session:
+                return (
+                    f"WARNING: Kadi4Mat session limit of "
+                    f"{self._max_per_session} records has been reached.  This "
+                    f"record was saved, but the NEXT tool call will NOT be "
+                    f"recorded.  No more records will be created in this "
+                    f"session.  This is a safety measure to avoid overloading "
+                    f"the server — please check whether your experiment is "
+                    f"running as expected."
+                )
 
-        # Per-minute sliding window warning.
-        now = time.monotonic()
-        self._recent_timestamps = [t for t in self._recent_timestamps if now - t < 60.0]
-        if len(self._recent_timestamps) >= self._max_per_minute:
-            oldest = min(self._recent_timestamps)
-            wait_seconds = int(60.0 - (now - oldest)) + 1
-            return (
-                f"WARNING: Kadi4Mat rate limit of {self._max_per_minute} "
-                f"records per minute reached.  This record was saved, but "
-                f"the NEXT tool call will NOT be recorded unless you wait "
-                f"at least {wait_seconds} seconds.  This is a safety "
-                f"measure — please check whether your experiment is stuck "
-                f"in a loop."
-            )
+            # Per-minute sliding window warning.
+            now = time.monotonic()
+            self._recent_timestamps = [
+                t for t in self._recent_timestamps if now - t < 60.0
+            ]
+            if len(self._recent_timestamps) >= self._max_per_minute:
+                oldest = min(self._recent_timestamps)
+                wait_seconds = int(60.0 - (now - oldest)) + 1
+                return (
+                    f"WARNING: Kadi4Mat rate limit of {self._max_per_minute} "
+                    f"records per minute reached.  This record was saved, but "
+                    f"the NEXT tool call will NOT be recorded unless you wait "
+                    f"at least {wait_seconds} seconds.  This is a safety "
+                    f"measure — please check whether your experiment is stuck "
+                    f"in a loop."
+                )
 
         return None
 
@@ -221,8 +255,9 @@ class KadiClient:
             for filepath in files:
                 record.upload_file(str(filepath))
 
-            self._session_count += 1
-            self._recent_timestamps.append(time.monotonic())
+            with self._lock:
+                self._session_count += 1
+                self._recent_timestamps.append(time.monotonic())
             logger.info(
                 "Kadi4Mat record created: %s (%d/%d this session)",
                 identifier,
@@ -258,6 +293,10 @@ class KadiClient:
         term: str | None = None
         if is_quantity(value):
             value, unit, term = split_quantity(value)
+
+        # numpy scalars (np.int64/np.float32/np.bool_) aren't int/float/bool
+        # subclasses; coerce so they classify numerically and keep their unit.
+        value = to_native_scalar(value)
 
         if isinstance(value, bool):
             kadi_type = "bool"

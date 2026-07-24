@@ -63,7 +63,10 @@ class TestLoadStartConfig:
             "kadi4mat-project: my-lab\n"
             "kadi-max-per-minute: 5\n"
             "auto-log: true\n"
-            "no-web: true\n",
+            "no-web: true\n"
+            "egress-lockdown: false\n"
+            "mem-limit: 4g\n"
+            "cpu-limit: 2\n",
         )
         loaded = load_start_config(cfg)
         assert loaded == {
@@ -72,6 +75,9 @@ class TestLoadStartConfig:
             "kadi_max_per_minute": 5,
             "auto_log": True,
             "no_web": True,
+            "egress_lockdown": False,
+            "mem_limit": "4g",
+            "cpu_limit": 2,
         }
 
     def test_unknown_key_raises(self, tmp_path: Path) -> None:
@@ -134,6 +140,14 @@ class TestResolveParam:
         # no_web defaults to False; config sets it True and the CLI did not pass it.
         value, override = resolve_param("no_web", False, False, {"no_web": True})
         assert value is True
+        assert override is None
+
+    def test_boolean_config_flips_true_default_off(self) -> None:
+        # egress_lockdown defaults to True; config disables it, CLI silent.
+        value, override = resolve_param(
+            "egress_lockdown", True, False, {"egress_lockdown": False}
+        )
+        assert value is False
         assert override is None
 
 

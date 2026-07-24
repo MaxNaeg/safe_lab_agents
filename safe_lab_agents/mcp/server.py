@@ -87,16 +87,22 @@ class ExperimentMCPServer:
         predefined_servers: Optional[list[str]] = None,
         shared_dir: Optional[Path] = None,
         update_tools: bool = False,
-        auth_token: Optional[str] = None,
+        auth_token: str = "",
     ) -> None:
+        # Shared secret the agent and generated clients must present as
+        # ``Authorization: Bearer <token>`` on every request.  Mandatory: the
+        # server binds all interfaces (LAN-reachable, required so containers can
+        # reach it across the Docker/Podman VM gateway), so it must never run
+        # unauthenticated.
+        if not auth_token:
+            raise ValueError(
+                "ExperimentMCPServer requires a non-empty auth_token; refusing to "
+                "start an instrument-control server without authentication."
+            )
         self.tools_file = Path(tools_file).resolve()
-        self._requested_port = port
         self.port: int = port if port != 0 else find_free_port()
         self.predefined_servers = predefined_servers or []
         self.shared_dir = Path(shared_dir).resolve() if shared_dir is not None else None
-        # Shared secret the agent and generated clients must present as
-        # ``Authorization: Bearer <token>`` on every request.  ``None`` disables
-        # the check (the server then accepts unauthenticated requests).
         self.auth_token = auth_token
         self._process: Optional[multiprocessing.Process] = None
         # One-way signal queue from the MCP subprocess to the parent monitor
@@ -155,11 +161,6 @@ class ExperimentMCPServer:
         """
         self.stop()
 
-    @property
-    def is_running(self) -> bool:
-        """Return ``True`` if the server process is still alive."""
-        return self._process is not None and self._process.is_alive()
-
 
 def _run_server(
     tools_file: Path,
@@ -167,16 +168,25 @@ def _run_server(
     predefined_server_names: list[str],
     shared_dir: Optional[Path],
     reload_queue: Optional[multiprocessing.Queue],
-    auth_token: Optional[str] = None,
+    auth_token: str = "",
 ) -> None:
     """Entry point for the server subprocess.
 
     Creates a FastMCP instance, registers all tools, and starts serving.
     This function blocks until the process is terminated.
     """
-    # Suppress FastMCP's startup banner (it prints to stdout).
-    sys.stdout = open(os.devnull, "w")
+    # This is a spawned subprocess (fresh interpreter under `spawn`), so it starts
+    # with no logging config — configure it from the inherited LOG_LEVEL so this
+    # process's tool-call / auto-log debug output surfaces alongside the host's.
+    from safe_lab_agents.utils import configure_logging
 
+    configure_logging(os.environ.get("LOG_LEVEL"))
+
+    # FastMCP's startup banner is suppressed via show_banner=False (below) and
+    # the transport is HTTP, so stdout is free — we deliberately do NOT redirect
+    # it to devnull: that leaked the file handle and silently swallowed any
+    # print() from the user's tools running here on the host.
+    #
     # Ignore SIGINT in the child — the parent handles graceful shutdown.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
@@ -194,22 +204,24 @@ def _run_server(
         for server_name in predefined_server_names:
             predefined = get_predefined_server(server_name)
             for func in predefined.get_tools():
-                mcp._local_provider.add_tool(func)
+                mcp.add_tool(func)
             predefined_python_tools.extend(predefined.get_python_tools())
             logger.info("Registered predefined server '%s'", server_name)
 
     # ---- Build wrapper chain from active env-var-activated features ----
     # auto-log innermost (captures instrument time only); kadi outermost.
     active_wrappers: list = []
+    auto_logger = None
     if os.environ.get("AUTO_LOG_DIR"):
-        from safe_lab_agents.mcp.predefined.autolog import (
-            make_autolog_wrapper,
-            start_batch,
-            stop_batch,
-            log_analysis,
+        from safe_lab_agents.mcp.predefined.autolog import AutoLogger
+
+        # All auto-log state lives on this instance; its bound methods are the
+        # wrapper and the batch/analysis control tools.
+        auto_logger = AutoLogger.from_env()
+        active_wrappers.append(auto_logger.wrapper)
+        predefined_python_tools.extend(
+            [auto_logger.start_batch, auto_logger.stop_batch, auto_logger.log_analysis]
         )
-        active_wrappers.append(make_autolog_wrapper())
-        predefined_python_tools.extend([start_batch, stop_batch, log_analysis])
     def _apply_wrappers(func: Callable) -> Callable:
         for w in active_wrappers:
             func = w(func)
@@ -227,7 +239,7 @@ def _run_server(
     # ---- Register MCP tools ----
     for func in (mcp_tools or []):
         wrapped = _wrap_mcp_tool_errors(_apply_wrappers(func))
-        mcp._local_provider.add_tool(wrapped)
+        mcp.add_tool(wrapped)
     logger.info("Registered %d MCP tool(s)", len(mcp_tools or []))
 
     # ---- Register reload_tools (only when --update-tools is active) ----
@@ -274,7 +286,7 @@ def _run_server(
                 f"regenerated; re-import it to use updated Python tools.{python_tools_section}"
             )
 
-        mcp._local_provider.add_tool(reload_tools)
+        mcp.add_tool(reload_tools)
 
     # ---- Build Python-callable registry (/invoke endpoint) ----
     _python_registry: dict[str, Callable] = {}
@@ -337,16 +349,31 @@ def _run_server(
         show_banner=False,
         stateless_http=False,
     )
-    if auth_token:
-        from starlette.middleware import Middleware
+    # Fail closed: the server binds all interfaces, so it must never serve
+    # without the bearer-token check installed.
+    if not auth_token:
+        raise ValueError("MCP server refusing to start without an auth token.")
+    from starlette.middleware import Middleware
 
-        run_kwargs["middleware"] = [Middleware(_BearerAuthMiddleware, token=auth_token)]
-        logger.info("MCP server listening on 0.0.0.0:%d (bearer-token auth enabled)", port)
-    else:
-        logger.info("MCP server listening on 0.0.0.0:%d (no auth)", port)
+    run_kwargs["middleware"] = [Middleware(_BearerAuthMiddleware, token=auth_token)]
+    logger.info("MCP server listening on 0.0.0.0:%d (bearer-token auth enabled)", port)
     try:
         mcp.run(**run_kwargs)
     finally:
+        # Flush any batch the agent left open. The batch lives in THIS
+        # subprocess's memory, so it must be persisted here before we exit —
+        # write_session_summary runs later in the host process and only reads
+        # files already on disk. Runs on both --update-tools reload and final
+        # shutdown (see the run_kwargs comment above).
+        if auto_logger is not None:
+            try:
+                flushed = auto_logger.flush_active_batch()
+                if flushed:
+                    logger.info("auto-log: flushed unclosed batch at shutdown: %s", flushed)
+            except Exception:
+                logger.warning(
+                    "auto-log: failed to flush active batch at shutdown", exc_info=True
+                )
         if shutdown_hook is not None:
             logger.info("Calling GRACEFUL_EXPERIMENT_SHUTDOWN")
             try:

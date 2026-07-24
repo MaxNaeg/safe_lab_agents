@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -19,6 +18,7 @@ from safe_lab_agents.agents.base import (
     AgentArg,
     BaseAgent,
     ConversationEntry,
+    parse_iso_timestamp,
     register_agent,
 )
 from safe_lab_agents.config import SessionConfig
@@ -94,6 +94,33 @@ class ClaudeCodeAgent(BaseAgent):
 
         return env
 
+    def get_secret_env_keys(self) -> list[str]:
+        """Blank the OAuth credential env vars when committing the container.
+
+        ``CLAUDE_CREDENTIALS_JSON`` (host-copied credentials) and
+        ``CLAUDE_CODE_OAUTH_TOKEN`` (a directly-supplied token) are both
+        injected as env vars, so ``docker commit`` would otherwise bake them
+        into the image config.  The entrypoint additionally scrubs the
+        ``~/.claude/.credentials.json`` file it writes, so no credential remains
+        in the committed image.
+        """
+        return super().get_secret_env_keys() + [
+            "CLAUDE_CREDENTIALS_JSON",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+        ]
+
+    def resume_credential_env(self, config: SessionConfig) -> dict[str, str]:
+        """Re-inject a directly-supplied OAuth token on resume, if given.
+
+        A token passed via ``--agent-args oauth-token=…`` is re-injected (and
+        popped so it is never persisted).  When absent nothing is injected: the
+        entrypoint scrubbed ``~/.claude/.credentials.json`` before commit, so the
+        resumed (interactive) session re-authenticates via the in-container
+        login flow.
+        """
+        token = config.agent_args.pop("oauth-token", None)
+        return {"CLAUDE_CODE_OAUTH_TOKEN": token} if token else {}
+
     def get_entrypoint_command(self) -> list[str]:
         """Return the entrypoint command.
 
@@ -168,15 +195,7 @@ class ClaudeCodeAgent(BaseAgent):
         carry the tool name.
         """
         msg_type = data.get("type", "")
-        timestamp_str = data.get("timestamp", "")
-        try:
-            timestamp = (
-                datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                if timestamp_str
-                else datetime.now(tz=timezone.utc)
-            )
-        except (ValueError, TypeError):
-            timestamp = datetime.now(tz=timezone.utc)
+        timestamp = parse_iso_timestamp(data.get("timestamp", ""))
 
         if msg_type in ("human", "user"):
             message = data.get("message", {})

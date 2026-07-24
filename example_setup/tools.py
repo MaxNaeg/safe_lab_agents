@@ -4,7 +4,7 @@ import os
 sys.path.append(os.path.dirname(__file__))  
 
 from safe_lab_agents import experiment # Wrapper to avoid initializing the hardware when importing this file
-from safe_lab_agents import quantity  # Wrapper for physical quantities with units enables improved logging
+from safe_lab_agents import quantity, Quantity  # Wrapper for physical quantities with units enables improved logging
 
 
 from setup import ExampleOpticalSetup # Class to control the experiment
@@ -21,7 +21,7 @@ PYTHON_TOOLS = [exp.set_angle, exp.measure_power]
 
 # You can also provide the agent with tools that are not part of the experiment class.
 # Typehints and docstrings are used by the agent to understand the function's purpose and how to call it.
-def get_current_lab_temperature(position: str) -> float:
+def get_current_lab_temperature(position: str) -> dict[str, Quantity|str]:
     """Return the current lab temperature at a given position.
     Args:
         position: The position in the lab to measure.

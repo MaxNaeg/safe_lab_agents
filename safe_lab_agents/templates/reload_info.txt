@@ -1,0 +1,9 @@
+
+## Reloading tools
+
+The tools file lives on the host and is edited by the user, not by you. When the
+user tells you they have updated it, call the MCP tool
+`mcp__experiment-tools__reload_tools` (no arguments) to pick up the changes.
+Only call it when the user asks you to reload — never on your own. After the MCP
+connection reconnects, refresh your MCP tool list; if Python tools changed,
+re-import /agent/workspace/tools_client.py.

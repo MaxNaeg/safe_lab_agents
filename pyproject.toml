@@ -24,17 +24,19 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "typer>=0.12.0",
+    "typer>=0.12.0,<1",
     "docker>=7.0.0",
-    "fastmcp>=2.0.0",
+    "requests>=2.0",
+    "fastmcp>=3.0.0,<4",
     "rich>=13.0.0",
-    "pydantic>=2.0.0",
-    "numpy>=2.0.0",
+    "pydantic>=2.0.0,<3",
+    "numpy>=2.0.0,<3",
     "matplotlib>=3.0.0",
     "scipy>=1.10",
     "h5py>=3.0.0",
     "pyyaml>=6.0",
     "markdown>=3.0",
+    "nh3>=0.2",
 ]
 
 [project.optional-dependencies]
@@ -49,10 +51,21 @@ dev = [
     "types-requests",
     "types-docker",
     "types-Markdown",
+    # Windows only: ConPTY backend for the e2e interactive/resume driver
+    # (POSIX uses the stdlib `pty`). See tests/e2e/_console.py.
+    "pywinpty>=2.0; sys_platform == 'win32'",
 ]
 
 [project.scripts]
 agent = "safe_lab_agents.cli:app"
+
+[tool.pytest.ini_options]
+# The e2e marker gates real full-pipeline tests (see tests/e2e/ and
+# docs/E2E_TESTING.md). Registering it here lets `pytest -m "not e2e"` filter
+# cleanly even though the tests/e2e package is only collected when SLA_E2E=1.
+markers = [
+    "e2e: real full-pipeline test (needs SLA_E2E=1, containers, and agent creds)",
+]
 
 [tool.setuptools]
 include-package-data = true
@@ -62,8 +75,13 @@ include = ["safe_lab_agents*"]
 
 [tool.setuptools.package-data]
 "safe_lab_agents.docker.dockerfiles" = ["*"]
+"safe_lab_agents.templates" = ["*"]
 
 [tool.mypy]
+# safe_lab_agents/templates/ holds workspace templates shipped as package data
+# (e.g. auto_log_client.py, generated verbatim into the container). They are not
+# imported as modules here, so exclude them from type-checking.
+exclude = ['^safe_lab_agents/templates/']
 # h5py ships no type stubs (and has no types-* package); treat its imports as
 # untyped rather than erroring. Stubs for yaml/requests/docker/markdown are
 # installed via the ``dev`` extra's ``types-*`` packages.

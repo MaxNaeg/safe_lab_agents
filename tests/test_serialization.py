@@ -42,6 +42,16 @@ class TestValidateAndCoerceArgs:
         with pytest.raises(TypeError, match="'n'"):
             validate_and_coerce_args(f, {"n": 3.14})
 
+    def test_rejects_bool_for_int(self):
+        """A JSON bool must not satisfy an int hint (bool subclasses int)."""
+        def f(n: int): pass
+        with pytest.raises(TypeError, match="got bool"):
+            validate_and_coerce_args(f, {"n": True})
+
+    def test_bool_still_accepted_for_bool(self):
+        def f(flag: bool): pass
+        assert validate_and_coerce_args(f, {"flag": True}) == {"flag": True}
+
     def test_passes_matching_str(self):
         def f(s: str): pass
         assert validate_and_coerce_args(f, {"s": "hello"}) == {"s": "hello"}

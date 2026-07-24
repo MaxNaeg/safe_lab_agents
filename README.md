@@ -161,14 +161,14 @@ Create a folder for your experiment and, inside it, a Python file with functions
 
 ```python
 from safe_lab_agents import experiment  # lazy wrapper — avoids opening hardware on import
-from safe_lab_agents import quantity    # attach units to measurements for richer logging
+from safe_lab_agents import quantity, Quantity   # attach units to measurements for richer logging
 
 from setup import ExampleOpticalSetup    # your class that talks to the hardware
 
 # Constructed lazily on first use — see "Stateful experiments" below.
 exp = experiment(ExampleOpticalSetup)
 
-def get_current_lab_temperature(position: str) -> dict:
+def get_current_lab_temperature(position: str) -> dict[str, Quantity|str]:
     """Return the current lab temperature at a given position.
 
     Args:
@@ -230,14 +230,17 @@ Stopping (exiting the container) automatically saves the session: the container 
 agent resume --name session-20260413-153042
 ```
 
-> **Security — committed images contain your secrets.** The session image committed on stop includes the
-> credentials supplied to the agent: the OpenClaw `LLM_API_KEY` (and provider keys such as `ANTHROPIC_API_KEY`)
-> and, for Claude Code, the OAuth token / credentials file.
-> Treat committed session images and the sessions directory as secrets.
+> **Security — your credentials and saved sessions.** Stopping a session saves it as a local image so you can
+> resume it. On the way out, the tool tries to strip the login credentials you gave the agent out of that saved
+> image, and it doesn't keep them in the session folder either. So resuming asks you to sign in again.
+>
+> This clean-up is **best-effort, not a guarantee** — a stray copy of a secret could still end up inside a
+> saved image or the session files. Treat both as sensitive: don't share saved session images, and rotate the
+> key or token if you think one may have leaked.
 
 ### See a real run
 
-The example ships with a **complete captured run** where the agent calibrated the optical bench from scratch. See [`example_setup/example_agent_run.md`](example_setup/example_agent_run.md) for the walkthrough, plus the self-contained [HTML data report](example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) and [conversation transcript](example_setup/shared_calibration_example/conversation_safe_lab_agents.html) — open these `.html` files in a browser (they're self-contained and render offline).
+The example ships with a **complete captured run** where the agent calibrated the optical bench from scratch. See [`example_setup/example_agent_run.md`](example_setup/example_agent_run.md) for the walkthrough, plus the self-contained [HTML data report](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) and [conversation transcript](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/conversation_safe_lab_agents.html) — the links open directly in your browser (the underlying `.html` files live in `example_setup/shared_calibration_example/` and also render offline).
 
 ## Defining tools (reference)
 
@@ -249,16 +252,22 @@ When your tools share a stateful object — an instrument driver holding a seria
 
 ```python
 from safe_lab_agents import experiment
+# import any library controlling your hardware
+from pylablib.devices.example_provider import ElliptecMotor, ... 
 
 class Setup:
     def __init__(self, port: str = "/dev/ttyUSB0"):
+        self.motor = ElliptecMotor(port)
         ...  # open the hardware connection
 
     def get_position(self, component: str) -> float:
         """Measure the position of an optical component, in millimeters."""
+        pos = self.motor.get_position()
         ...
+        
 
     def close(self) -> None:
+        self.motor.close()
         ...  # release the connection
 
 exp = experiment(Setup, port="/dev/ttyUSB0")
@@ -341,9 +350,9 @@ For best results, tools should return a `dict` when `--auto-log` is on — keys 
 We also recommend attaching a unit to any measurement value by wrapping it with `quantity(value, unit, term=None)`. Units are opt-in per value — anything you don't wrap stays a plain value.
 
 ```python
-from safe_lab_agents import quantity
+from safe_lab_agents import quantity, Quantity # for type hints for the agent
 
-def measure_power(channel: int) -> dict:
+def measure_power(channel: int) -> dict[str, Quantity|str]:
     return {
         "power": quantity(2.5, "W"),      # scalar with a unit
         "trace": quantity(samples, "V"),  # numpy array with a unit
@@ -362,7 +371,7 @@ Units flow through the logs, HTML report, and .eln export, so the recorded data 
 
 **On exit**, a `session_summary.json` and a standard **`<session>.eln`** archive are written automatically to the log folder.
 
-**View the log** as a single self-contained HTML page (embedded figures, filter/search by kind, provenance links) — see the [example report](example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) (open it in a browser):
+**View the log** as a single self-contained HTML page (embedded figures, filter/search by kind, provenance links) — see the [example report](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) (opens in your browser):
 
 ```bash
 agent report path/to/auto_log --open
@@ -374,7 +383,19 @@ agent report path/to/auto_log --open
 agent export-eln path/to/auto_log -o session.eln
 ```
 
+### Kadi4Mat integration
+You can automatically push all the log enties to the lab notebook Kadi4Mat:
+Install the extra (`pip install -e ".[kadi4mat]"`), configure once with `kadi-apy config`, then pass `--kadi4mat-project <name>` to push every logged record to a [Kadi4Mat](https://kadi4mat.iam.kit.edu) ELN (auto-enables `--auto-log`; rate-limited via `--kadi-max-per-minute`/`--kadi-max-per-session`).
+
 ## CLI Reference
+
+### Global options
+
+These apply to every subcommand and must come **before** the subcommand (e.g. `agent --log-level DEBUG start …`).
+
+| Option | Description |
+|--------|-------------|
+| `--log-level` | Logging verbosity: `DEBUG`, `INFO`, `WARNING` (default), or `ERROR`. Also read from the `LOG_LEVEL` environment variable. Applies to the MCP server subprocess too, so tool-call / auto-log debug output is included. Logs go to stderr. |
 
 ### `agent start`
 
@@ -399,6 +420,9 @@ Start a new agent session. All options are optional — missing ones are prompte
 | `--port` | MCP server port (0 = auto) |
 | `--container` | Container runtime: `docker` or `podman` (prompted if omitted; Podman auto-initializes the machine if needed) |
 | `--no-web` | Disable web tools (soft restriction — does not block network access). Claude Code: built-in web tools disabled, but Bash can still reach the network. OpenClaw: system-prompt instruction only. |
+| `--egress-lockdown/--no-egress-lockdown` | In-container egress firewall (default: **on**): the host is reachable only on the MCP port and private/LAN ranges are blocked, while the public internet (the agent's model API) stays open. If the rules cannot be applied the container refuses to start (fail-closed) — disable only if your runtime cannot support in-container iptables. |
+| `--mem-limit` | Container memory limit, e.g. `8g` or `512m`. Default: half the RAM visible to the container runtime (min 2 GB). Swap is disabled alongside, so the limit is a hard ceiling (the container is OOM-killed instead of swap-thrashing the host). |
+| `--cpu-limit` | Container CPU limit in cores, e.g. `2` or `2.5`. Default: all but one of the runtime's cores, so the host-side MCP tool server stays responsive. |
 | `--update-tools` | Expose a `reload_tools` MCP tool the agent can call to reload your tools file without restarting the container |
 | `--auto-log` | Automatically log every tool call as a local ELN record (JSON + HDF5). See [Automatic logging & ELN export](#automatic-logging--eln-export). |
 | `--config` | Path to a YAML config file supplying defaults for the options above. See [Config file](#config-file). |
@@ -502,17 +526,20 @@ Claude Code uses a Claude **subscription** (Pro/Max) — no API key is needed. T
    - **Interactive mode:** just log in inside the container session as usual.
    - **Autonomous mode:** the CLI launches a one-time login first — it runs `claude setup-token` inside a throwaway container, prints a sign-in URL, you open it and paste the code back, and the resulting token is captured and used for the run. After that, the autonomous task starts automatically.
 
+> **Resuming asks you to sign in again.** Your login isn't kept in the saved session (see the note under [Stop and resume](#stop-and-resume)), so resuming a Claude Code session logs in again — re-run the in-container login, or pass `--agent-args oauth-token=…`. If you used `copy-host-credentials`, it re-copies from your machine automatically instead. Your conversation is preserved either way.
+
 > **Security:** passing a token on the command line leaves it in your shell history and process list. Prefer `oauth-token` for short-lived/CI use, or rely on host credentials / the in-container login otherwise.
 
 ### OpenClaw
 
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
-| `api-key` | string | — | API key for the LLM provider (required, secret) |
+| `api-key` | string | — | API key for the LLM provider (required, secret). Not saved with the session — you re-enter it on `resume` (prompted, or `--agent-args api-key=…`) |
 | `provider` | string | — | LLM provider: `anthropic`, `openai`, `google`, `openrouter` (required) |
 | `model` | string | — | Model name, e.g. `gpt-4o`, `claude-sonnet-4-6` (required) |
 
-All three are required — if omitted, the CLI prompts for them.
+All three are required — if omitted, the CLI prompts for them. Because the key is not persisted, `agent resume`
+re-prompts for it (pass `--agent-args api-key=…` to supply it non-interactively).
 
 ```bash
 agent start --tools tools.py \
@@ -552,10 +579,10 @@ Smaller or optional capabilities, one line each:
 - **Agent workspace** — the agent's working directory (`/agent/workspace` inside the container — scripts, analysis, output files) is bind-mounted to `~/.safe_lab_agents/sessions/<name>/workspace/` on your host, so everything it creates is available there.
 - **`--update-tools`** — exposes a `reload_tools` MCP tool the agent can call to pick up edits to your tools file without restarting the container (handy while developing tools).
 - **`--no-web`** — soft-disable the agent's web tools (a lab agent driving hardware usually shouldn't browse); does not block network access.
+- **Egress lockdown** (default on) — before the agent starts, the container installs an internal firewall so the host is reachable *only* on the MCP tool-server port and private/LAN addresses are blocked; the public internet stays open for the agent's model API. Note: LAN machines with public IP addresses can't be told apart from the internet and remain reachable. Opt out with `--no-egress-lockdown` if your runtime can't support in-container iptables (the container fails closed otherwise).
 - **`--port`** — pin the host-side MCP server port (default auto-selects a free one).
 - **`@results_to_shared`** — decorator that copies selected return values of an MCP tool into the shared directory and hands the agent a confirmation string (a niche helper — `PYTHON_TOOLS` already return native objects directly). `from safe_lab_agents import results_to_shared`.
 - **`@no_autolog`** — decorator to exclude a specific tool from auto-logging. `from safe_lab_agents import no_autolog`.
-- **Kadi4Mat push** — install the extra (`pip install -e ".[kadi4mat]"`), configure once with `kadi-apy config`, then pass `--kadi4mat-project <name>` to push every logged record to a [Kadi4Mat](https://kadi4mat.iam.kit.edu) ELN (auto-enables `--auto-log`; rate-limited via `--kadi-max-per-minute`/`--kadi-max-per-session`).
 - **Predefined MCP servers** (`--server`) — enable a built-in bundle of tools by name; for example, `--server lab-notebook` adds a simple Markdown-based lab-notebook server.
 - **Podman support** — Docker and Podman are equal choices per session (`--container`); the Podman machine (macOS/Windows) or socket (Linux) is started automatically, and the runtime is autodetected on `resume`.
 - **Docker auto-start** — Docker Desktop is launched automatically on macOS/Windows (and the daemon started via `systemctl` on Linux) if it isn't already running.
@@ -572,7 +599,7 @@ On the first `--container podman` run, if the required firewall rule is missing,
 New-NetFirewallRule -DisplayName 'safe-lab-agents-mcp' -Direction Inbound -Action Allow -Protocol TCP -InterfaceAlias 'vEthernet (WSL)'
 ```
 
-The rule is scoped to the WSL adapter only, so the (unauthenticated) tool server is **not** exposed to the rest of your network. Until the rule is added, tool calls from the agent will time out.
+The rule is scoped to the WSL adapter only, so the tool server is **not** exposed to the rest of your network — and even reachable clients must present the session's mandatory MCP bearer token. Until the rule is added, tool calls from the agent will time out.
 
 ### Podman on Linux
 
