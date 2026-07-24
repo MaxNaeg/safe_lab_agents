@@ -37,9 +37,9 @@ chain** end-to-end (Stage 2b):
 
 | Platform | Supported | Notes |
 |----------|-----------|-------|
-| **Linux** (incl. Ubuntu) | ✅ Yes | The ideal target: native Docker & Podman (no VM). The daemon must be running / your user in the `docker` group (`runtime.py` will `systemctl start` Docker). |
+| **Linux** (incl. Ubuntu) | ✅ Yes | The ideal target: native Docker & Podman (no VM). The daemon must be running / your user in the `docker` group (`runtime.py` will `systemctl start` Docker). Verified on Ubuntu: full matrix green. |
 | **macOS** | ✅ Yes | Docker Desktop / `podman machine` VMs are auto-started by `runtime.py`. Verified: full 8-cell matrix green. |
-| **Windows** | ✅ Yes (native) | Needs `pip install pywinpty` (the ConPTY backend for the interactive/resume console) and Docker Desktop. Run with `python run_e2e.py …` (not the bash `run_e2e.sh`). Native Windows is the *only* way to exercise the product's Windows-specific branches (interactive-start subprocess fallback, Windows Docker/Podman detection, the Podman firewall notice) — WSL2 would take the Linux branches instead. |
+| **Windows** | ✅ Yes (native) | Needs `pip install pywinpty` (the ConPTY backend for the interactive/resume console) and Docker Desktop. Run with `python run_e2e.py …` (not the bash `run_e2e.sh`). Verified on Windows 11: full matrix green. Native Windows is the *only* way to exercise the product's Windows-specific branches (interactive-start subprocess fallback, Windows Docker/Podman detection, the Podman firewall notice) — WSL2 would take the Linux branches instead. |
 
 The pseudo-terminal that drives interactive/resume cells is abstracted in
 [`tests/e2e/_console.py`](../tests/e2e/_console.py): POSIX uses the stdlib `pty`;
@@ -52,12 +52,12 @@ credential env vars. Generate the Claude token anywhere (`claude setup-token`,
 e.g. on a Mac) and set `SLA_E2E_CLAUDE_OAUTH_TOKEN` — it is account-scoped, not
 machine-scoped.
 
-> **Windows caveat (unverified):** the ConPTY backend is best-effort and has not
-> yet been run on a Windows machine. ConPTY differs from a POSIX pty in ANSI
-> handling and Ctrl-C delivery (the graceful-teardown interrupt goes in via
-> `pywinpty`'s `sendintr()`), so expect a round or two of on-machine iteration —
+> **Windows note:** the ConPTY backend has been verified on Windows 11 (full
+> matrix green). ConPTY differs from a POSIX pty in ANSI handling and Ctrl-C
+> delivery (the graceful-teardown interrupt goes in via `pywinpty`'s
+> `sendintr()`); if you hit a PTY-driven cell that misbehaves,
 > `SLA_E2E_KEEP_ON_FAIL=1` preserves the PTY capture (`sla-e2e-pty-<name>.log`)
-> for exactly that debugging.
+> for debugging.
 
 ## Enabling
 
