@@ -162,35 +162,27 @@ class OpenClawAgent(BaseAgent):
     def get_entrypoint_command(self) -> list[str]:
         return ["/entrypoint.sh"]
 
-    def get_system_prompt(self, config: SessionConfig) -> str:
-        """Environment prompt for OpenClaw (written to system_prompt.txt by the host).
+    def get_environment_lines(self, config: SessionConfig) -> list[str]:
+        """Add OpenClaw's guidance to prefer the MCP tools after the workspace line.
 
-        Adds OpenClaw-specific guidance to prefer the MCP tools, and uses
-        OpenClaw's own (soft) ``--no-web`` wording, since it has no CLI-level
-        web block.  See :meth:`BaseAgent.get_system_prompt`.
+        OpenClaw also uses its own (soft) ``--no-web`` wording, since it has no
+        CLI-level web block.  See :meth:`BaseAgent.get_system_prompt`.
         """
-        parts = [
-            "You are an AI agent controlling a scientific experiment.",
-            "Your workspace is /agent/workspace/ — use it for scripts and analysis files.",
+        lines = super().get_environment_lines(config)
+        lines.insert(
+            1,
             "You have access to experiment control tools via the MCP server named "
             "'experiment-tools'. Always prefer these tools over shell workarounds when "
             "controlling instruments or retrieving data.",
-        ]
-        if config.context_dir is not None:
-            parts.append(
-                "Experiment context files are at /agent/context/ (read-only). Read them "
-                "to understand the experiment before taking action."
-            )
-        parts.append(
-            "Large data exchange happens via /agent/shared/ (read-write). Instruments "
-            "write data there; you can read it and also write results there."
         )
-        if config.no_web:
-            parts.append(
-                "RESTRICTION: Do NOT use any web search or web fetch tools under any "
-                "circumstances. All internet access is forbidden for this session."
-            )
-        return "\n".join(parts)
+        return lines
+
+    def get_no_web_instruction(self) -> str:
+        """OpenClaw's ``--no-web`` wording (its only enforcement — no CLI block)."""
+        return (
+            "RESTRICTION: Do NOT use any web search or web fetch tools under any "
+            "circumstances. All internet access is forbidden for this session."
+        )
 
     def get_resume_command(self) -> list[str]:
         return ["--resume"]

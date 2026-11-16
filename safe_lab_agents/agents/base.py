@@ -236,37 +236,62 @@ class BaseAgent(ABC):
         the container environment.  The host writes the result to
         ``/agent/workspace/system_prompt.txt`` and both entrypoint scripts read
         that file, so the text is defined here once instead of being duplicated
-        in each entrypoint.  Subclasses override this to add agent-specific
-        guidance (see :class:`OpenClawAgent`).
+        in each entrypoint.
+
+        The prompt is ``role + environment + no-web restriction``.  Only the
+        role is replaceable: a user-supplied ``config.system_prompt``
+        (``--system-prompt``) takes its place, while the environment lines
+        (:meth:`get_environment_lines`) and the ``--no-web`` restriction are
+        always kept, since they describe the session's actual setup.
+        Subclasses customise the parts via :meth:`get_environment_lines` and
+        :meth:`get_no_web_instruction` (see :class:`OpenClawAgent`).
 
         The entrypoint owns everything that depends on interactive/autonomous/
         resume branching — the autonomous-mode instruction and the appended
         tool-info files — so those are intentionally *not* included here.
         """
-        parts = [
-            "You are an AI agent controlling a scientific experiment.",
+        role = config.system_prompt or self.get_default_role_prompt()
+        parts = [role, *self.get_environment_lines(config)]
+        if config.no_web:
+            parts.append(self.get_no_web_instruction())
+        return "\n".join(parts)
+
+    def get_default_role_prompt(self) -> str:
+        """Return the built-in role line that ``--system-prompt`` replaces."""
+        return "You are an AI agent controlling a scientific experiment."
+
+    def get_environment_lines(self, config: SessionConfig) -> list[str]:
+        """Return the prompt lines describing the container's directories.
+
+        Always included, even with a custom ``--system-prompt``.
+        """
+        lines = [
             "Your workspace is /agent/workspace/ — use it for scripts and analysis files.",
         ]
         if config.context_dir is not None:
-            parts.append(
-                "Experiment context files are at /agent/context/ (read-only). "
-                "Read them to understand the experiment before taking action."
+            lines.append(
+                "Context files are at /agent/context/ (read-only). "
+                "Read them before taking action."
             )
-        parts.append(
+        lines.append(
             "Large data exchange happens via /agent/shared/ (read-write). "
-            "Instruments write data there; you can read it and also write results there."
+            "You can read it and also write results there."
         )
-        if config.no_web:
-            # Prompt-level (soft) restriction. The container keeps network egress
-            # (needed for the agent's own model API), so for vectors other than
-            # the hard-blocked WebSearch/WebFetch tools this instruction — not a
-            # network block — is what discourages web access.
-            parts.append(
-                "RESTRICTION: All internet and web access is strictly forbidden. Do not "
-                "access the web by any means — including built-in tools, shell commands "
-                "(curl, wget, etc.), Python libraries, or any other method."
-            )
-        return "\n".join(parts)
+        return lines
+
+    def get_no_web_instruction(self) -> str:
+        """Return the prompt-level ``--no-web`` restriction for this agent.
+
+        Prompt-level (soft) restriction. The container keeps network egress
+        (needed for the agent's own model API), so for vectors other than the
+        hard-blocked WebSearch/WebFetch tools this instruction — not a network
+        block — is what discourages web access.
+        """
+        return (
+            "RESTRICTION: All internet and web access is strictly forbidden. Do not "
+            "access the web by any means — including built-in tools, shell commands "
+            "(curl, wget, etc.), Python libraries, or any other method."
+        )
 
     def get_agent_args(self) -> list[AgentArg]:
         """Return descriptors for agent-specific CLI arguments.

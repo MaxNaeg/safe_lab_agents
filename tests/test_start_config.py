@@ -94,6 +94,13 @@ class TestLoadStartConfig:
         assert loaded["tools"] == (sub / "tools.py").resolve()
         assert loaded["shared"] == (tmp_path / "data").resolve()
 
+    def test_system_prompt_file_resolved_relative_to_file(self, tmp_path: Path) -> None:
+        cfg = tmp_path / DEFAULT_CONFIG_NAME
+        cfg.write_text("system-prompt-file: ./prompt.md\nsystem-prompt: hi\n")
+        loaded = load_start_config(cfg)
+        assert loaded["system_prompt_file"] == (tmp_path / "prompt.md").resolve()
+        assert loaded["system_prompt"] == "hi"
+
     def test_agent_args_passthrough(self, tmp_path: Path) -> None:
         cfg = self._write(
             tmp_path,

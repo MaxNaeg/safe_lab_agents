@@ -170,6 +170,16 @@ class SessionConfig(BaseModel):
         default="docker",
         description="Container runtime to use: 'docker' or 'podman'",
     )
+    system_prompt: Optional[str] = Field(
+        default=None,
+        description=(
+            "Custom system prompt that replaces the built-in 'you are controlling "
+            "a scientific experiment' role line (None = use the default). The "
+            "workspace/context/shared directory description, the --no-web "
+            "restriction, the autonomous-mode instruction and the tool/auto-log "
+            "info are always kept."
+        ),
+    )
     no_web: bool = Field(
         default=False,
         description=(

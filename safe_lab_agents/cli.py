@@ -576,6 +576,23 @@ def start(
         "--task-file",
         help="Path to a text/markdown file whose content is used as the initial task (mutually exclusive with --task).",
     ),
+    system_prompt: Optional[str] = typer.Option(
+        None,
+        "--system-prompt",
+        help=(
+            "Replace the built-in 'you are controlling a scientific experiment' "
+            "system prompt with this text (e.g. when not using the agent for an "
+            "experiment). The description of /agent/workspace, /agent/context and "
+            "/agent/shared, the --no-web restriction, the autonomous-mode instruction "
+            "and tool/auto-log info are always kept. Mutually exclusive with "
+            "--system-prompt-file."
+        ),
+    ),
+    system_prompt_file: Optional[Path] = typer.Option(
+        None,
+        "--system-prompt-file",
+        help="Path to a text/markdown file used as --system-prompt (mutually exclusive with it).",
+    ),
     config_path: Optional[Path] = typer.Option(
         None,
         "--config",
@@ -640,6 +657,8 @@ def start(
     shared = _from_config("shared", shared)
     task = _from_config("task", task)
     task_file = _from_config("task_file", task_file)
+    system_prompt = _from_config("system_prompt", system_prompt)
+    system_prompt_file = _from_config("system_prompt_file", system_prompt_file)
     name = _from_config("name", name)
     server = _from_config("server", server)
     requirements = _from_config("requirements", requirements)
@@ -704,6 +723,9 @@ def start(
             raise typer.Exit(1)
         task = task_file.read_text(encoding="utf-8").strip()
 
+    # ---- Resolve --system-prompt-file into the custom system prompt ----
+    system_prompt = _resolve_system_prompt(system_prompt, system_prompt_file)
+
     # ---- Parse and prompt for agent-specific args ----
     mode_for_prompt = "autonomous" if task else "interactive"
     agent_args, overridden = _merge_agent_args(
@@ -761,6 +783,7 @@ def start(
         requirements_file=Path(requirements).resolve() if requirements else None,
         mcp_port=port,
         task=task if task else None,
+        system_prompt=system_prompt,
         predefined_servers=predefined_servers,
         auto_log_dir=auto_log_host_dir if auto_log else None,
         kadi4mat_project=project,
@@ -1768,6 +1791,36 @@ def _write_system_prompt(config: SessionConfig, agent: BaseAgent) -> None:
     (config.workspace_dir / "system_prompt.txt").write_text(
         agent.get_system_prompt(config) + "\n", encoding="utf-8"
     )
+
+
+def _resolve_system_prompt(
+    system_prompt: Optional[str], system_prompt_file: Optional[Path]
+) -> Optional[str]:
+    """Return the custom system prompt from ``--system-prompt`` or its file variant.
+
+    ``None`` means "use the agent's built-in prompt". An empty prompt is
+    rejected rather than silently stripping the agent of all guidance.
+    """
+    if system_prompt_file is not None:
+        if system_prompt is not None:
+            console.print(
+                "[bold red]--system-prompt and --system-prompt-file are mutually "
+                "exclusive.[/bold red]"
+            )
+            raise typer.Exit(1)
+        if not system_prompt_file.is_file():
+            console.print(
+                f"[bold red]System prompt file not found: {system_prompt_file}[/bold red]"
+            )
+            raise typer.Exit(1)
+        system_prompt = system_prompt_file.read_text(encoding="utf-8")
+    if system_prompt is None:
+        return None
+    system_prompt = system_prompt.strip()
+    if not system_prompt:
+        console.print("[bold red]The custom system prompt is empty.[/bold red]")
+        raise typer.Exit(1)
+    return system_prompt
 
 
 def _load_template(name: str) -> str:

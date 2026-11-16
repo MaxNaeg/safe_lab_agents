@@ -409,6 +409,8 @@ Start a new agent session. All options are optional — missing ones are prompte
 | `--shared`, `-s` | Shared directory for data exchange (mounted read-write) |
 | `--task` | Initial task for autonomous mode |
 | `--task-file` | Path to a text/markdown file whose content is the initial task (mutually exclusive with `--task`) |
+| `--system-prompt` | Replace the built-in "you are controlling a scientific experiment" system prompt with this text, e.g. when not using the agent for an experiment. The description of `/agent/workspace`, `/agent/context` and `/agent/shared`, the `--no-web` restriction, the autonomous-mode instruction and the tool/auto-log info are always kept. Kept on resume. |
+| `--system-prompt-file` | Path to a text/markdown file used as `--system-prompt` (mutually exclusive with it) |
 | `--name`, `-n` | Session name (auto-generated if omitted) |
 | `--server` | Predefined MCP servers to enable (repeatable). See [More features](#more-features). |
 | `--kadi4mat-project` | Kadi4Mat project name. Enables Kadi4Mat ELN push and auto-enables `--auto-log`. See [More features](#more-features). |
@@ -446,7 +448,7 @@ agent-args:
   effort: max
 ```
 
-With that file in place, `agent start` runs with no flags, and e.g. `agent start --agent openclaw` overrides just the agent. Path-valued keys (`tools`, `context`, `shared`, `requirements`, `task-file`) resolve relative to the config file's location, so the file is portable.
+With that file in place, `agent start` runs with no flags, and e.g. `agent start --agent openclaw` overrides just the agent. Path-valued keys (`tools`, `context`, `shared`, `requirements`, `task-file`, `system-prompt-file`) resolve relative to the config file's location, so the file is portable.
 
 ### `agent resume`
 

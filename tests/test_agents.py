@@ -218,6 +218,29 @@ class TestClaudeCodeAgent:
         )
         assert "Kadi4Mat" not in agent.get_system_prompt(cfg)
 
+    def test_custom_system_prompt_replaces_role_only(self, tmp_path: Path) -> None:
+        """A custom prompt replaces the role line; directory info is always kept."""
+        agent = get_agent("claude-code")
+        cfg = SessionConfig(
+            name="t", tools_file=tmp_path / "t.py", workspace_dir=tmp_path / "ws",
+            context_dir=tmp_path / "ctx", system_prompt="You are a code reviewer.",
+        )
+        prompt = agent.get_system_prompt(cfg)
+        assert prompt.startswith("You are a code reviewer.\n")
+        assert agent.get_default_role_prompt() not in prompt
+        assert "/agent/workspace" in prompt
+        assert "/agent/context" in prompt
+        assert "/agent/shared" in prompt
+
+    def test_custom_system_prompt_keeps_no_web(self, tmp_path: Path) -> None:
+        """--no-web is still enforced on top of a custom prompt."""
+        agent = get_agent("claude-code")
+        cfg = SessionConfig(
+            name="t", tools_file=tmp_path / "t.py", workspace_dir=tmp_path / "ws",
+            system_prompt="Custom.", no_web=True,
+        )
+        assert agent.get_no_web_instruction() in agent.get_system_prompt(cfg)
+
 
 class TestOpenClawAgent:
     """Tests for the OpenClaw agent backend."""
@@ -236,6 +259,20 @@ class TestOpenClawAgent:
         prompt = agent.get_system_prompt(cfg)
         assert "experiment-tools" in prompt          # MCP-prefer sentence
         assert "web search or web fetch" in prompt   # OpenClaw's soft no-web wording
+
+    def test_custom_system_prompt_keeps_openclaw_parts(self, tmp_path: Path) -> None:
+        """OpenClaw keeps its MCP guidance, dirs and no-web wording with a custom prompt."""
+        agent = get_agent("openclaw")
+        cfg = SessionConfig(
+            name="t", tools_file=tmp_path / "t.py", workspace_dir=tmp_path / "ws",
+            system_prompt="Custom.", no_web=True,
+        )
+        prompt = agent.get_system_prompt(cfg)
+        assert prompt.startswith("Custom.\n")
+        assert "scientific experiment" not in prompt
+        assert "/agent/workspace" in prompt
+        assert "experiment-tools" in prompt
+        assert "web search or web fetch" in prompt
 
     def test_parse_history_strips_sender_metadata_wrapper(self, tmp_path: Path) -> None:
         """OpenClaw's 'Sender (untrusted metadata)' preamble and [timestamp]

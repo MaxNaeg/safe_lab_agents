@@ -36,6 +36,8 @@ CONFIG_KEY_MAP: dict[str, str] = {
     "shared": "shared",
     "task": "task",
     "task-file": "task_file",
+    "system-prompt": "system_prompt",
+    "system-prompt-file": "system_prompt_file",
     "name": "name",
     "server": "server",
     "requirements": "requirements",
@@ -55,7 +57,9 @@ CONFIG_KEY_MAP: dict[str, str] = {
 }
 
 # Config keys whose values are filesystem paths, resolved relative to the config file.
-PATH_KEYS: set[str] = {"tools", "context", "shared", "requirements", "task-file"}
+PATH_KEYS: set[str] = {
+    "tools", "context", "shared", "requirements", "task-file", "system-prompt-file",
+}
 
 
 def discover_config_path(
