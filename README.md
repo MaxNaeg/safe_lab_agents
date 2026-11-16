@@ -509,7 +509,7 @@ If a required argument is missing the CLI will prompt for it automatically.
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
 | `model` | string | — | Claude model alias or full ID (e.g. `sonnet`, `opus`, `claude-sonnet-4-6`) |
-| `effort` | string | `low` | Effort level: `low`, `medium`, `high`, `xhigh`, `max` |
+| `effort` | string | — | Effort level: `low`, `medium`, `high`, `xhigh`, `max`. If omitted, Claude Code's own default effort is used |
 | `copy-host-credentials` | bool | `false` | Copy Claude login credentials from the host into the container. Off by default — without it, log in inside the container or pass `oauth-token` |
 | `oauth-token` | string | — | Claude OAuth token (`sk-ant-oat…`) to authenticate with directly. Never stored in session metadata. See [Authentication](#claude-code-authentication) |
 | `dangerously-skip-permissions` | bool | `false` | Pass `--dangerously-skip-permissions` to Claude Code (interactive mode) |

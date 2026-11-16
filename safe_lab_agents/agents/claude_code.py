@@ -40,8 +40,9 @@ class ClaudeCodeAgent(BaseAgent):
                      "Claude model alias or full ID (e.g. sonnet, opus, claude-sonnet-4-6).",
                      default=None),
             AgentArg("effort", str, False, False,
-                     "Effort level (low/medium/high/xhigh/max).",
-                     default="low", choices=["low", "medium", "high", "xhigh", "max"]),
+                     "Effort level (low/medium/high/xhigh/max). If omitted, "
+                     "Claude Code's own default effort is used.",
+                     default=None, choices=["low", "medium", "high", "xhigh", "max"]),
             AgentArg("copy-host-credentials", bool, False, False,
                      "Copy Claude login credentials from the host into the "
                      "container (off by default; without it, log in inside the "

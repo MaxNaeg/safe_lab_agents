@@ -23,7 +23,12 @@ from safe_lab_agents.config import SessionConfig
 
 @dataclass
 class AgentArg:
-    """Descriptor for an agent-specific CLI argument."""
+    """Descriptor for an agent-specific CLI argument.
+
+    ``default`` is informational only: the CLI does not inject it into
+    ``SessionConfig.agent_args`` when the arg is omitted. Agents must treat a
+    missing key as "not set" and fall back to their own behaviour.
+    """
 
     name: str
     type: type

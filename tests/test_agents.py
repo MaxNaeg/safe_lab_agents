@@ -91,6 +91,19 @@ class TestClaudeCodeAgent:
         assert args["effort"].choices == ["low", "medium", "high", "xhigh", "max"]
         assert not args["effort"].required
         assert not args["effort"].required_for_autonomous
+        # No declared default: omitting effort defers to Claude Code's default.
+        assert args["effort"].default is None
+
+    def test_effort_omitted_sets_no_env(self, tmp_path: Path) -> None:
+        """Without effort in agent_args, CLAUDE_EFFORT is not set."""
+        agent = get_agent("claude-code")
+        cfg = SessionConfig(
+            name="test",
+            tools_file=tmp_path / "tools.py",
+            workspace_dir=tmp_path / "ws",
+        )
+        env = agent.get_environment_variables(cfg, mcp_port=8000)
+        assert "CLAUDE_EFFORT" not in env
 
     def test_effort_via_agent_args(self, tmp_path: Path) -> None:
         """effort in agent_args sets CLAUDE_EFFORT env var."""
