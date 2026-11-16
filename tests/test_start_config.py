@@ -101,6 +101,17 @@ class TestLoadStartConfig:
         assert loaded["system_prompt_file"] == (tmp_path / "prompt.md").resolve()
         assert loaded["system_prompt"] == "hi"
 
+    def test_auto_log_prompt_preset_kept(self, tmp_path: Path) -> None:
+        cfg = tmp_path / DEFAULT_CONFIG_NAME
+        cfg.write_text("auto-log-prompt: minimal\n")
+        assert load_start_config(cfg)["auto_log_prompt"] == "minimal"
+
+    def test_auto_log_prompt_path_resolved_relative_to_file(self, tmp_path: Path) -> None:
+        cfg = tmp_path / DEFAULT_CONFIG_NAME
+        cfg.write_text("auto-log-prompt: ./my_prompt.md\n")
+        loaded = load_start_config(cfg)
+        assert loaded["auto_log_prompt"] == str((tmp_path / "my_prompt.md").resolve())
+
     def test_agent_args_passthrough(self, tmp_path: Path) -> None:
         cfg = self._write(
             tmp_path,

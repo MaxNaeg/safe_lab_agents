@@ -154,6 +154,14 @@ class SessionConfig(BaseModel):
         default=None,
         description="Host path for auto-log output (set when --auto-log is active)",
     )
+    auto_log_prompt: str = Field(
+        default="full",
+        description=(
+            "Auto-log system prompt: 'full' (detailed, default), 'minimal' (short), "
+            "'none' (no prompt; tool calls are still logged), or the absolute path "
+            "of a custom prompt file. Only used when auto-logging is active."
+        ),
+    )
     kadi4mat_project: Optional[str] = Field(
         default=None,
         description="Kadi4Mat project name (required when kadi4mat server is enabled)",

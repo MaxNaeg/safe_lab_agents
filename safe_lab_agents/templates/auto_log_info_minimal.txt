@@ -1,0 +1,20 @@
+## Auto-logging
+
+Every MCP and Python tool call is recorded automatically to
+__CONTAINER_LOG_DIR__/ (JSON records; numpy arrays in HDF5). You don't need
+to save tool results yourself.
+
+To merge related calls (a sweep, a loop, a multi-step procedure) into one record:
+
+    import sys; sys.path.insert(0, "/agent/workspace")
+    from auto_log_client import start_batch, stop_batch, log_analysis
+    start_batch("short description")
+    ...                      # tool calls
+    stop_batch()
+
+To record a result, conclusion, failure or decision worth keeping, call
+log_analysis(title, text="", data={}, references=[], script="", figures=[],
+kind="analysis"). kind is one of analysis, hypothesis, decision, debug, failed,
+observation. references are the "id" fields of the records it builds on. Save
+figures into __CONTAINER_LOG_DIR__ and pass only their filenames. If the code
+is in a saved script, pass script=open(__file__).read().

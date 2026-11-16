@@ -369,6 +369,8 @@ Units flow through the logs, HTML report, and .eln export, so the recorded data 
 - `start_batch(label, description="")` / `stop_batch()` — group related calls (a sweep, an optimization loop, a multi-step protocol) into a single merged record (one JSON + one HDF5).
 - `log_analysis(title, text, data=…, references=…, script=…, figures=…, kind=…)` — record the agent's own analysis, fits, figures, and reasoning. The agent is instructed to log not just successes but hypotheses, decisions, debugging detours, and failures, tagged by `kind` (`analysis`, `hypothesis`, `decision`, `debug`, `failed`, `observation`).
 
+**Auto-log prompt.** How much the agent is told about these helpers is set with `--auto-log-prompt`: `full` (default — detailed instructions with examples), `minimal` (~150 words, no examples), `none` (no instructions; tool calls are still logged, but the agent won't use batches or `log_analysis`), or a path to your own prompt file (the placeholder `__CONTAINER_LOG_DIR__` is replaced with the log directory).
+
 **On exit**, a `session_summary.json` and a standard **`<session>.eln`** archive are written automatically to the log folder.
 
 **View the log** as a single self-contained HTML page (embedded figures, filter/search by kind, provenance links) — see the [example report](https://raw.githack.com/MaxNaeg/safe_lab_agents/main/example_setup/shared_calibration_example/auto_log/report_safe_lab_agents.html) (opens in your browser):
@@ -427,6 +429,7 @@ Start a new agent session. All options are optional — missing ones are prompte
 | `--cpu-limit` | Container CPU limit in cores, e.g. `2` or `2.5`. Default: all but one of the runtime's cores, so the host-side MCP tool server stays responsive. |
 | `--update-tools` | Expose a `reload_tools` MCP tool the agent can call to reload your tools file without restarting the container |
 | `--auto-log` | Automatically log every tool call as a local ELN record (JSON + HDF5). See [Automatic logging & ELN export](#automatic-logging--eln-export). |
+| `--auto-log-prompt` | Auto-log instructions in the system prompt: `full` (default), `minimal`, `none`, or a path to a custom prompt file. Ignored without auto-logging. |
 | `--config` | Path to a YAML config file supplying defaults for the options above. See [Config file](#config-file). |
 | `--no-config` | Do not auto-discover `safe-lab-agents.config.yaml` in the current directory. |
 
@@ -448,7 +451,7 @@ agent-args:
   effort: max
 ```
 
-With that file in place, `agent start` runs with no flags, and e.g. `agent start --agent openclaw` overrides just the agent. Path-valued keys (`tools`, `context`, `shared`, `requirements`, `task-file`, `system-prompt-file`) resolve relative to the config file's location, so the file is portable.
+With that file in place, `agent start` runs with no flags, and e.g. `agent start --agent openclaw` overrides just the agent. Path-valued keys (`tools`, `context`, `shared`, `requirements`, `task-file`, `system-prompt-file`, and `auto-log-prompt` when it is a file path) resolve relative to the config file's location, so the file is portable.
 
 ### `agent resume`
 

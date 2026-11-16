@@ -50,6 +50,7 @@ from safe_lab_agents.history.display import print_history
 from safe_lab_agents.history.store import HistoryStore
 from safe_lab_agents.mcp.server import ExperimentMCPServer
 from safe_lab_agents.start_config import (
+    AUTO_LOG_PROMPT_PRESETS,
     CONFIG_KEY_MAP,
     DEFAULT_CONFIG_NAME,
     discover_config_path,
@@ -571,6 +572,17 @@ def start(
             "If omitted, the interactive wizard asks."
         ),
     ),
+    auto_log_prompt: Optional[str] = typer.Option(
+        None,
+        "--auto-log-prompt",
+        help=(
+            "System-prompt text explaining auto-logging to the agent: 'full' "
+            "(default, detailed with examples), 'minimal' (~150 words), 'none' "
+            "(no explanation; tool calls are still logged), or a path to your own "
+            "prompt file (__CONTAINER_LOG_DIR__ is replaced with the log directory). "
+            "Ignored without auto-logging."
+        ),
+    ),
     task_file: Optional[Path] = typer.Option(
         None,
         "--task-file",
@@ -674,6 +686,7 @@ def start(
     cpu_limit = _from_config("cpu_limit", cpu_limit)
     update_tools = _from_config("update_tools", update_tools)
     auto_log = _from_config("auto_log", auto_log)
+    auto_log_prompt = _from_config("auto_log_prompt", auto_log_prompt)
 
     # Reject a clashing name up front, before any wizard prompts, so
     # `agent start --name <taken>` fails fast instead of after data entry.
@@ -743,6 +756,19 @@ def start(
             "[bold yellow]WARNING: dangerously-skip-permissions is active. Claude Code will not prompt for any permissions.[/bold yellow]"
         )
 
+    # ---- Resolve the auto-log prompt (before anything is written to disk) ----
+    auto_log_prompt_text: Optional[str] = None
+    if auto_log or project:
+        auto_log_prompt, auto_log_prompt_text = _resolve_auto_log_prompt(
+            auto_log_prompt or "full"
+        )
+    else:
+        if auto_log_prompt is not None:
+            console.print(
+                "[yellow]--auto-log-prompt is ignored because auto-logging is off.[/yellow]"
+            )
+        auto_log_prompt = "full"
+
     # ---- Build session config ----
     workspace_dir = get_sessions_dir() / name / "workspace"
     workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -769,7 +795,9 @@ def start(
         # travel via os.environ because the subprocess inherits the environment at
         # spawn time; keep this assignment before ExperimentMCPServer.start().
         os.environ["AUTO_LOG_DIR"] = str(auto_log_host_dir)
-        _write_auto_log_info(workspace_dir, auto_log_container_dir)
+        _write_auto_log_info(
+            workspace_dir, auto_log_container_dir, auto_log_prompt_text
+        )
         _write_auto_log_client(workspace_dir, auto_log_container_dir)
         console.print(f"[cyan]Auto-log enabled:[/cyan] records → {auto_log_host_dir}")
 
@@ -786,6 +814,7 @@ def start(
         system_prompt=system_prompt,
         predefined_servers=predefined_servers,
         auto_log_dir=auto_log_host_dir if auto_log else None,
+        auto_log_prompt=auto_log_prompt,
         kadi4mat_project=project,
         kadi4mat_max_per_minute=kadi_max_per_minute,
         kadi4mat_max_per_session=kadi_max_per_session,
@@ -1927,13 +1956,57 @@ def _start_reload_monitor(mcp_holder, config, mcp_port, auth_token, stop_event):
     ).start()
 
 
-def _write_auto_log_info(workspace_dir: Path, container_log_dir: str) -> None:
+_AUTO_LOG_PROMPT_TEMPLATES = {
+    "full": "auto_log_info.txt",
+    "minimal": "auto_log_info_minimal.txt",
+}
+
+
+def _resolve_auto_log_prompt(setting: str) -> tuple[str, Optional[str]]:
+    """Resolve an ``--auto-log-prompt`` value to ``(stored_setting, prompt_text)``.
+
+    ``full``/``minimal`` load the bundled templates, ``none`` yields no text, and
+    anything else is a path to a custom prompt file (stored as an absolute path).
+    The text still contains the ``__CONTAINER_LOG_DIR__`` placeholder.
+    """
+    if setting == "none":
+        return setting, None
+    if setting in _AUTO_LOG_PROMPT_TEMPLATES:
+        return setting, _load_template(_AUTO_LOG_PROMPT_TEMPLATES[setting])
+    path = Path(setting).expanduser().resolve()
+    if not path.is_file():
+        presets = ", ".join(AUTO_LOG_PROMPT_PRESETS)
+        console.print(
+            f"[bold red]--auto-log-prompt: '{setting}' is neither one of "
+            f"{presets} nor an existing file.[/bold red]"
+        )
+        raise typer.Exit(1)
+    text = path.read_text(encoding="utf-8")
+    if not text.strip():
+        console.print(
+            f"[bold red]Auto-log prompt file {path} is empty "
+            f"(use --auto-log-prompt none for no prompt).[/bold red]"
+        )
+        raise typer.Exit(1)
+    return str(path), text
+
+
+def _write_auto_log_info(
+    workspace_dir: Path, container_log_dir: str, prompt_text: Optional[str]
+) -> None:
     """Write auto_log_info.txt into the workspace so entrypoints can inject it
-    into the system prompt (loaded from the bundled ``auto_log_info.txt`` template)."""
-    content = _load_template("auto_log_info.txt").replace(
-        "__CONTAINER_LOG_DIR__", container_log_dir
-    )
-    (workspace_dir / "auto_log_info.txt").write_text(content, encoding="utf-8")
+    into the system prompt.
+
+    ``prompt_text`` comes from :func:`_resolve_auto_log_prompt`.  ``None``
+    (``--auto-log-prompt none``) removes any existing file, since the
+    entrypoints inject it whenever it is present.
+    """
+    path = workspace_dir / "auto_log_info.txt"
+    if prompt_text is None:
+        path.unlink(missing_ok=True)
+        return
+    content = prompt_text.replace("__CONTAINER_LOG_DIR__", container_log_dir)
+    path.write_text(content, encoding="utf-8")
 
 
 def _write_auto_log_client(workspace_dir: Path, container_log_dir: str) -> None:

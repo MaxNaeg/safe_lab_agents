@@ -54,12 +54,16 @@ CONFIG_KEY_MAP: dict[str, str] = {
     "cpu-limit": "cpu_limit",
     "update-tools": "update_tools",
     "auto-log": "auto_log",
+    "auto-log-prompt": "auto_log_prompt",
 }
 
 # Config keys whose values are filesystem paths, resolved relative to the config file.
 PATH_KEYS: set[str] = {
     "tools", "context", "shared", "requirements", "task-file", "system-prompt-file",
 }
+
+# Built-in choices for ``auto-log-prompt``; any other value is a path to a prompt file.
+AUTO_LOG_PROMPT_PRESETS: tuple[str, ...] = ("full", "minimal", "none")
 
 
 def discover_config_path(
@@ -113,6 +117,10 @@ def load_start_config(path: Path) -> dict[str, Any]:
         param = CONFIG_KEY_MAP[key]
         if key in PATH_KEYS and value is not None:
             value = (base_dir / Path(value).expanduser()).resolve()
+        elif key == "auto-log-prompt" and value not in (None, *AUTO_LOG_PROMPT_PRESETS):
+            # A custom prompt file: resolve like the other path keys (as a string,
+            # since the value may also be a preset keyword).
+            value = str((base_dir / Path(str(value)).expanduser()).resolve())
         resolved[param] = value
     return resolved
 
