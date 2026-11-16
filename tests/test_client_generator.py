@@ -266,12 +266,41 @@ def test_quantity_type_annotation_surfaces_in_signature(monkeypatch) -> None:
     assert "read_power" in ns
 
 
+def _a_quantity_tool() -> Quantity:  # noqa: F821 - annotation is a string (PEP 563)
+    """Read a measurement."""
+    return {}
+
+
+def _a_quantity_dict_tool() -> dict[str, Quantity | str]:  # noqa: F821
+    """Read several measurements."""
+    return {}
+
+
+def _a_quantity_like_name_tool() -> QuantityTable:  # noqa: F821
+    """Return type only *contains* the word, not the Quantity type."""
+    return {}
+
+
 def test_tools_info_explains_quantity() -> None:
     """The agent-facing info explains the Quantity object it will receive."""
-    info = _format_tools_info([_a_tool])
-    assert "Quantity" in info
+    info = _format_tools_info([_a_tool, _a_quantity_tool])
+    assert "from tools_client import Quantity" in info
     assert ".value" in info
     assert ".unit" in info
+
+
+def test_tools_info_explains_quantity_in_nested_return() -> None:
+    """A Quantity nested in a generic return type also triggers the paragraph."""
+    info = _format_tools_info([_a_quantity_dict_tool])
+    assert "from tools_client import Quantity" in info
+
+
+def test_tools_info_omits_quantity_without_quantity_return() -> None:
+    """Without any tool returning Quantity, the units paragraph is left out."""
+    info = _format_tools_info([_a_tool, _a_quantity_like_name_tool])
+    assert "Quantity objects" not in info
+    assert "from tools_client import Quantity" not in info
+    assert "Available Python tools:" in info
 
 
 # --- annotation rendering when source is unavailable (experiment() methods) ---

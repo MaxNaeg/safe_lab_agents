@@ -15,6 +15,7 @@ from __future__ import annotations
 import ast
 import inspect
 import logging
+import re
 import textwrap
 import typing
 from pathlib import Path
@@ -382,8 +383,26 @@ def _bare_name(ann) -> str:
     return str(ann).replace("typing.", "")
 
 
+_QUANTITY_RE = re.compile(r"\bQuantity\b")
+
+
 def _format_tools_info(tools: list[Callable]) -> str:
     names = ", ".join(f.__name__ for f in tools)
+    tool_lines: list[str] = []
+    returns_quantity = False
+    for func in tools:
+        sig = inspect.signature(func)
+        source_anns = _source_annotations(func)
+        source_defaults = _source_defaults(func)
+        return_str = _render_return(sig, source_anns)
+        returns_quantity = returns_quantity or bool(_QUANTITY_RE.search(return_str))
+        sig_str = f"{func.__name__}({_render_params(sig, source_anns, source_defaults)}){return_str}"
+        tool_lines.append(f"  {sig_str}")
+        if func.__doc__:
+            for line in textwrap.dedent(func.__doc__).strip().splitlines():
+                tool_lines.append(f"      {line}")
+        tool_lines.append("")
+
     lines = [
         "Python tools are available for use in scripts at /agent/workspace/tools_client.py.",
         "Both inputs and outputs support any Python object (numpy arrays, dicts, etc.).",
@@ -392,25 +411,21 @@ def _format_tools_info(tools: list[Callable]) -> str:
         '    import sys; sys.path.insert(0, "/agent/workspace")',
         f"    from tools_client import {names}",
         "",
-        "Measurement values carry units as Quantity objects. A tool that returns a",
-        "measurement (annotated '-> Quantity', or a dict/list containing quantities)",
-        "gives back Quantity objects with .value (the number or numpy array), .unit",
-        "(a string like 'W'), and .term (an optional ontology IRI, may be None). Read",
-        "the number via q.value or float(q); np.asarray(q) gives the array. Import the",
-        "type from tools_client if you need it: 'from tools_client import Quantity'.",
-        "",
-        "Available Python tools:",
     ]
-    for func in tools:
-        sig = inspect.signature(func)
-        source_anns = _source_annotations(func)
-        source_defaults = _source_defaults(func)
-        sig_str = f"{func.__name__}({_render_params(sig, source_anns, source_defaults)}){_render_return(sig, source_anns)}"
-        lines.append(f"  {sig_str}")
-        if func.__doc__:
-            for line in textwrap.dedent(func.__doc__).strip().splitlines():
-                lines.append(f"      {line}")
-        lines.append("")
+    # Only explain Quantity when some tool's return annotation mentions it, so
+    # sessions without units don't carry an irrelevant paragraph in the prompt.
+    if returns_quantity:
+        lines += [
+            "Measurement values carry units as Quantity objects. A tool that returns a",
+            "measurement (annotated '-> Quantity', or a dict/list containing quantities)",
+            "gives back Quantity objects with .value (the number or numpy array), .unit",
+            "(a string like 'W'), and .term (an optional ontology IRI, may be None). Read",
+            "the number via q.value or float(q); np.asarray(q) gives the array. Import the",
+            "type from tools_client if you need it: 'from tools_client import Quantity'.",
+            "",
+        ]
+    lines.append("Available Python tools:")
+    lines += tool_lines
     return "\n".join(lines) + "\n"
 
 
