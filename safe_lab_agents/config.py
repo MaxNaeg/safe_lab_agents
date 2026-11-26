@@ -138,6 +138,13 @@ class SessionConfig(BaseModel):
         default=None,
         description="Path to a requirements.txt for additional Python packages in Docker",
     )
+    agent_version: Optional[str] = Field(
+        default=None,
+        description=(
+            "Agent CLI version or tag to install in the image "
+            "(None = the version pinned in the agent's Dockerfile)"
+        ),
+    )
     mcp_port: int = Field(
         default=0,
         description="Port for the MCP server on the host (0 = auto-select)",

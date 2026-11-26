@@ -89,6 +89,19 @@ def cli_argv(*args: str) -> list[str]:
     return [sys.executable, "-m", "safe_lab_agents.cli", *args]
 
 
+# Optional per-agent override of the agent CLI version under test (passed to
+# `agent start --agent-version`). Unset = the version pinned in the Dockerfile.
+_AGENT_VERSION_ENV = {
+    "claude-code": "SLA_E2E_CLAUDE_VERSION",
+    "openclaw": "SLA_E2E_OPENCLAW_VERSION",
+}
+
+
+def agent_version_for(agent: str) -> str | None:
+    """Return the agent version requested for *agent* via its env knob, if any."""
+    return os.environ.get(_AGENT_VERSION_ENV.get(agent, ""), "").strip() or None
+
+
 def _common_start_args(
     agent: str,
     runtime: str,
@@ -130,6 +143,9 @@ def _common_start_args(
     ]
     for a in agent_args:
         argv += ["--agent-args", a]
+    version = agent_version_for(agent)
+    if version:
+        argv += ["--agent-version", version]
     return argv
 
 

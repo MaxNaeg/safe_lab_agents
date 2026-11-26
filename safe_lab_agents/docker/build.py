@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -26,24 +27,61 @@ logger = logging.getLogger(__name__)
 # Label used to store a content hash so we know when to rebuild.
 _HASH_LABEL = "safe_lab_agents.build_hash"
 
+# Build argument (declared with a pinned default in every agent Dockerfile) that
+# selects the agent CLI version to install.
+_AGENT_VERSION_ARG = "AGENT_VERSION"
+_AGENT_VERSION_DEFAULT_RE = re.compile(
+    rf"^ARG\s+{_AGENT_VERSION_ARG}=(\S+)\s*$", re.MULTILINE
+)
+# A version is spliced into a build command line, so accept only what a version
+# number or dist-tag can look like ("2.1.332", "2026.7.1-2", "latest", "stable").
+_AGENT_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
+
+
+def validate_agent_version(version: str) -> str:
+    """Return *version* if it is a plausible version number or tag, else raise."""
+    if not _AGENT_VERSION_RE.fullmatch(version):
+        raise ValueError(
+            f"Invalid agent version {version!r}: expected a version number such as "
+            "'2.1.332' or a tag such as 'latest'."
+        )
+    return version
+
+
+def pinned_agent_version(agent_type: str) -> Optional[str]:
+    """Return the agent CLI version pinned in *agent_type*'s Dockerfile.
+
+    This is the default of the Dockerfile's ``ARG AGENT_VERSION=…`` line — the
+    version installed unless a session overrides it. ``None`` if the Dockerfile
+    declares no such argument.
+    """
+    match = _AGENT_VERSION_DEFAULT_RE.search(
+        _read_packaged_file(f"Dockerfile.{agent_type}")
+    )
+    return match.group(1).strip("\"'") if match else None
+
 
 def ensure_base_image(
     agent_type: str,
     requirements_file: Optional[Path] = None,
     docker_client: Optional[docker.DockerClient] = None,
     rebuild: bool = False,
+    agent_version: Optional[str] = None,
 ) -> str:
     """Build the base Docker image for *agent_type* if it does not already exist.
 
-    If the image exists and neither the Dockerfile nor the requirements file
-    have changed since the last build, the existing image is reused.
+    If the image exists and neither the Dockerfile, the requirements file nor
+    the requested agent version have changed since the last build, the existing
+    image is reused.
 
-    The content hash only covers local build inputs (Dockerfile, entrypoint,
-    requirements) — it does NOT track upstream drift in the base image or the
-    unpinned agent/Python toolchain, so an up-to-date image can still carry a
-    stale toolchain.  Pass ``rebuild=True`` to force a rebuild that ignores the
-    hash and additionally re-pulls the base image and bypasses the builder's
-    layer cache, so the latest upstream versions are fetched.
+    The agent CLI version is pinned in the Dockerfile and can be overridden
+    with *agent_version*; either way it is part of the content hash, so
+    changing it rebuilds. The hash does NOT track upstream drift in the base
+    image, the Python toolchain, or a moving agent tag such as ``latest``, so an
+    up-to-date image can still carry a stale toolchain.  Pass ``rebuild=True``
+    to force a rebuild that ignores the hash and additionally re-pulls the base
+    image and bypasses the builder's layer cache, so the latest upstream
+    versions are fetched.
 
     Args:
         agent_type: Agent identifier (e.g. ``"claude-code"``).
@@ -52,6 +90,8 @@ def ensure_base_image(
         docker_client: Docker client instance (created from env if ``None``).
         rebuild: Force a full rebuild (``--no-cache --pull``), ignoring the
             content-hash up-to-date check.
+        agent_version: Agent CLI version or tag to install instead of the one
+            pinned in the Dockerfile (``None`` = the pinned version).
 
     Returns:
         The full image tag, e.g. ``"safe-lab-agents-claude-code:latest"``.
@@ -60,7 +100,9 @@ def ensure_base_image(
     tag = _image_tag(agent_type)
 
     # Compute a content hash to decide whether rebuilding is necessary.
-    content_hash = _compute_hash(agent_type, requirements_file)
+    if agent_version is not None:
+        validate_agent_version(agent_version)
+    content_hash = _compute_hash(agent_type, requirements_file, agent_version)
 
     if not rebuild and _image_up_to_date(client, tag, content_hash):
         logger.info("Image %s is up-to-date — skipping build.", tag)
@@ -72,7 +114,7 @@ def ensure_base_image(
         logger.info("Building Docker image %s …", tag)
     _build_image(
         agent_type, tag, content_hash, requirements_file,
-        no_cache=rebuild, pull=rebuild,
+        no_cache=rebuild, pull=rebuild, agent_version=agent_version,
     )
     return tag
 
@@ -82,8 +124,17 @@ def _image_tag(agent_type: str) -> str:
     return f"safe-lab-agents-{agent_type}:latest"
 
 
-def _compute_hash(agent_type: str, requirements_file: Optional[Path]) -> str:
-    """Compute a SHA-256 hash over the Dockerfile and optional requirements."""
+def _compute_hash(
+    agent_type: str,
+    requirements_file: Optional[Path],
+    agent_version: Optional[str] = None,
+) -> str:
+    """Compute a SHA-256 hash over the build inputs.
+
+    Covers the Dockerfile (and with it the pinned agent version), the
+    entrypoint, the firewall script, the optional requirements file, and an
+    *agent_version* override when one is given.
+    """
     h = hashlib.sha256()
 
     # Hash the Dockerfile template.
@@ -102,6 +153,12 @@ def _compute_hash(agent_type: str, requirements_file: Optional[Path]) -> str:
     # Hash the requirements file if present.
     if requirements_file is not None and requirements_file.exists():
         h.update(requirements_file.read_bytes())
+
+    # An overridden agent version changes what gets installed without changing
+    # any file above. (No override leaves the hash as it was: the pinned default
+    # lives in the Dockerfile, which is already hashed.)
+    if agent_version is not None:
+        h.update(f"\0{_AGENT_VERSION_ARG}={agent_version}".encode())
 
     return h.hexdigest()[:16]
 
@@ -142,6 +199,7 @@ def _build_image(
     requirements_file: Optional[Path],
     no_cache: bool = False,
     pull: bool = False,
+    agent_version: Optional[str] = None,
 ) -> None:
     """Build the Docker image in a temporary directory.
 
@@ -158,6 +216,8 @@ def _build_image(
             installs) are rebuilt instead of served from the builder's cache.
         pull: Pass ``--pull`` so the base image is re-fetched from the registry
             rather than reused from local storage.
+        agent_version: Passed as the ``AGENT_VERSION`` build argument to
+            override the version pinned in the Dockerfile.
     """
     with tempfile.TemporaryDirectory(prefix="safe_lab_agents_build_") as tmpdir:
         tmp = Path(tmpdir)
@@ -181,6 +241,8 @@ def _build_image(
             buildargs["REQUIREMENTS_FILE"] = "requirements.txt"
         else:
             (tmp / ".dockerignore").write_text("")
+        if agent_version is not None:
+            buildargs[_AGENT_VERSION_ARG] = validate_agent_version(agent_version)
 
         cli = container_cli()
         cmd = [cli, "build"]

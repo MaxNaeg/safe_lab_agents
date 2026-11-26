@@ -109,6 +109,7 @@ SLA_E2E=1 conda run -n agents pytest -m e2e tests/e2e -v
 |----------|--------|
 | `SLA_E2E_RUNTIMES` | Comma list to restrict runtimes (default: all installed). |
 | `SLA_E2E_AGENTS` | Comma list to restrict agents (default: all credentialed). |
+| `SLA_E2E_CLAUDE_VERSION`, `SLA_E2E_OPENCLAW_VERSION` | Agent CLI version to test instead of the one pinned in the Dockerfile (passed as `agent start --agent-version`), e.g. `latest`. Use this to try a newer release before bumping the pin. Rebuilds the image. |
 | `SLA_E2E_RESUME_CONVERSE=1` | Drive a real conversational turn on resume and assert a *second* ping call (fragile; off by default). |
 | `SLA_E2E_KEEP_ON_FAIL=1` | On failure, keep the session dir, container, committed image, shared/`auto_log` dir, and the PTY capture (`sla-e2e-pty-<name>.log`) for inspection instead of cleaning up. |
 | `SLA_E2E_STRICT_TUI` | `1` (default): a PTY-driven turn with no tool call is a hard failure. `0`: soft-`xfail` for the interactive/converse turns (the autonomous path always hard-fails). |

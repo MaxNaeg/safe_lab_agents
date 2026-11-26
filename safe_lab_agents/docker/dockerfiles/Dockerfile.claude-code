@@ -38,10 +38,22 @@ RUN useradd -m -s /bin/bash agent \
     && chown -R agent:agent /home/agent /agent
 
 # ---- Claude Code CLI ----
+# Pinned to a version the end-to-end tests were run against. Claude Code ships
+# several releases a week and they do change behaviour (permission handling,
+# resume, headless defaults), so an unpinned install means any image rebuild can
+# silently change how sessions behave. Bump the default below deliberately,
+# after re-running the e2e suite; override per session with
+# `agent start --agent-version <version|latest|stable>`.
+ARG AGENT_VERSION=2.1.332
 # Run as 'agent' (via su -l) so HOME=/home/agent and the binary lands in
 # /home/agent/.local/bin/claude, accessible to the same user at runtime.
-# CI=true suppresses interactive prompts in the installer.
-RUN su -l agent -c 'CI=true curl -fsSL https://claude.ai/install.sh | bash -s'
+# CI=true suppresses interactive prompts in the installer. `su -l` resets the
+# environment, so the version is expanded here by the build shell.
+RUN su -l agent -c "CI=true curl -fsSL https://claude.ai/install.sh | bash -s -- '${AGENT_VERSION}'"
+# Keep the installed version: without this the CLI updates itself in the
+# background at runtime, which would undo the pin inside a running session (and
+# in the image committed from it).
+ENV DISABLE_AUTOUPDATER=1
 
 # ---- Python scientific stack (default packages) ----
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
@@ -73,7 +85,7 @@ RUN chmod +x /entrypoint.sh /firewall.sh
 ENV PATH="/home/agent/.local/bin:${PATH}"
 
 # ---- Toolchain provenance ----
-# The Claude Code install above is deliberately unpinned (see AUDIT.md), so
+# The Claude Code version is selectable (AGENT_VERSION may be "latest"), so
 # record what was actually installed. Placed last so it never invalidates the
 # expensive layers above. Read back with:
 #   docker run --rm --entrypoint cat <image> /image-versions.txt

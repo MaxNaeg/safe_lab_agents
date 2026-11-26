@@ -263,12 +263,14 @@ class DockerManager:
         agent_type: str,
         requirements_file: Optional[Path] = None,
         rebuild: bool = False,
+        agent_version: Optional[str] = None,
     ) -> str:
         """Ensure the base Docker image for *agent_type* is built.
 
         Pass ``rebuild=True`` to force a full ``--no-cache --pull`` rebuild,
         ignoring the content-hash up-to-date check (picks up upstream toolchain
-        updates the hash cannot see).
+        updates the hash cannot see). *agent_version* overrides the agent CLI
+        version pinned in the Dockerfile.
 
         Returns the image tag.
         """
@@ -277,6 +279,7 @@ class DockerManager:
             requirements_file=requirements_file,
             docker_client=self.client,
             rebuild=rebuild,
+            agent_version=agent_version,
         )
 
     # ------------------------------------------------------------------
@@ -314,6 +317,7 @@ class DockerManager:
                 config.agent_type,
                 requirements_file=config.requirements_file,
                 docker_client=self.client,
+                agent_version=config.agent_version,
             )
 
         volumes = self._build_volumes(config)

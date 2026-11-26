@@ -14,6 +14,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   versions can only be resumed interactively (the entrypoint is baked into the
   session image); they are refused with a clear message.
 
+- **Pinned agent versions**: each image installs a fixed, tested version of
+  its agent CLI (Claude Code 2.1.332, OpenClaw 2026.7.1-2) instead of whatever
+  is newest at build time, and Claude Code's self-updater is off inside the
+  container. `agent start --agent-version <version|latest>` (config key
+  `agent-version`) overrides the pin; the version is part of the image cache
+  key.
+
 ### Fixed
 
 - **Claude Code resume ignored the regenerated system prompt.** Since Claude

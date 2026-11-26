@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import re
+
+import pytest
+
 from safe_lab_agents.docker import build as build_mod
 from safe_lab_agents.docker.build import _write_text_lf, ensure_base_image
 
@@ -26,7 +30,10 @@ def test_rebuild_forces_build_even_when_up_to_date(monkeypatch) -> None:
     monkeypatch.setattr(build_mod, "_image_up_to_date", lambda *a, **k: True)
     calls: dict = {}
 
-    def fake_build(agent_type, tag, content_hash, requirements_file, no_cache=False, pull=False):
+    def fake_build(
+        agent_type, tag, content_hash, requirements_file,
+        no_cache=False, pull=False, agent_version=None,
+    ):
         calls["no_cache"] = no_cache
         calls["pull"] = pull
 
@@ -94,3 +101,74 @@ def test_build_image_ships_firewall_script_in_context(monkeypatch) -> None:
     assert "firewall.sh" in seen["files"]
     # LF-only, or the shebang breaks when the build runs on Windows.
     assert b"\r" not in seen["firewall_bytes"]
+
+
+# ---- Agent version pinning -------------------------------------------------
+
+
+@pytest.mark.parametrize("agent_type", ["claude-code", "openclaw"])
+def test_dockerfile_pins_a_concrete_agent_version(agent_type: str) -> None:
+    """Each agent Dockerfile pins a real version number by default — not a moving
+    tag — so a rebuild cannot silently change the agent's behaviour."""
+    pinned = build_mod.pinned_agent_version(agent_type)
+    assert pinned is not None
+    assert re.fullmatch(r"\d+\.\d+\.\d+(-\d+)?", pinned), pinned
+    build_mod.validate_agent_version(pinned)
+
+
+def test_agent_version_override_changes_hash() -> None:
+    """Overriding the agent version must rebuild; not overriding must not."""
+    default = build_mod._compute_hash("claude-code", None)
+    assert build_mod._compute_hash("claude-code", None, None) == default
+    latest = build_mod._compute_hash("claude-code", None, "latest")
+    other = build_mod._compute_hash("claude-code", None, "2.1.0")
+    assert len({default, latest, other}) == 3
+
+
+def test_build_image_passes_agent_version_build_arg(monkeypatch) -> None:
+    captured: dict = {}
+    monkeypatch.setattr(
+        build_mod.subprocess, "run", lambda cmd, **kw: captured.update(cmd=cmd)
+    )
+
+    build_mod._build_image("claude-code", "tag:latest", "abc", None, agent_version="latest")
+    cmd = captured["cmd"]
+    assert cmd[cmd.index("AGENT_VERSION=latest") - 1] == "--build-arg"
+
+    build_mod._build_image("claude-code", "tag:latest", "abc", None)
+    assert not any(str(part).startswith("AGENT_VERSION=") for part in captured["cmd"])
+
+
+def test_ensure_base_image_forwards_agent_version(monkeypatch) -> None:
+    """The override reaches both the up-to-date check (via the hash) and the build."""
+    seen: dict = {}
+
+    def fake_up_to_date(client, tag, content_hash):
+        seen["hash"] = content_hash
+        return False
+
+    def fake_build(agent_type, tag, content_hash, requirements_file, **kwargs):
+        seen["build_hash"] = content_hash
+        seen["agent_version"] = kwargs["agent_version"]
+
+    monkeypatch.setattr(build_mod, "_image_up_to_date", fake_up_to_date)
+    monkeypatch.setattr(build_mod, "_build_image", fake_build)
+
+    ensure_base_image("claude-code", docker_client=object(), agent_version="2.1.0")
+
+    assert seen["agent_version"] == "2.1.0"
+    assert seen["hash"] == seen["build_hash"]
+    assert seen["hash"] == build_mod._compute_hash("claude-code", None, "2.1.0")
+
+
+@pytest.mark.parametrize("bad", ["", "1.0; rm -rf /", "$(id)", "-x", "a b", "x" * 80])
+def test_invalid_agent_version_is_rejected_before_building(monkeypatch, bad: str) -> None:
+    """The version is spliced into a build command, so anything that is not a
+    plain version or tag is refused and no build is attempted."""
+    built = []
+    monkeypatch.setattr(build_mod, "_image_up_to_date", lambda *a, **k: False)
+    monkeypatch.setattr(build_mod, "_build_image", lambda *a, **k: built.append(1))
+
+    with pytest.raises(ValueError):
+        ensure_base_image("claude-code", docker_client=object(), agent_version=bad)
+    assert built == []

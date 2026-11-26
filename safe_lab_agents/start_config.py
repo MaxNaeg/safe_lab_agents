@@ -42,6 +42,7 @@ CONFIG_KEY_MAP: dict[str, str] = {
     "server": "server",
     "requirements": "requirements",
     "rebuild": "rebuild",
+    "agent-version": "agent_version",
     "agent-args": "agent_args_raw",
     "kadi4mat-project": "project",
     "kadi-max-per-minute": "kadi_max_per_minute",

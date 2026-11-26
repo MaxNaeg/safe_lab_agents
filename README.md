@@ -420,6 +420,7 @@ Start a new agent session. All options are optional — missing ones are prompte
 | `--kadi-max-per-session` | Kadi4Mat: max records per session (default 500, `0` = unlimited) |
 | `--requirements`, `-r` | `requirements.txt` for extra Python packages in Docker |
 | `--rebuild` | Force a full image rebuild (`--no-cache --pull`), ignoring the build cache. See [Python Packages in Docker](#python-packages-in-docker). |
+| `--agent-version` | Agent CLI version to install in the image: a version number, or `latest`. Default: the tested version pinned in the agent's Dockerfile. Changing it rebuilds the image. |
 | `--agent-args` | Agent-specific argument as `KEY=VALUE` (repeatable). See [Agent-Specific Arguments](#agent-specific-arguments). |
 | `--port` | MCP server port (0 = auto) |
 | `--container` | Container runtime: `docker` or `podman` (prompted if omitted; Podman auto-initializes the machine if needed) |
@@ -585,7 +586,7 @@ agent start --tools tools.py --requirements my_requirements.txt
 
 The packages are installed at image build time and cached, keyed on the Dockerfile, entrypoint, and requirements file — so a rebuild triggers automatically when any of those change.
 
-> **Note — the cache does not see upstream updates.** The base image and the agent/Python toolchain are installed unpinned, so a "latest" tag that moves upstream will **not** trigger a rebuild — you can keep running a stale toolchain indefinitely. Pass `--rebuild` to force a full rebuild that ignores the cache and re-pulls the base image (`--no-cache --pull`).
+> **Note — the cache does not see upstream updates.** The base image and the Python toolchain are installed unpinned, so a "latest" tag that moves upstream will **not** trigger a rebuild — you can keep running a stale toolchain indefinitely. Pass `--rebuild` to force a full rebuild that ignores the cache and re-pulls the base image (`--no-cache --pull`).
 
 ## More features
 

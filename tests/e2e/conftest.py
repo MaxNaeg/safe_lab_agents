@@ -19,6 +19,10 @@ Credentials:
     SLA_E2E_OPENCLAW_PROVIDER      openclaw provider (default: anthropic)
     SLA_E2E_OPENCLAW_MODEL         openclaw model name (required for openclaw)
 
+Agent version under test (optional; default: the version pinned in the Dockerfile):
+    SLA_E2E_CLAUDE_VERSION         e.g. "latest" or "2.1.332"
+    SLA_E2E_OPENCLAW_VERSION       e.g. "latest" or "2026.11.10"
+
 Behaviour knobs:
     SLA_E2E_RESUME_CONVERSE=1      drive a real turn on resume (fragile, opt-in)
     SLA_E2E_STRICT_TUI=1           hard-fail (not xfail) when a PTY-driven turn

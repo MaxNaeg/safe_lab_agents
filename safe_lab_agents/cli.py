@@ -36,6 +36,7 @@ from rich.table import Table
 from safe_lab_agents.agents import get_agent, list_agents
 from safe_lab_agents.agents.base import BaseAgent
 from safe_lab_agents.config import SessionConfig, SessionMetadata, get_sessions_dir
+from safe_lab_agents.docker.build import pinned_agent_version, validate_agent_version
 from safe_lab_agents.docker.manager import DockerManager
 from safe_lab_agents.docker.runtime import (
     configure_docker_desktop_memory,
@@ -490,6 +491,11 @@ def start(
         "--rebuild",
         help="Force a full image rebuild (--no-cache --pull), ignoring the build cache. Use to pick up upstream updates to the base image or the agent/Python toolchain, which the cache cannot detect.",
     ),
+    agent_version: Optional[str] = typer.Option(
+        None,
+        "--agent-version",
+        help="Agent CLI version to install in the image (a version number, or 'latest'). Default: the tested version pinned in the agent's Dockerfile. Changing it rebuilds the image.",
+    ),
     agent_args_raw: list[str] = typer.Option(
         [],
         "--agent-args",
@@ -675,6 +681,15 @@ def start(
     server = _from_config("server", server)
     requirements = _from_config("requirements", requirements)
     rebuild = _from_config("rebuild", rebuild)
+    agent_version = _from_config("agent_version", agent_version)
+    if agent_version is not None:
+        # YAML reads an unquoted `agent-version: 2.1` as a number.
+        agent_version = str(agent_version).strip()
+        try:
+            validate_agent_version(agent_version)
+        except ValueError as exc:
+            console.print(f"[bold red]{exc}[/bold red]")
+            raise typer.Exit(1)
     project = _from_config("project", project)
     kadi_max_per_minute = _from_config("kadi_max_per_minute", kadi_max_per_minute)
     kadi_max_per_session = _from_config("kadi_max_per_session", kadi_max_per_session)
@@ -800,6 +815,7 @@ def start(
         shared_dir=Path(shared).resolve() if shared else None,
         workspace_dir=workspace_dir,
         requirements_file=Path(requirements).resolve() if requirements else None,
+        agent_version=agent_version,
         mcp_port=port,
         task=task if task else None,
         system_prompt=system_prompt,
@@ -888,10 +904,17 @@ def start(
     _warn_on_runtime_engine_mismatch(container, docker_mgr)
 
     # ---- Build / ensure Docker image ----
-    console.print(f"[bold]Preparing Docker image for {config.agent_type} …[/bold]")
+    shown_version = config.agent_version or pinned_agent_version(config.agent_type)
+    version_note = f" (agent version {shown_version})" if shown_version else ""
+    console.print(
+        f"[bold]Preparing Docker image for {config.agent_type}{version_note} …[/bold]"
+    )
     try:
         image_tag = docker_mgr.ensure_image(
-            config.agent_type, config.requirements_file, rebuild=rebuild
+            config.agent_type,
+            config.requirements_file,
+            rebuild=rebuild,
+            agent_version=config.agent_version,
         )
     except Exception as exc:
         _mcp[0].stop()
@@ -1229,7 +1252,9 @@ def resume(
         token = None
         try:
             base_image = docker_mgr.ensure_image(
-                config.agent_type, config.requirements_file
+                config.agent_type,
+                config.requirements_file,
+                agent_version=config.agent_version,
             )
             token = _bootstrap_login_in_container(
                 docker_mgr, agent_backend, base_image

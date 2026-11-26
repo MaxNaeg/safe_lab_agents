@@ -30,9 +30,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -s /usr/bin/python3 /usr/local/bin/python
 
 # ---- OpenClaw CLI ----
+# Pinned to the version the end-to-end tests were last run against, so an image
+# rebuild cannot silently change how sessions behave. Bump the default below
+# deliberately, after re-running the e2e suite; override per session with
+# `agent start --agent-version <version|latest>`.
+ARG AGENT_VERSION=2026.7.1-2
 # Install directly via npm (the official install.sh uses npm internally but
 # then opens /dev/tty for an interactive setup wizard which fails in Docker).
-RUN npm install -g openclaw
+RUN npm install -g "openclaw@${AGENT_VERSION}"
 
 # ---- Non-root user ----
 RUN useradd -m -s /bin/bash agent \
@@ -74,7 +79,7 @@ RUN openclaw plugins install @openclaw/codex 2>/dev/null || true
 USER root
 
 # ---- Toolchain provenance ----
-# The npm install above is deliberately unpinned (see AUDIT.md), so record
+# The OpenClaw version is selectable (AGENT_VERSION may be "latest"), so record
 # what was actually installed. Placed last so it never invalidates the
 # expensive layers above; falls back to the npm listing should the CLI ever
 # stop supporting --version. Read back with:
