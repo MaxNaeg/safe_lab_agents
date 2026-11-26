@@ -273,7 +273,7 @@ def _render_kv_table(log_dir: Path, title: str, mapping: dict) -> str:
 
 
 def _embed_figure(log_dir: Path, fname: str) -> str:
-    """Return an <img>/<a> fragment with the figure base64-embedded, or a note."""
+    """Return an <img> fragment with the figure base64-embedded, or a note."""
     # Figure names come from agent-written records; confine to log_dir so a
     # crafted absolute/../ name can't base64-embed arbitrary host files.
     path = safe_under(log_dir, fname)
@@ -290,8 +290,12 @@ def _embed_figure(log_dir: Path, fname: str) -> str:
         return f"<div class='missing'>could not read figure: {_esc(fname)}</div>"
     mime = mimetypes.guess_type(fname)[0] or "image/png"
     b64 = base64.b64encode(raw).decode("ascii")
-    data_uri = f"data:{mime};base64,{b64}"
-    return f"<a href='{data_uri}' target='_blank'><img class='figure' src='{data_uri}' alt='{_esc(fname)}'></a>"
+    # Embed the payload exactly once: the click-to-enlarge lightbox (see _JS)
+    # reuses this <img>'s src instead of a second copy in a link href.
+    return (
+        f"<img class='figure' src='data:{mime};base64,{b64}' "
+        f"alt='{_esc(fname)}' title='click to enlarge'>"
+    )
 
 
 def _resolve_reference(ref: str, ids: set[str]) -> str | None:
@@ -458,7 +462,12 @@ table.kv th { text-align: left; padding: 3px 6px; font-size: 11px; font-weight: 
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tool-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
 .tool-count { padding: 2px 8px; }
-img.figure { max-width: 100%; border: 1px solid #d0d7de; border-radius: 8px; }
+img.figure { max-width: 100%; border: 1px solid #d0d7de; border-radius: 8px; cursor: zoom-in; }
+#lightbox { border: 0; padding: 0; background: transparent; max-width: 100vw; max-height: 100vh;
+            overflow: auto; outline: 0; }
+#lightbox::backdrop { background: rgba(0,0,0,.85); }
+#lightbox img { display: block; max-width: 96vw; max-height: 96vh; background: #fff; cursor: zoom-in; }
+#lightbox.full img { max-width: none; max-height: none; cursor: zoom-out; }
 .ref { display: inline-block; margin: 2px 6px 2px 0; padding: 1px 8px; border-radius: 6px;
        background: #ddf4ff; color: #0969da; text-decoration: none; font-size: 12px;
        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -503,6 +512,24 @@ window.addEventListener('hashchange', () => {
   const el = document.querySelector(location.hash);
   if (el) { el.style.transition = 'outline .1s'; el.style.outline = '2px solid #0969da';
             setTimeout(() => el.style.outline = '', 1200); }
+});
+
+// Click a figure to enlarge it. The lightbox reuses the figure's own data URI,
+// so each image is stored in the file only once.
+const lightbox = document.getElementById('lightbox');
+const lightboxImg = lightbox.querySelector('img');
+document.addEventListener('click', (e) => {
+  if (!e.target.matches('img.figure')) return;
+  lightboxImg.src = e.target.src;
+  lightboxImg.alt = e.target.alt;
+  lightbox.classList.remove('full');
+  lightbox.showModal();
+});
+// Click the enlarged image to toggle fit-to-window / full size; click outside
+// it (or press Esc) to close.
+lightbox.addEventListener('click', (e) => {
+  if (e.target === lightboxImg) lightbox.classList.toggle('full');
+  else lightbox.close();
 });
 
 applyFilters();
@@ -570,6 +597,7 @@ def build_report(log_dir: Path, output_path: Path) -> Path:
 <div class='toolbar'>{toolbar}</div>
 </header>
 <main>{body}</main>
+<dialog id='lightbox'><img alt=''></dialog>
 <script>{_JS}</script>
 </body>
 </html>

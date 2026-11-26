@@ -50,6 +50,36 @@ def _write_record(folder: Path, name: str, record: dict) -> None:
     (folder / name).write_text(json.dumps(record), encoding="utf-8")
 
 
+def test_figure_payload_embedded_only_once(tmp_path: Path) -> None:
+    """A figure's base64 payload must not be duplicated (e.g. in a link href)."""
+    import base64
+
+    log_dir = tmp_path / "auto_log"
+    log_dir.mkdir()
+    raw = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 4
+    (log_dir / "plot.png").write_bytes(raw)
+    _write_record(
+        log_dir,
+        "analysis_1.json",
+        {
+            "id": "analysis_1",
+            "kind": "analysis",
+            "title": "t",
+            "text": "x",
+            "figures": ["plot.png"],
+        },
+    )
+
+    out = build_report(log_dir, tmp_path / "report.html")
+    html = out.read_text(encoding="utf-8")
+
+    assert html.count(base64.b64encode(raw).decode("ascii")) == 1
+    assert html.count("data:image/png;base64,") == 1
+    # The enlarge view reuses the embedded copy rather than linking a second one.
+    assert "href='data:" not in html
+    assert "<dialog id='lightbox'>" in html
+
+
 def test_resolve_reference_requires_separator() -> None:
     """A reference must not resolve to a shorter card id it merely prefixes."""
     from safe_lab_agents.report.builder import _resolve_reference
