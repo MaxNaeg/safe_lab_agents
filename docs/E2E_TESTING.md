@@ -118,7 +118,14 @@ SLA_E2E=1 conda run -n agents pytest -m e2e tests/e2e -v
 ## How it works
 
 - **Autonomous** cells run `agent start --task …` (non-interactive, self-exits,
-  auto-commits) and capture output as a subprocess.
+  auto-commits) and capture output as a subprocess. They then run
+  `agent resume --task …` the same way and assert a *second* ping call. The
+  first task plants a random code word and the resume task asks for it back as
+  the ping's `note` without repeating it, so the run only passes if the resumed
+  agent still has the earlier conversation in context.
+- After every stage (start, autonomous resume, resume) the cell asserts that
+  `history.json` holds no entry twice, which catches a resumed run whose
+  transcript was imported in duplicate.
 - **Interactive** cells and **resume** run the CLI under a real pseudo-terminal
   (stdlib `pty`, no extra dependency): wait for the container to reach `running`,
   optionally type one prompt and let output settle, then send `Ctrl-C` to trigger

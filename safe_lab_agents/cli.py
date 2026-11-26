@@ -725,16 +725,7 @@ def start(
     agent_backend = get_agent(agent)
 
     # ---- Resolve --task-file into task string ----
-    if task_file is not None:
-        if task is not None:
-            console.print(
-                "[bold red]--task and --task-file are mutually exclusive.[/bold red]"
-            )
-            raise typer.Exit(1)
-        if not task_file.exists():
-            console.print(f"[bold red]Task file not found: {task_file}[/bold red]")
-            raise typer.Exit(1)
-        task = task_file.read_text(encoding="utf-8").strip()
+    task = _resolve_task(task, task_file)
 
     # ---- Resolve --system-prompt-file into the custom system prompt ----
     system_prompt = _resolve_system_prompt(system_prompt, system_prompt_file)
@@ -1049,14 +1040,34 @@ def resume(
         "--agent-args",
         help="Override agent-specific args for this resume (KEY=VALUE or KEY for booleans).",
     ),
+    task: Optional[str] = typer.Option(
+        None,
+        "--task",
+        help="New task to continue the session with autonomously (omit to resume interactively).",
+    ),
+    task_file: Optional[Path] = typer.Option(
+        None,
+        "--task-file",
+        help="Path to a text/markdown file whose content is used as the new task (mutually exclusive with --task).",
+    ),
 ) -> None:
     """Resume a previously stopped session.
 
-    Resume is always interactive — a previously autonomous (``--task``) session
-    is continued interactively so you can drive it by hand, never re-run
-    autonomously.
+    Without a task the session is continued interactively, so you can drive it
+    by hand — also when it originally ran autonomously. With ``--task`` (or
+    ``--task-file``) the same conversation is continued autonomously with that
+    new task: output streams to the terminal and the session is saved when the
+    task finishes.
     """
     _print_banner()
+    task_requested = task is not None or task_file is not None
+    task = _resolve_task(task, task_file)
+    if task_requested and not task:
+        # An empty task would silently fall back to an interactive resume, which
+        # hangs an unattended caller waiting on a terminal.
+        console.print("[bold red]The task is empty.[/bold red]")
+        raise typer.Exit(1)
+
     name = name or _pick_session("Which session to resume?")
     if not name:
         raise typer.Exit(1)
@@ -1066,10 +1077,13 @@ def resume(
 
     agent_backend = get_agent(config.agent_type)
 
-    # Resume always runs interactively. Clear any persisted task so the container
-    # env is built for interactive mode (no MODE=autonomous / TASK_PROMPT) and the
-    # entrypoint continues the conversation interactively rather than re-running.
-    config.task = None
+    # The task decides the mode for this run, exactly as on `start`: the agent
+    # builds MODE=autonomous + TASK_PROMPT from it, or MODE=interactive when it
+    # is None. A task persisted by an earlier run is never re-run — an
+    # interactive resume clears it.
+    config.task = task or None
+    mode = "autonomous" if config.task else "interactive"
+    tty = mode != "autonomous"
 
     # Merge --agent-args overrides into stored config.
     if agent_args_raw:
@@ -1095,6 +1109,20 @@ def resume(
         console.print(
             f"[bold red]No committed {config.container_runtime} image found for "
             f"session '{name}'.[/bold red]"
+        )
+        raise typer.Exit(1)
+
+    # The entrypoint is baked into the committed image, so a session saved by a
+    # version without autonomous resume would open the interactive UI with no
+    # terminal attached. Refuse before anything is started.
+    if mode == "autonomous" and not docker_mgr.supports_autonomous_resume(
+        session_image
+    ):
+        console.print(
+            f"[bold red]Session '{name}' was created by an older version and "
+            "cannot be resumed autonomously.[/bold red]\n"
+            f"Resume it interactively ([bold]agent resume --name {name}[/bold]) "
+            "or start a new session with [bold]agent start --task …[/bold]."
         )
         raise typer.Exit(1)
 
@@ -1142,12 +1170,13 @@ def resume(
 
     _maybe_print_podman_windows_firewall_notice(config)
 
-    # Create container from committed image (always interactive — see above).
+    # Create container from committed image.
     resume_extra_env: dict[str, str] = {"MCP_AUTH_TOKEN": auth_token}
-    # Propagate the terminal type so the interactive TUI renders correctly (mirrors start).
-    resume_extra_env["TERM"] = os.environ.get("TERM", "xterm-256color")
-    if "COLORTERM" in os.environ:
-        resume_extra_env["COLORTERM"] = os.environ["COLORTERM"]
+    if tty:
+        # Propagate the terminal type so the interactive TUI renders correctly (mirrors start).
+        resume_extra_env["TERM"] = os.environ.get("TERM", "xterm-256color")
+        if "COLORTERM" in os.environ:
+            resume_extra_env["COLORTERM"] = os.environ["COLORTERM"]
     # Secrets are never persisted, so a committed image may carry no usable
     # credential: OpenClaw's provider key is env-only (and its plugin auth file
     # is scrubbed before commit), and a Claude token session likewise. Let the
@@ -1181,10 +1210,39 @@ def resume(
                 console.print(
                     "[yellow]Warning: could not parse host Claude credentials — you may need to log in inside the container.[/yellow]"
                 )
-        else:
+        elif tty:
             console.print(
                 "[dim]No Claude credentials found on host — you may need to log in inside the container.[/dim]"
             )
+
+    # An autonomous run can't prompt for login, so with no credential in hand
+    # bootstrap one interactively first (mirrors `start`). The login runs in a
+    # container from the pristine base image, never the session image: the login
+    # container has no egress firewall, and the session image's filesystem has
+    # been written to by the agent.
+    if (
+        mode == "autonomous"
+        and config.agent_type == "claude-code"
+        and "CLAUDE_CODE_OAUTH_TOKEN" not in resume_extra_env
+        and "CLAUDE_CREDENTIALS_JSON" not in resume_extra_env
+    ):
+        token = None
+        try:
+            base_image = docker_mgr.ensure_image(
+                config.agent_type, config.requirements_file
+            )
+            token = _bootstrap_login_in_container(
+                docker_mgr, agent_backend, base_image
+            )
+        except Exception as exc:
+            console.print(f"[bold red]Login bootstrap failed:[/bold red] {exc}")
+        if not token:
+            console.print(
+                "[bold red]Login was not completed — no token was produced.[/bold red]"
+            )
+            _mcp[0].stop()
+            raise typer.Exit(1)
+        resume_extra_env["CLAUDE_CODE_OAUTH_TOKEN"] = token
 
     # Regenerate the prompt and Python client files from the current tools file so
     # a resume picks up edits made between sessions (mirrors start).
@@ -1229,7 +1287,7 @@ def resume(
         image_tag=session_image,
         resume=True,
         extra_env=resume_extra_env,
-        tty=True,
+        tty=tty,
     )
 
     metadata.container_id = container.id
@@ -1237,12 +1295,20 @@ def resume(
     metadata.started_at = utc_now()
     metadata.save()
 
-    _print_session_start_banner(
-        f"Resuming {config.agent_type} ({name}) interactively …"
-    )
+    if mode == "autonomous":
+        _print_session_start_banner(
+            f"Resuming {config.agent_type} ({name}) autonomously with a new task …"
+        )
+    else:
+        _print_session_start_banner(
+            f"Resuming {config.agent_type} ({name}) interactively …"
+        )
 
     try:
-        docker_mgr.start_interactive(container)
+        if mode == "autonomous":
+            docker_mgr.start_autonomous(container, agent_backend)
+        else:
+            docker_mgr.start_interactive(container)
     except KeyboardInterrupt:
         # A SIGINT/SIGTERM was delivered (see _raise_on_signal): unwind here so
         # the finally below runs teardown in the main thread.
@@ -1820,6 +1886,25 @@ def _write_system_prompt(config: SessionConfig, agent: BaseAgent) -> None:
     (config.workspace_dir / "system_prompt.txt").write_text(
         agent.get_system_prompt(config) + "\n", encoding="utf-8"
     )
+
+
+def _resolve_task(task: Optional[str], task_file: Optional[Path]) -> Optional[str]:
+    """Return the task from ``--task`` or the content of ``--task-file``.
+
+    Shared by ``start`` and ``resume``. ``None`` (or an empty string) means no
+    task, i.e. an interactive run.
+    """
+    if task_file is None:
+        return task
+    if task is not None:
+        console.print(
+            "[bold red]--task and --task-file are mutually exclusive.[/bold red]"
+        )
+        raise typer.Exit(1)
+    if not task_file.exists():
+        console.print(f"[bold red]Task file not found: {task_file}[/bold red]")
+        raise typer.Exit(1)
+    return task_file.read_text(encoding="utf-8").strip()
 
 
 def _resolve_system_prompt(

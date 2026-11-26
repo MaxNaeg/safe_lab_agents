@@ -243,7 +243,11 @@ chmod -R go-w /home/agent/.openclaw/npm 2>/dev/null || true
 # silently depends on that default staying in sync with the agent side. Without
 # targeting this session the TUI opens a brand-new empty one with no memory of
 # the previous autonomous run.
-if [ "${1:-}" = "--resume" ]; then
+#
+# An autonomous resume (`agent resume --task`: --resume with MODE=autonomous)
+# skips this branch and falls through to the autonomous block below, which
+# targets the same "main" session and therefore continues the conversation.
+if [ "${1:-}" = "--resume" ] && [ "$MODE" != "autonomous" ]; then
     openclaw tui --local --session main || true
     echo "Shutting down — this may take a moment …"
     stty sane 2>/dev/null || true
@@ -256,25 +260,8 @@ if [ "$MODE" = "autonomous" ]; then
     MODEL_FLAG=()
     [ -n "${LLM_MODEL:-}" ] && MODEL_FLAG=(--model "$LLM_MODEL")
 
-    # Record the run under the DEFAULT "main" session (key agent:main:main)
-    # instead of a random --session-id. This is what makes `agent resume` work:
-    # the resume path above runs `openclaw tui --local --session main`, which
-    # reopens exactly this session and replays its history. A random --session-id
-    # would be stored under agent:main:explicit:<id> — a key the TUI's main
-    # session never reopens — so a resumed run would start with no memory of the
-    # autonomous work (the bug this fixes).
-    #
-    # openclaw assigns the session's JSONL filename itself (a UUID we don't know
-    # up front), so we discover it below rather than predicting it as before.
-    openclaw agent \
-        --session-key main \
-        --local \
-        "${MODEL_FLAG[@]}" \
-        --message "$TASK_PROMPT" >/dev/null &
-    AGENT_PID=$!
-
-    # Locate the session's record stream, which openclaw writes (incrementally,
-    # so tailing it gives live output) to
+    # Session record streams, newest first. openclaw writes them (incrementally,
+    # so tailing one gives live output) to
     #   /home/agent/.openclaw/agents/<agent>/sessions/<uuid>.jsonl
     # The search is deliberately narrow:
     #   * -maxdepth 1 into the per-agent "sessions/" dir only — NOT a recursive
@@ -285,19 +272,66 @@ if [ "$MODE" = "autonomous" ]; then
     #     nothing would stream.
     #   * ! -name '*.trajectory.jsonl' — skip the sibling human-readable progress
     #     file; we want the record stream the Python formatter parses.
-    # On a fresh autonomous start this yields exactly one file (a freshly built
-    # image and the config/onboard steps above create no sessions).
-    find_session_file() {
+    list_session_files() {
         find /home/agent/.openclaw/agents/*/sessions -maxdepth 1 \
-            -name '*.jsonl' ! -name '*.trajectory.jsonl' 2>/dev/null | head -1
+            -name '*.jsonl' ! -name '*.trajectory.jsonl' \
+            -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2- || true
+    }
+    count_lines() {
+        wc -l < "$1" 2>/dev/null || echo 0
     }
 
-    # Poll until the session JSONL file appears or the agent exits.
-    SESSION_FILE=""
-    while kill -0 "$AGENT_PID" 2>/dev/null; do
-        F=$(find_session_file)
+    # Snapshot how long every existing session file is BEFORE the agent starts.
+    # A fresh start has none; a resumed session (`agent resume --task`) already
+    # holds the earlier conversation, and only what this run adds should stream —
+    # otherwise the whole previous transcript would be replayed to the terminal.
+    declare -A PREV_LINES=()
+    while IFS= read -r F; do
         if [ -n "$F" ]; then
-            SESSION_FILE="$F"
+            PREV_LINES["$F"]=$(count_lines "$F")
+        fi
+    done < <(list_session_files)
+
+    # Record the run under the DEFAULT "main" session (key agent:main:main)
+    # instead of a random --session-id. This is what makes `agent resume` work:
+    # both resume paths reopen exactly this session (the TUI via
+    # `--session main`, an autonomous resume via this same command), so the
+    # conversation continues with its history. A random --session-id would be
+    # stored under agent:main:explicit:<id> — a key the main session never
+    # reopens — so a resumed run would start with no memory of the earlier work.
+    #
+    # openclaw assigns the session's JSONL filename itself (a UUID we don't know
+    # up front), so we discover it below rather than predicting it.
+    openclaw agent \
+        --session-key main \
+        --local \
+        "${MODEL_FLAG[@]}" \
+        --message "$TASK_PROMPT" >/dev/null &
+    AGENT_PID=$!
+
+    # Pick the file this run is writing: the most recently modified session file
+    # that has grown past its snapshot (a new file counts from zero). Sets
+    # SESSION_FILE and START_LINE (the first line this run added).
+    SESSION_FILE=""
+    START_LINE=1
+    pick_session_file() {
+        local F N PREV
+        while IFS= read -r F; do
+            [ -n "$F" ] || continue
+            N=$(count_lines "$F")
+            PREV=${PREV_LINES["$F"]:-0}
+            if [ "$N" -gt "$PREV" ]; then
+                SESSION_FILE="$F"
+                START_LINE=$((PREV + 1))
+                return 0
+            fi
+        done < <(list_session_files)
+        return 1
+    }
+
+    # Poll until the run's session file shows new records or the agent exits.
+    while kill -0 "$AGENT_PID" 2>/dev/null; do
+        if pick_session_file; then
             break
         fi
         sleep 0.5
@@ -305,12 +339,12 @@ if [ "$MODE" = "autonomous" ]; then
 
     # One final check after the agent process exits.
     if [ -z "$SESSION_FILE" ]; then
-        SESSION_FILE=$(find_session_file)
+        pick_session_file || true
     fi
 
     if [ -n "$SESSION_FILE" ]; then
         echo "OPENCLAW_JSONL: $SESSION_FILE"
-        tail -n +1 -f "$SESSION_FILE" --pid="$AGENT_PID" 2>/dev/null
+        tail -n "+$START_LINE" -f "$SESSION_FILE" --pid="$AGENT_PID" 2>/dev/null
     else
         echo "OPENCLAW_JSONL: not found"
         echo "OPENCLAW_DEBUG: $(find /home/agent/.openclaw -type f 2>/dev/null \

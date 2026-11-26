@@ -258,7 +258,12 @@ sequenceDiagram
 ```
 
 `resume` follows the same path but loads the existing `SessionMetadata`, restores the committed
-session image, and uses `BaseAgent.get_resume_command()` instead of the fresh entrypoint.
+session image, and uses `BaseAgent.get_resume_command()` instead of the fresh entrypoint. It is
+interactive by default; `resume --task` sets `config.task`, so the container gets
+`MODE=autonomous` + `TASK_PROMPT` and the entrypoint continues the same conversation headlessly
+(streamed via `start_autonomous`, as on `start`). Because the entrypoint is baked into the
+committed image, this needs an image carrying the `safe_lab_agents.autonomous_resume` label
+(`DockerManager.supports_autonomous_resume`); older sessions are refused with a clear message.
 
 ## Class reference
 

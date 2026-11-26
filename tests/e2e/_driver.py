@@ -152,6 +152,51 @@ def run_autonomous(
     argv = cli_argv(
         *_common_start_args(agent, runtime, name, agent_args), "--task", task
     )
+    return _run_cli_to_completion(
+        argv,
+        name=name,
+        log_suffix=".autonomous.log",
+        what=f"Autonomous session '{name}' ({agent}/{runtime})",
+        timeout=timeout,
+    )
+
+
+def run_autonomous_resume(
+    name: str,
+    runtime: str,
+    task: str,
+    agent_args: list[str],
+    timeout: float,
+) -> subprocess.CompletedProcess:
+    """Run an autonomous ``resume --task`` on a committed session to completion.
+
+    Credentials are re-passed via ``agent_args`` for the same reason as in
+    :func:`drive_resume`: they are scrubbed from the committed image.
+    """
+    argv = ["resume", "--name", name, "--task", task]
+    for a in agent_args:
+        argv += ["--agent-args", a]
+    return _run_cli_to_completion(
+        cli_argv(*argv),
+        name=name,
+        log_suffix=".autonomous-resume.log",
+        what=f"Autonomous resume of '{name}' ({runtime})",
+        timeout=timeout,
+    )
+
+
+def _run_cli_to_completion(
+    argv: list[str],
+    name: str,
+    log_suffix: str,
+    what: str,
+    timeout: float,
+) -> subprocess.CompletedProcess:
+    """Run a non-interactive CLI invocation until it exits, capturing its output.
+
+    The full output is persisted next to the PTY log (with ``log_suffix``) for
+    post-mortem; a timeout raises an ``AssertionError`` naming ``what``.
+    """
     # Force the child's stdio to UTF-8. We capture output via a pipe, and on
     # Windows a piped stdout defaults to the legacy cp1252 codec — the CLI prints
     # Unicode (the ▶ session marker, box-drawing banners, …), so the first such
@@ -180,7 +225,7 @@ def run_autonomous(
         # (the agent produced no transcript / tool call) — the one failure the
         # durable artifacts cannot explain on their own.
         try:
-            pty_log_path(name).with_suffix(".autonomous.log").write_text(
+            pty_log_path(name).with_suffix(log_suffix).write_text(
                 f"rc={proc.returncode}\n--- stdout ---\n{proc.stdout}\n"
                 f"--- stderr ---\n{proc.stderr}\n",
                 encoding="utf-8",
@@ -193,7 +238,7 @@ def run_autonomous(
         out = _as_text(exc.stdout)
         err = _as_text(exc.stderr)
         raise AssertionError(
-            f"Autonomous session '{name}' ({agent}/{runtime}) did not finish "
+            f"{what} did not finish "
             f"within {timeout}s.\n--- stdout ---\n{out}\n--- stderr ---\n{err}"
         ) from exc
 
@@ -283,14 +328,33 @@ def drive_pty_session(
             # wait for an explicit readiness signal instead — Claude's trust dialog
             # (accept it), or OpenClaw's status line flipping to "idle". Fall back
             # to a time cap so we still proceed if neither marker appears.
+            #
+            # Claude Code can show two startup dialogs, in this order:
+            #   1. "Managed settings require approval" — only for accounts whose
+            #      organization delivers managed settings. The default option is
+            #      "Yes, I trust these settings"; Enter accepts it. Typing the
+            #      prompt into this dialog instead would lose it.
+            #   2. The workspace trust dialog. Up to ~2.1.2xx its default was
+            #      "Yes"; newer versions (seen with 2.1.332) put the cursor on
+            #      "No, exit", where a bare Enter QUITS Claude Code. Move down to
+            #      "Yes, I trust this folder" first when the cursor is on "No".
             ready_deadline = time.monotonic() + 45.0
+            answered_managed = False
             while time.monotonic() < ready_deadline:
                 _read_for(0.5)
                 vis = _visible(2500)
                 if "trustthisfolder" in vis:  # Claude trust dialog
+                    if "❯no,exit" in vis:
+                        console.write("\x1b[B")  # Down: to "Yes, I trust this folder"
+                        _read_for(0.5)
                     console.write("\r")
                     _read_for(2.0)
                     break
+                if not answered_managed and "managedsettingsrequireapproval" in vis:
+                    console.write("\r")  # default: "Yes, I trust these settings"
+                    answered_managed = True
+                    _read_for(2.0)
+                    continue
                 if "|idle" in vis:  # OpenClaw "local ready | idle" status line
                     _read_for(1.5)
                     break
@@ -474,6 +538,56 @@ def count_ping_calls(name: str, sentinel: str = SENTINEL) -> int:
         elif sentinel in blob:  # some parsers fold output into content
             n += 1
     return n
+
+
+def count_ping_echoes(name: str, text: str, sentinel: str = SENTINEL) -> int:
+    """Count ping results in history that echo *text* back.
+
+    ``ping(note)`` returns the sentinel together with the note, so an entry
+    carrying both is a ping the agent called with *text* in its note. The task
+    prompt that mentions *text* never contains the sentinel, so it is not counted.
+    """
+    n = 0
+    for entry in load_history(name):
+        blob = json.dumps(entry, default=str)
+        if sentinel in blob and text in blob:
+            n += 1
+    return n
+
+
+def duplicate_history_entries(name: str) -> list[tuple[int, dict]]:
+    """Return ``(count, entry)`` for every history entry that occurs more than once.
+
+    Two entries are the same when every field matches, including the timestamp
+    and the metadata (which carries the tool-call id). Distinct turns never
+    collide on all of those, so a repeat means the same transcript record was
+    imported twice — e.g. a resumed run that wrote a new transcript file with a
+    copy of the earlier conversation, which the history parser then reads twice.
+    """
+    counts: dict[str, int] = {}
+    first: dict[str, dict] = {}
+    for entry in load_history(name):
+        key = json.dumps(entry, sort_keys=True, default=str)
+        counts[key] = counts.get(key, 0) + 1
+        first.setdefault(key, entry)
+    return [(n, first[key]) for key, n in counts.items() if n > 1]
+
+
+def assert_no_duplicate_history(name: str, stage: str) -> None:
+    """Fail if history.json holds the same entry more than once (see above)."""
+    duplicates = duplicate_history_entries(name)
+    if not duplicates:
+        return
+    shown = "\n".join(
+        f"  {n}x [{e.get('role')}] {e.get('timestamp')} "
+        f"{str(e.get('content', ''))[:80]!r}"
+        for n, e in duplicates[:5]
+    )
+    raise AssertionError(
+        f"{stage}: history.json has {len(duplicates)} entr"
+        f"{'y' if len(duplicates) == 1 else 'ies'} recorded more than once "
+        f"(of {len(load_history(name))} total):\n{shown}"
+    )
 
 
 def history_debug(name: str, sentinel: str = SENTINEL) -> str:

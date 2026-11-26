@@ -455,11 +455,13 @@ With that file in place, `agent start` runs with no flags, and e.g. `agent start
 
 ### `agent resume`
 
-Resume a previously stopped session. Resume is always interactive — a session that originally ran autonomously (`--task`) is continued interactively so you can drive it by hand. The container runtime is autodetected from the saved session metadata.
+Resume a previously stopped session. Without a task the session is continued interactively so you can drive it by hand — also when it originally ran autonomously (`--task`). With `--task` or `--task-file` the same conversation is continued autonomously with that new task (see [Autonomous Mode](#autonomous-mode)). The container runtime is autodetected from the saved session metadata.
 
 | Option | Description |
 |--------|-------------|
 | `--name`, `-n` | Session to resume (prompted if omitted) |
+| `--task` | New task to continue the session with autonomously (omit to resume interactively) |
+| `--task-file` | Path to a text/markdown file whose content is used as the new task (mutually exclusive with `--task`) |
 | `--agent-args` | Override agent-specific args for this resume (repeatable, same syntax as `start`) |
 
 ### `agent history`
@@ -564,6 +566,14 @@ agent start \
 ```
 
 The agent's output streams to your terminal. When the task finishes (or you press `Ctrl+C`), the session is saved.
+
+To give the same session a follow-up task, resume it with a task. The agent continues the earlier conversation, so it still knows what it did before:
+
+```bash
+agent resume --name my-session --task "Repeat the sweep in 5° steps between 80° and 100°."
+```
+
+This works for any session, whether it started autonomously or interactively, and `agent resume` without a task still opens it interactively. Sessions created before this feature existed can only be resumed interactively, because the entrypoint script is saved as part of each session's image.
 
 ## Python Packages in Docker
 

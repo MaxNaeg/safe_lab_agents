@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Autonomous resume**: `agent resume --task "…"` (or `--task-file`) continues
+  a stopped session autonomously with a new task, in the same conversation.
+  `agent resume` without a task stays interactive. Sessions created by earlier
+  versions can only be resumed interactively (the entrypoint is baked into the
+  session image); they are refused with a clear message.
+
+### Fixed
+
+- **Claude Code resume ignored the regenerated system prompt.** Since Claude
+  Code 2.1.257 the system prompt is recorded on a conversation's first request
+  and reused on resume, so updated tool descriptions (and the autonomous-mode
+  instruction) never reached a resumed session. Resume now asks for a fresh
+  render (`--system-prompt-snapshot off`) when the installed CLI supports it.
+- **Claude Code autonomous runs under accounts that disallow bypass mode.**
+  Newer Claude Code versions apply settings delivered to the logged-in account;
+  when those refuse `--dangerously-skip-permissions`, a headless run starts in
+  `default` mode and every tool call (including the lab's MCP tools) was denied.
+  Autonomous runs now also pre-approve the experiment MCP server and the
+  built-in shell/file tools (web tools unless `--no-web`) via `--allowedTools`,
+  and the CLI prints a notice when Claude Code reports a non-bypass mode.
+
 ## [0.2.0] - 2026-07-24
 
 A container/security hardening pass, cross-platform (Windows/WSL2/Linux) fixes,

@@ -499,3 +499,46 @@ class TestMergeAgentArgs:
         merged, overridden = _merge_agent_args(None, ["effort=high"], agent)
         assert merged == {"effort": "high"}
         assert overridden == []
+
+
+class TestClaudeCodeAutonomousInitLine:
+    """The session line printed from Claude Code's stream-json ``system/init``."""
+
+    @staticmethod
+    def _init(**extra) -> str:
+        import json
+
+        record = {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "d765808d-0000",
+            "model": "claude-sonnet-5-5",
+            "tools": ["Bash", "Read"],
+            **extra,
+        }
+        return json.dumps(record)
+
+    def test_bypass_mode_is_quiet(self) -> None:
+        text = get_agent("claude-code").format_autonomous_line(
+            self._init(permissionMode="bypassPermissions")
+        )
+        assert text is not None
+        assert "Session d765808d" in text
+        assert "permission" not in text
+
+    def test_missing_mode_is_quiet(self) -> None:
+        """Older Claude Code versions may not report the mode at all."""
+        text = get_agent("claude-code").format_autonomous_line(self._init())
+        assert text is not None
+        assert "permission" not in text
+
+    def test_refused_bypass_is_reported(self) -> None:
+        """An account that disallows bypass mode starts the run in another mode;
+        only pre-approved tools then run, so the user is told up front."""
+        text = get_agent("claude-code").format_autonomous_line(
+            self._init(permissionMode="default")
+        )
+        assert text is not None
+        assert "Session d765808d" in text
+        assert "'default' permission mode" in text
+        assert "pre-approved" in text

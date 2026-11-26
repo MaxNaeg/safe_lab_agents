@@ -42,6 +42,10 @@ console = Console(stderr=True)
 # Docker image prefix for committed session images.
 _SESSION_IMAGE_PREFIX = "safe-lab-agents-session-"
 
+# Image label set by the Dockerfiles whose entrypoint supports an autonomous
+# resume (`agent resume --task`). `commit` carries it into the session image.
+_AUTONOMOUS_RESUME_LABEL = "safe_lab_agents.autonomous_resume"
+
 # Seconds to wait for Docker to become ready after launching it.
 _DOCKER_START_TIMEOUT = 60
 
@@ -983,6 +987,20 @@ class DockerManager:
             return tag
         except docker.errors.ImageNotFound:
             return None
+
+    def supports_autonomous_resume(self, image_tag: str) -> bool:
+        """Return whether *image_tag*'s entrypoint can resume autonomously.
+
+        The entrypoint is baked into the image, so a session committed by an
+        older version still carries a resume branch that only knows the
+        interactive path. Images built since autonomous resume exists carry
+        the :data:`_AUTONOMOUS_RESUME_LABEL` label, which ``commit`` preserves.
+        """
+        try:
+            labels = self.client.images.get(image_tag).labels or {}
+        except docker.errors.ImageNotFound:
+            return False
+        return labels.get(_AUTONOMOUS_RESUME_LABEL) == "1"
 
     def list_session_images(self) -> list[dict[str, str]]:
         """Return a list of committed session images with their tags and creation dates.

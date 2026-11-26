@@ -115,9 +115,10 @@ class ClaudeCodeAgent(BaseAgent):
 
         A token passed via ``--agent-args oauth-token=…`` is re-injected (and
         popped so it is never persisted).  When absent nothing is injected: the
-        entrypoint scrubbed ``~/.claude/.credentials.json`` before commit, so the
-        resumed (interactive) session re-authenticates via the in-container
-        login flow.
+        entrypoint scrubbed ``~/.claude/.credentials.json`` before commit, so an
+        interactive resume re-authenticates via the in-container login flow, and
+        an autonomous one (``agent resume --task``) gets a token from the host's
+        login bootstrap instead.
         """
         token = config.agent_args.pop("oauth-token", None)
         return {"CLAUDE_CODE_OAUTH_TOKEN": token} if token else {}
@@ -307,7 +308,21 @@ class ClaudeCodeAgent(BaseAgent):
             session_id = data.get("session_id", "")[:8]
             model = escape(data.get("model", "?"))
             tools = data.get("tools", [])
-            return f"[dim]▶ Session {session_id} — model: {model}, tools: {len(tools)}[/dim]"
+            text = f"[dim]▶ Session {session_id} — model: {model}, tools: {len(tools)}[/dim]"
+            # Autonomous runs ask for bypass mode; the logged-in account can
+            # refuse it, and then only the pre-approved tools (see the
+            # entrypoint's --allowedTools) run — anything else is denied with
+            # no prompt. Say so up front instead of leaving it to be inferred
+            # from a failed tool call.
+            mode = data.get("permissionMode")
+            if mode and mode != "bypassPermissions":
+                text += (
+                    f"\n[yellow]⚠ Claude Code is in '{escape(str(mode))}' permission "
+                    "mode, not bypass (your account does not allow it). Only "
+                    "the pre-approved tools will run; other tool calls are "
+                    "denied.[/yellow]"
+                )
+            return text
 
         if msg_type == "assistant":
             message = data.get("message", {})

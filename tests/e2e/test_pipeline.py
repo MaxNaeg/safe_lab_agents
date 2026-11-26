@@ -2,7 +2,7 @@
 
 Each cell runs a complete lifecycle against real containers and a real agent:
 
-    start (autonomous | interactive)  →  commit  →  resume
+    start (autonomous | interactive)  →  commit  →  [autonomous resume]  →  resume
 
 and asserts on the durable artifacts (metadata status, history.json tool calls,
 committed image). Cells are parametrized and self-skipping (see ``conftest.py``);
@@ -12,6 +12,7 @@ a plain ``pytest`` run collects none of this without ``SLA_E2E=1``.
 from __future__ import annotations
 
 import os
+import uuid
 
 import pytest
 
@@ -28,6 +29,19 @@ STRICT_TUI = os.environ.get("SLA_E2E_STRICT_TUI", "1") == "1"
 KEEP_ON_FAIL = os.environ.get("SLA_E2E_KEEP_ON_FAIL") == "1"
 
 TASK = "Call the `ping` MCP tool exactly once, then stop."
+# Autonomous cells plant a per-run code word in the first task and ask for it
+# back on `resume --task`, whose prompt does not contain it: the agent can only
+# answer from the earlier conversation, which is what proves the resumed run
+# continued it instead of starting a fresh one.
+REMEMBER = (
+    " Leave the tool's `note` empty. Also remember this code word, you will be "
+    "asked for it later: {code}."
+)
+RESUME_TASK = (
+    "Call the `ping` MCP tool exactly once more and pass, as its `note`, the code "
+    "word I gave you in my first message. If you do not know it, pass `unknown` "
+    "instead — do not search for it. Then stop."
+)
 
 
 def test_full_pipeline(runtime, agent, mode):
@@ -40,9 +54,15 @@ def test_full_pipeline(runtime, agent, mode):
     passed = False
     try:
         # ---- Stage 1: start ----------------------------------------------
+        code = f"cw-{uuid.uuid4().hex[:12]}"
         if mode == "autonomous":
             proc = _driver.run_autonomous(
-                agent, runtime, name, TASK, args, timeout=AUTONOMOUS_TIMEOUT
+                agent,
+                runtime,
+                name,
+                TASK + REMEMBER.format(code=code),
+                args,
+                timeout=AUTONOMOUS_TIMEOUT,
             )
             assert proc.returncode == 0, (
                 f"autonomous start failed (rc={proc.returncode}).\n"
@@ -58,6 +78,9 @@ def test_full_pipeline(runtime, agent, mode):
         _driver.assert_status(name, "committed")
         _driver.assert_committed_image(runtime, name)
         _assert_ping(name, minimum=1, stage=f"{mode} start")
+        # Checked after every stage, so the first stage that imports a
+        # transcript twice is the one that fails.
+        _driver.assert_no_duplicate_history(name, stage=f"{mode} start")
 
         # ---- Stage 2b: end-to-end output chain (auto-log → reports/export) --
         # The run was --auto-log, so the ping call is recorded under
@@ -67,6 +90,34 @@ def test_full_pipeline(runtime, agent, mode):
         _driver.build_and_check_report(name)  # agent report  (auto-log HTML)
         _driver.build_and_check_eln(name)  # agent export-eln (.eln RO-Crate)
         _driver.build_and_check_history_html(name)  # agent history --html
+
+        # ---- Stage 2c: autonomous resume with a new task ------------------
+        # Only for sessions that started autonomously: `resume --task` continues
+        # the same conversation headlessly, so a second ping must show up — and
+        # it must carry the code word from the first task (see REMEMBER).
+        pings = 1
+        if mode == "autonomous":
+            echoes_before = _driver.count_ping_echoes(name, code)
+            proc = _driver.run_autonomous_resume(
+                name, runtime, RESUME_TASK, args, timeout=AUTONOMOUS_TIMEOUT
+            )
+            assert proc.returncode == 0, (
+                f"autonomous resume failed (rc={proc.returncode}).\n"
+                f"--- stdout ---\n{proc.stdout[-3000:]}\n"
+                f"--- stderr ---\n{proc.stderr[-3000:]}"
+            )
+            _driver.assert_status(name, "committed")
+            _driver.assert_committed_image(runtime, name)
+            pings = 2
+            _assert_ping(name, minimum=pings, stage="autonomous resume")
+            echoes = _driver.count_ping_echoes(name, code)
+            assert echoes > echoes_before, (
+                "autonomous resume: the agent did not pass the code word from the "
+                "first task to `ping`, so the earlier conversation was not in its "
+                f"context (echoes before={echoes_before}, after={echoes}). "
+                f"{_driver.history_debug(name)}"
+            )
+            _driver.assert_no_duplicate_history(name, stage="autonomous resume")
 
         # ---- Stage 3: resume (plumbing, + optional conversational turn) --
         # Re-pass credentials: secrets are scrubbed from the committed image, so
@@ -83,8 +134,9 @@ def test_full_pipeline(runtime, agent, mode):
         _driver.assert_status(name, "committed")
         _driver.assert_committed_image(runtime, name)
         _driver.load_history(name)  # must still parse
+        _driver.assert_no_duplicate_history(name, stage="resume")
         if RESUME_CONVERSE:
-            _assert_ping(name, minimum=2, stage="resume converse")
+            _assert_ping(name, minimum=pings + 1, stage="resume converse")
         passed = True
     finally:
         # Preserve artifacts (session dir, container, image) on failure when
@@ -113,6 +165,6 @@ def _assert_ping(name: str, minimum: int, stage: str) -> None:
     )
     # PTY-driven turns depend on the agent's TUI accepting typed input; when not
     # strict we treat a miss as an expected failure rather than a hard error.
-    if not STRICT_TUI and stage != "autonomous start":
+    if not STRICT_TUI and not stage.startswith("autonomous"):
         pytest.xfail(msg)
     raise AssertionError(msg)

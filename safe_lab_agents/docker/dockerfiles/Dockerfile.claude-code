@@ -10,6 +10,10 @@ FROM node:22-slim
 
 LABEL maintainer="safe_lab_agents"
 LABEL agent="claude-code"
+# Capability marker: this image's entrypoint can resume a session autonomously
+# (`agent resume --task`). Committed session images inherit it, so the host can
+# tell them apart from older sessions whose baked-in entrypoint cannot.
+LABEL safe_lab_agents.autonomous_resume="1"
 
 # ---- System dependencies ----
 RUN apt-get update && apt-get install -y --no-install-recommends \

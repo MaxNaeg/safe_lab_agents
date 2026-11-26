@@ -160,7 +160,12 @@ class BaseAgent(ABC):
 
     @abstractmethod
     def get_resume_command(self) -> list[str]:
-        """Return the command to resume a previous conversation."""
+        """Return the command to resume a previous conversation.
+
+        As with :meth:`get_entrypoint_command`, the entrypoint reads ``MODE`` to
+        tell an interactive resume from an autonomous one (``agent resume
+        --task``), so one command serves both.
+        """
 
     @abstractmethod
     def parse_conversation_history(self, log_dir: Path) -> list[ConversationEntry]:

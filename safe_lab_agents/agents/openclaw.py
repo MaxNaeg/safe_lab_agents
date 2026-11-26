@@ -7,8 +7,10 @@ in either interactive (``openclaw tui --local``) or autonomous
 
 Both modes share OpenClaw's default ``main`` session (key ``agent:main:main``):
 the autonomous run records into it via ``--session-key main`` and resume reopens
-it via ``openclaw tui --local --session main`` (:meth:`get_resume_command`), so a
-resumed session continues the autonomous conversation with its full history.
+it (:meth:`get_resume_command`) — interactively via ``openclaw tui --local
+--session main``, or autonomously with a new task via the same ``openclaw agent
+--session-key main`` command — so a resumed session continues the conversation
+with its full history.
 """
 
 from __future__ import annotations

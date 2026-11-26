@@ -165,6 +165,68 @@ def test_create_container_egress_lockdown_can_be_disabled(tmp_path: Path) -> Non
     assert capturing.kwargs["environment"]["EGRESS_LOCKDOWN"] == "false"
 
 
+def test_create_container_autonomous_resume_has_no_tty(tmp_path: Path) -> None:
+    """An autonomous resume (`agent resume --task`) uses the agent's resume
+    command but, like an autonomous start, allocates no TTY and no stdin."""
+
+    class _ResumableAgent(_StubAgent):
+        def get_resume_command(self):
+            return ["--resume"]
+
+    capturing = _CapturingContainers()
+    mgr = DockerManager(docker_client=types.SimpleNamespace(containers=capturing))
+
+    mgr.create_container(
+        _session_config(tmp_path),
+        _ResumableAgent(),
+        mcp_port=5000,
+        image_tag="session-img",
+        resume=True,
+        tty=False,
+    )
+
+    assert capturing.kwargs["image"] == "session-img"
+    assert capturing.kwargs["command"] == ["--resume"]
+    assert capturing.kwargs["tty"] is False
+    assert capturing.kwargs["stdin_open"] is False
+
+
+class _LabelledImages:
+    """``client.images`` stub serving one image with the given labels."""
+
+    def __init__(self, labels) -> None:
+        self._labels = labels
+
+    def get(self, tag: str):
+        if tag != "session-img":
+            raise docker.errors.ImageNotFound(tag)
+        return types.SimpleNamespace(labels=self._labels)
+
+
+@pytest.mark.parametrize(
+    ("labels", "expected"),
+    [
+        ({"safe_lab_agents.autonomous_resume": "1"}, True),
+        ({"safe_lab_agents.build_hash": "abc"}, False),  # image from an older version
+        (None, False),  # runtime reports no labels at all
+    ],
+)
+def test_supports_autonomous_resume_reads_image_label(labels, expected) -> None:
+    mgr = DockerManager(
+        docker_client=types.SimpleNamespace(images=_LabelledImages(labels))
+    )
+
+    assert mgr.supports_autonomous_resume("session-img") is expected
+
+
+def test_supports_autonomous_resume_false_for_missing_image() -> None:
+    mgr = DockerManager(
+        docker_client=types.SimpleNamespace(images=_LabelledImages({}))
+    )
+
+    assert mgr.supports_autonomous_resume("no-such-img") is False
+
+
 def test_create_login_container_is_not_host_exposed() -> None:
     """The login container gets no host.docker.internal mapping and no NET_ADMIN —
     only the SETUID/SETGID caps needed for the entrypoint's privilege drop."""

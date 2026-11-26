@@ -198,20 +198,66 @@ CLAUDE_OPTS=()
 [ -n "${CLAUDE_MODEL:-}" ] && CLAUDE_OPTS+=(--model "$CLAUDE_MODEL")
 [ -n "${CLAUDE_EFFORT:-}" ] && CLAUDE_OPTS+=(--effort "$CLAUDE_EFFORT")
 
-# ---- Resume mode (passed as first argument) ----
-# Resume is always interactive (the host never resumes in autonomous mode), so
-# this branch exits at the end and never falls through to the autonomous block.
-if [ "${1:-}" = "--resume" ]; then
-    SKIP_PERMS_FLAG=()
-    if [ "${SKIP_PERMISSIONS:-}" = "true" ]; then
-        SKIP_PERMS_FLAG=(--dangerously-skip-permissions)
-    fi
-    NO_WEB_FLAG=()
+# ---- Autonomous-mode system-prompt instruction ----
+# Appended after the shared prompt is fully built so it only appears in
+# autonomous runs (fresh or resumed) and does not affect interactive sessions.
+if [ "$MODE" = "autonomous" ]; then
+    SYSTEM_PROMPT="${SYSTEM_PROMPT}
+You are running in fully autonomous mode. Work independently to complete the task.
+Do NOT ask the user questions, pause for confirmation, or wait for input — make reasonable decisions on your own and proceed until the task is complete."
+fi
+
+# ---- Headless run (autonomous mode, fresh or resumed) ----
+# Runs `claude -p "$TASK_PROMPT"` to completion and exits with its status. Any
+# arguments are passed through to claude (the resume path passes
+# `--resume <session-id>` to continue the previous conversation).
+run_autonomous() {
+    # Deny rules are evaluated before everything else (permission order:
+    # deny → allow → mode), so --disallowedTools is a real hard block for the
+    # web tools even under --dangerously-skip-permissions.
+    local NO_WEB_FLAG=()
     if [ "${NO_WEB:-}" = "true" ]; then
-        # Hard block on resume too (same as the interactive non-resume path).
         NO_WEB_FLAG=(--disallowedTools "WebSearch,WebFetch")
     fi
+    # Pre-approve what an autonomous run needs: the experiment MCP server's tools
+    # plus the built-in shell and file tools (and the web tools unless --no-web).
+    # Under --dangerously-skip-permissions these rules are redundant, but the
+    # logged-in account can force Claude Code out of bypass mode (seen with
+    # 2.1.332: it starts in "default" mode despite the flag). A headless run has
+    # nobody to answer a permission prompt, so without these rules every tool
+    # call — including the lab tools — is denied. (An organisation that sets
+    # allowManagedPermissionRulesOnly makes Claude Code ignore --allowedTools;
+    # nothing here can pre-approve tools for such an account.)
+    # "mcp__<server>__*" is the documented form for "every tool of this server".
+    local ALLOWED_TOOLS="mcp__experiment-tools__*,Bash,Read,Edit,Write,NotebookEdit"
+    if [ "${NO_WEB:-}" != "true" ]; then
+        ALLOWED_TOOLS="${ALLOWED_TOOLS},WebFetch,WebSearch"
+    fi
+    # Run claude in the background (not `exec`) so the EXIT trap that scrubs the
+    # credential still fires when the run ends. stdout is inherited unchanged, so
+    # the stream-json output reaches the host exactly as before; INT/TERM are
+    # forwarded to claude so a host-driven stop still shuts it down gracefully.
+    claude -p "$TASK_PROMPT" \
+        "$@" \
+        --verbose \
+        --append-system-prompt "$SYSTEM_PROMPT" \
+        "${NO_WEB_FLAG[@]}" \
+        --allowedTools "$ALLOWED_TOOLS" \
+        --output-format stream-json \
+        --dangerously-skip-permissions \
+        "${CLAUDE_OPTS[@]}" &
+    CLAUDE_PID=$!
+    trap 'kill -TERM "$CLAUDE_PID" 2>/dev/null || true' INT TERM
+    wait "$CLAUDE_PID"
+    exit $?
+}
 
+# ---- Resume mode (passed as first argument) ----
+# The host resumes interactively by default and autonomously when given a new
+# task (`agent resume --task`, which sets MODE=autonomous + TASK_PROMPT). Both
+# continue the same conversation; this branch always exits and never falls
+# through to the fresh-start blocks below.
+if [ "${1:-}" = "--resume" ]; then
     # Resume by explicit session id, not `claude --continue`. `--continue` uses
     # Claude Code's session picker, which intentionally EXCLUDES headless
     # (`claude -p`) sessions — i.e. every autonomous run. So `--continue` reports
@@ -226,14 +272,53 @@ if [ "${1:-}" = "--resume" ]; then
     if [ -z "$LATEST_TRANSCRIPT" ]; then
         LATEST_TRANSCRIPT="$(ls -1t "$PROJECTS_DIR"/*/*.jsonl 2>/dev/null | head -n1 || true)"
     fi
-    RESUME_FLAG=(--continue)
+    SESSION_ID=""
     if [ -n "$LATEST_TRANSCRIPT" ]; then
         SESSION_ID="$(basename "$LATEST_TRANSCRIPT" .jsonl)"
+    fi
+
+    # Claude Code (>= 2.1.257) records the system prompt on a conversation's
+    # first request and reuses that record after --resume, ignoring the
+    # --append-system-prompt text of the new launch. Ours is regenerated for
+    # every launch — the tool descriptions may have changed since the last
+    # session, and the autonomy instruction depends on this run's MODE — so ask
+    # for a fresh render. Probed via --help because older versions reject the
+    # flag (captured into a variable: `claude --help | grep -q` would trip
+    # pipefail when grep exits early).
+    RESUME_PROMPT_OPTS=()
+    CLAUDE_HELP="$(claude --help 2>/dev/null || true)"
+    case "$CLAUDE_HELP" in
+        *--system-prompt-snapshot*) RESUME_PROMPT_OPTS=(--system-prompt-snapshot off) ;;
+    esac
+
+    if [ "$MODE" = "autonomous" ]; then
+        # No status line here: stdout carries the stream-json the host parses.
+        # With no earlier transcript (the session never got as far as a
+        # conversation) there is nothing to continue, so run the task fresh.
+        if [ -n "$SESSION_ID" ]; then
+            run_autonomous --resume "$SESSION_ID" "${RESUME_PROMPT_OPTS[@]}"
+        else
+            run_autonomous
+        fi
+    fi
+
+    SKIP_PERMS_FLAG=()
+    if [ "${SKIP_PERMISSIONS:-}" = "true" ]; then
+        SKIP_PERMS_FLAG=(--dangerously-skip-permissions)
+    fi
+    NO_WEB_FLAG=()
+    if [ "${NO_WEB:-}" = "true" ]; then
+        # Hard block on resume too (same as the interactive non-resume path).
+        NO_WEB_FLAG=(--disallowedTools "WebSearch,WebFetch")
+    fi
+    RESUME_FLAG=(--continue)
+    if [ -n "$SESSION_ID" ]; then
         echo "Resuming Claude Code session ${SESSION_ID} …"
         RESUME_FLAG=(--resume "$SESSION_ID")
     fi
 
     claude "${RESUME_FLAG[@]}" \
+        "${RESUME_PROMPT_OPTS[@]}" \
         --append-system-prompt "$SYSTEM_PROMPT" \
         "${NO_WEB_FLAG[@]}" \
         "${SKIP_PERMS_FLAG[@]}" \
@@ -242,40 +327,9 @@ if [ "${1:-}" = "--resume" ]; then
     exit 0
 fi
 
-# ---- Autonomous-mode system-prompt instruction ----
-# Appended after the shared prompt is fully built so it only appears in
-# autonomous runs and does not affect interactive or resume sessions.
-if [ "$MODE" = "autonomous" ]; then
-    SYSTEM_PROMPT="${SYSTEM_PROMPT}
-You are running in fully autonomous mode. Work independently to complete the task.
-Do NOT ask the user questions, pause for confirmation, or wait for input — make reasonable decisions on your own and proceed until the task is complete."
-fi
-
 # ---- Autonomous mode ----
 if [ "$MODE" = "autonomous" ]; then
-    # No allowlist: --dangerously-skip-permissions bypasses allow rules
-    # entirely (permission order: deny → allow → mode), so an allowlist would
-    # be dead weight. Deny rules ARE evaluated before the bypass, so
-    # --disallowedTools is a real hard block for the web tools.
-    NO_WEB_FLAG=()
-    if [ "${NO_WEB:-}" = "true" ]; then
-        NO_WEB_FLAG=(--disallowedTools "WebSearch,WebFetch")
-    fi
-    # Run claude in the background (not `exec`) so the EXIT trap that scrubs the
-    # credential still fires when the run ends. stdout is inherited unchanged, so
-    # the stream-json output reaches the host exactly as before; INT/TERM are
-    # forwarded to claude so a host-driven stop still shuts it down gracefully.
-    claude -p "$TASK_PROMPT" \
-        --verbose \
-        --append-system-prompt "$SYSTEM_PROMPT" \
-        "${NO_WEB_FLAG[@]}" \
-        --output-format stream-json \
-        --dangerously-skip-permissions \
-        "${CLAUDE_OPTS[@]}" &
-    CLAUDE_PID=$!
-    trap 'kill -TERM "$CLAUDE_PID" 2>/dev/null || true' INT TERM
-    wait "$CLAUDE_PID"
-    exit $?
+    run_autonomous
 fi
 
 # ---- Interactive mode but no resume ----
