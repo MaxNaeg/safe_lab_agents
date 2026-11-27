@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-27
+
+### Security
+
+- **claude.ai connectors are switched off in Claude Code containers.** With
+  `copy-host-credentials`, the account's claude.ai connectors (e.g. Claude Docs,
+  Gmail, Drive) showed up as MCP servers next to `experiment-tools`, bypassing
+  the host MCP server and auto-logging. The container now sets
+  `ENABLE_CLAUDEAI_MCP_SERVERS=false` (also on resume of older sessions) and the
+  image ships a root-owned managed setting `disableClaudeAiConnectors`.
+
 ### Added
 
 - **Autonomous resume**: `agent resume --task "…"` (or `--task-file`) continues
@@ -21,6 +32,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `agent-version`) overrides the pin; the version is part of the image cache
   key.
 
+- **`--system-prompt` / `--system-prompt-file`** replace the built-in
+  "you are controlling a scientific experiment" prompt, e.g. for non-experiment
+  use. The directory description, `--no-web`, autonomous-mode and tool/auto-log
+  info are always kept. Kept on resume.
+
+- **`--auto-log-prompt full|minimal|none|<path>`** sets how much the agent is
+  told about the auto-log helpers (default `full`).
+
 ### Fixed
 
 - **Claude Code resume ignored the regenerated system prompt.** Since Claude
@@ -35,6 +54,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Autonomous runs now also pre-approve the experiment MCP server and the
   built-in shell/file tools (web tools unless `--no-web`) via `--allowedTools`,
   and the CLI prints a notice when Claude Code reports a non-bypass mode.
+- **Claude Code `effort` default.** Omitting `effort` was documented as `low`
+  but never applied; it now states that Claude Code's own default is used.
+- **Python tools info** only explains `Quantity` when a tool actually returns
+  one.
+- **HTML report** embeds each figure once (no duplicate data-URI link), with a
+  lightbox to enlarge it (#6).
+- **Windows-encoded prompt files.** `--task-file`, `--system-prompt-file` and
+  `--auto-log-prompt <path>` now accept UTF-8 with BOM and UTF-16 (what
+  PowerShell 5.1 `>` writes) instead of crashing; other encodings get a clear
+  "save it as UTF-8" error.
+- **Autonomous runs on Windows with redirected output** (`> run.log`, a
+  scheduled task, CI) crashed on the first ▶/✓ status line because redirected
+  stdout used cp1252. The CLI now switches non-UTF-8 stdout/stderr to UTF-8.
 
 ## [0.2.0] - 2026-07-24
 
@@ -106,5 +138,7 @@ end-to-end test harness. 79 commits, +7068/−1661 across 75 files since 0.1.0.
 
 - Initial release.
 
+[Unreleased]: https://github.com/MaxNaeg/safe_lab_agents/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/MaxNaeg/safe_lab_agents/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MaxNaeg/safe_lab_agents/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MaxNaeg/safe_lab_agents/releases/tag/v0.1.0

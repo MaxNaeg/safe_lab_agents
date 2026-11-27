@@ -218,9 +218,9 @@ def _run_cli_to_completion(
     # Unicode (the ▶ session marker, box-drawing banners, …), so the first such
     # write would raise UnicodeEncodeError and, in autonomous mode, kill the run
     # before the agent turn completes. PYTHONIOENCODING makes the child encode
-    # UTF-8; the matching encoding= below decodes it. A real terminal (a user
-    # running `agent start` directly) is never cp1252, so this only matters when
-    # output is piped, as here — hence it lives in the harness, not the CLI.
+    # UTF-8; the matching encoding= below decodes it. The CLI now also switches
+    # non-UTF-8 stdio to UTF-8 itself (cli._ensure_utf8_stdio); setting it here
+    # keeps the harness independent of that.
     child_env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     try:
         proc = subprocess.run(

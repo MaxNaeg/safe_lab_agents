@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "safe-lab-agents"
-version = "0.2.0"
+version = "0.3.0"
 description = "Safely run AI agents in Docker to control scientific experiments via MCP"
 readme = "README.md"
 license = {text = "MIT"}

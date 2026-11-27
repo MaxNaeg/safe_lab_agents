@@ -11,6 +11,7 @@ command line to skip prompts.
 from __future__ import annotations
 
 import atexit
+import codecs
 import json
 import logging
 import os
@@ -271,6 +272,31 @@ def _warn_on_runtime_engine_mismatch(
         )
 
 
+def _ensure_utf8_stdio() -> None:
+    """Make stdout/stderr UTF-8 when they are not already.
+
+    On Windows, a redirected or piped stdout (``> run.log``, a scheduled task,
+    CI) uses the legacy cp1252 codec, and the first non-ASCII character the CLI
+    prints (▶ ⚠ ✓ ✗, box drawing) raises ``UnicodeEncodeError`` — in autonomous
+    mode that aborts the run mid-task. A real console is already UTF-8, so this
+    only changes redirected output, which is then written as UTF-8.
+    ``PYTHONIOENCODING`` is exported (unless the user set it) so the spawned MCP
+    server subprocess gets the same.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = getattr(stream, "encoding", None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not encoding or reconfigure is None:
+            continue
+        try:
+            is_utf8 = codecs.lookup(encoding).name == "utf-8"
+        except LookupError:
+            is_utf8 = False
+        if not is_utf8:
+            reconfigure(encoding="utf-8", errors="replace")
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+
+
 app = typer.Typer(
     name="agent",
     help="Safely run AI agents in Docker to control scientific experiments via MCP.",
@@ -292,6 +318,7 @@ def _main(
     ),
 ) -> None:
     """Common options applied before any subcommand."""
+    _ensure_utf8_stdio()
     configure_logging(log_level)
     # Export so the spawned MCP server subprocess (fresh logging under `spawn`)
     # configures itself to the same level from its inherited environment.
@@ -1913,6 +1940,29 @@ def _write_system_prompt(config: SessionConfig, agent: BaseAgent) -> None:
     )
 
 
+def _read_user_text(path: Path, what: str) -> str:
+    """Read a user-supplied text file (task, system prompt, auto-log prompt).
+
+    Accepts UTF-8 with or without a BOM (Notepad's "UTF-8 with BOM") and UTF-16
+    with a BOM (what Windows PowerShell 5.1 ``>``/``Out-File`` writes); line
+    endings are normalised to ``\\n``. Any other encoding exits with a clear
+    message instead of a ``UnicodeDecodeError`` traceback.
+    """
+    data = path.read_bytes()
+    try:
+        if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+            text = data.decode("utf-16")
+        else:
+            text = data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        console.print(
+            f"[bold red]Could not read {what} {path}: it is not UTF-8 text. "
+            "Save it as UTF-8 and try again.[/bold red]"
+        )
+        raise typer.Exit(1)
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _resolve_task(task: Optional[str], task_file: Optional[Path]) -> Optional[str]:
     """Return the task from ``--task`` or the content of ``--task-file``.
 
@@ -1929,7 +1979,7 @@ def _resolve_task(task: Optional[str], task_file: Optional[Path]) -> Optional[st
     if not task_file.exists():
         console.print(f"[bold red]Task file not found: {task_file}[/bold red]")
         raise typer.Exit(1)
-    return task_file.read_text(encoding="utf-8").strip()
+    return _read_user_text(task_file, "task file").strip()
 
 
 def _resolve_system_prompt(
@@ -1952,7 +2002,7 @@ def _resolve_system_prompt(
                 f"[bold red]System prompt file not found: {system_prompt_file}[/bold red]"
             )
             raise typer.Exit(1)
-        system_prompt = system_prompt_file.read_text(encoding="utf-8")
+        system_prompt = _read_user_text(system_prompt_file, "system prompt file")
     if system_prompt is None:
         return None
     system_prompt = system_prompt.strip()
@@ -2091,7 +2141,7 @@ def _resolve_auto_log_prompt(setting: str) -> tuple[str, Optional[str]]:
             f"{presets} nor an existing file.[/bold red]"
         )
         raise typer.Exit(1)
-    text = path.read_text(encoding="utf-8")
+    text = _read_user_text(path, "auto-log prompt file")
     if not text.strip():
         console.print(
             f"[bold red]Auto-log prompt file {path} is empty "
