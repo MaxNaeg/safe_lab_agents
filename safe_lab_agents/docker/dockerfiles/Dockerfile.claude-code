@@ -78,6 +78,16 @@ COPY entrypoint.claude-code.sh /entrypoint.sh
 COPY firewall.sh /firewall.sh
 RUN chmod +x /entrypoint.sh /firewall.sh
 
+# ---- No claude.ai connectors ----
+# A full account login exposes the user's claude.ai connectors (Gmail, Drive,
+# Slack, …) as MCP servers. The agent must reach the outside world only through
+# the host's experiment-tools server, so turn them off. Root-owned managed
+# settings, which the 'agent' user cannot edit; the host also sets
+# ENABLE_CLAUDEAI_MCP_SERVERS=false (that also covers resumed older images).
+RUN mkdir -p /etc/claude-code \
+    && printf '{"disableClaudeAiConnectors": true}\n' > /etc/claude-code/managed-settings.json \
+    && chmod 644 /etc/claude-code/managed-settings.json
+
 # No USER directive: the container starts as root so the entrypoint can apply
 # the egress firewall (CAP_NET_ADMIN), then drops to 'agent' via setpriv.
 

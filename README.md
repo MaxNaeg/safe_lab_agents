@@ -529,7 +529,7 @@ None of these are required — Claude Code works without any `--agent-args`.
 Claude Code uses a Claude **subscription** (Pro/Max) — no API key is needed. The CLI resolves credentials in this order:
 
 1. **`oauth-token` agent arg** — if you pass `--agent-args oauth-token=sk-ant-oat…`, that token is injected directly (as `CLAUDE_CODE_OAUTH_TOKEN`) and the steps below are skipped. The token is marked secret and is **never written to session metadata**, so it must be re-supplied when you `resume` a session that relies on it. Generate one on any logged-in machine with `claude setup-token`.
-2. **Host credentials** — pass `copy-host-credentials` and, if the host running `safe-lab-agents` is logged into Claude Code, its credentials are copied into the container. This is **off by default**; without it the CLI falls through to the in-container login below.
+2. **Host credentials** — pass `copy-host-credentials` and, if the host running `safe-lab-agents` is logged into Claude Code, its credentials are copied into the container. This is **off by default**; without it the CLI falls through to the in-container login below. Note that this hands the container your full claude.ai login (claude.ai connectors are switched off in the container, but the token could still reach them); prefer `oauth-token` or the in-container login.
 3. **In-container login** — if the host is *not* logged in:
    - **Interactive mode:** just log in inside the container session as usual.
    - **Autonomous mode:** the CLI launches a one-time login first — it runs `claude setup-token` inside a throwaway container, prints a sign-in URL, you open it and paste the code back, and the resulting token is captured and used for the run. After that, the autonomous task starts automatically.

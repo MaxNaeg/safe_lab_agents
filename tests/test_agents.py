@@ -76,6 +76,21 @@ class TestClaudeCodeAgent:
         assert env["MODE"] == "autonomous"
         assert env["TASK_PROMPT"] == "Run experiment"
 
+    @pytest.mark.parametrize("task", [None, "Run experiment"])
+    def test_env_disables_claude_ai_connectors(self, tmp_path: Path, task) -> None:
+        """claude.ai connectors are switched off in every mode (and on resume,
+        which builds its env through the same method)."""
+        agent = get_agent("claude-code")
+        cfg = SessionConfig(
+            name="test",
+            tools_file=tmp_path / "tools.py",
+            workspace_dir=tmp_path / "ws",
+            task=task,
+            agent_args={"copy-host-credentials": True},
+        )
+        env = agent.get_environment_variables(cfg, mcp_port=8000)
+        assert env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
+
     def test_get_agent_args(self) -> None:
         """ClaudeCodeAgent declares effort, copy-host-credentials, dangerously-skip-permissions."""
         agent = get_agent("claude-code")

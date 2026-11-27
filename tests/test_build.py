@@ -103,6 +103,19 @@ def test_build_image_ships_firewall_script_in_context(monkeypatch) -> None:
     assert b"\r" not in seen["firewall_bytes"]
 
 
+def test_claude_code_image_disables_claude_ai_connectors() -> None:
+    """The image ships a managed setting that turns off claude.ai connectors."""
+    import json
+    from pathlib import Path
+
+    dockerfile = (
+        Path(build_mod.__file__).parent / "dockerfiles" / "Dockerfile.claude-code"
+    ).read_text()
+    m = re.search(r"printf '([^']*)' > /etc/claude-code/managed-settings\.json", dockerfile)
+    assert m, "managed-settings.json is not written in Dockerfile.claude-code"
+    assert json.loads(m.group(1).replace("\\n", "")) == {"disableClaudeAiConnectors": True}
+
+
 # ---- Agent version pinning -------------------------------------------------
 
 

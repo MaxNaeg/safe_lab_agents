@@ -67,10 +67,19 @@ class ClaudeCodeAgent(BaseAgent):
 
         Claude Code is paid via subscription — no API key is needed.
         Only the MCP port and session configuration are passed.
+
+        ``ENABLE_CLAUDEAI_MCP_SERVERS=false`` stops Claude Code from loading the
+        account's claude.ai connectors (Gmail, Drive, Slack, …). A full account
+        login (``copy-host-credentials``) would otherwise expose them next to
+        ``experiment-tools``, bypassing the host MCP server and auto-logging.
+        It is set here rather than in the image so it also reaches sessions
+        committed from older images on resume; the image adds the matching
+        ``disableClaudeAiConnectors`` managed setting as a second layer.
         """
         env: dict[str, str] = {
             "MCP_PORT": str(mcp_port),
             "MODE": "autonomous" if config.task else "interactive",
+            "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
         }
 
         if config.task:
